@@ -125,7 +125,7 @@ class ProviderManifests(private val directory: Path, private val onChanged: (Str
         private const val MESSAGE_LIMIT = 300
 
         /** The services whose manifest ships in the jar, as `providers/<service>.json`. */
-        val SHIPPED_NAMES = listOf("cw", "hallmark")
+        val SHIPPED_NAMES = listOf("cw", "freelivesports", "hallmark")
 
         private val json = Json { ignoreUnknownKeys = false }
 

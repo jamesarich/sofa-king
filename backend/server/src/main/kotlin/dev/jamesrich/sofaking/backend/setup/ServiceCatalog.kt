@@ -69,44 +69,49 @@ object ServiceCatalog {
             pattern = Regex("https?://[^\\s/]+"),
         )
 
-    private val coded: List<ServiceInfo> = listOf(
-        ServiceInfo(
+    private val coded: List<Pair<Int, ServiceInfo>> = listOf(
+        10 to ServiceInfo(
             "direct",
             "Broadcasters' own feeds",
             "Live news and public channels from CBS News, ARD, RTVE, Euronews and other broadcasters' own sites",
         ),
-        ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
-        ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),
-        ServiceInfo("vizio", "WatchFree+", "Vizio's free channels"),
-        ServiceInfo("lg", "LG Channels", "LG's free channels"),
-        ServiceInfo("pluto", "Pluto TV", "Hundreds of channels with a full guide"),
-        ServiceInfo("plex", "Plex free live TV", "Plex's free channels"),
-        ServiceInfo("roku", "The Roku Channel", "Roku's free channels, without the DRM ones"),
-        ServiceInfo("xumo", "Xumo Play", "Xumo's free channels"),
-        ServiceInfo("tubi", "Tubi", "Tubi's live channels"),
-        ServiceInfo("tcl", "TCL TV+", "TCL's free channels"),
-        ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
-        ServiceInfo("freelivesports", "FreeLiveSports.tv", "Free sports channels"),
-        ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
-        ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
-        ServiceInfo("mansa", "Mansa", "Mansa's free channels of Black culture"),
-        ServiceInfo("localnow", "Local Now", "Local news for one market, and national channels", listOf(dma, market)),
-        ServiceInfo(
+        20 to ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
+        30 to ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),
+        40 to ServiceInfo("vizio", "WatchFree+", "Vizio's free channels"),
+        50 to ServiceInfo("lg", "LG Channels", "LG's free channels"),
+        60 to ServiceInfo("pluto", "Pluto TV", "Hundreds of channels with a full guide"),
+        70 to ServiceInfo("plex", "Plex free live TV", "Plex's free channels"),
+        80 to ServiceInfo("roku", "The Roku Channel", "Roku's free channels, without the DRM ones"),
+        90 to ServiceInfo("xumo", "Xumo Play", "Xumo's free channels"),
+        100 to ServiceInfo("tubi", "Tubi", "Tubi's live channels"),
+        110 to ServiceInfo("tcl", "TCL TV+", "TCL's free channels"),
+        120 to ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
+        140 to ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
+        150 to ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
+        160 to ServiceInfo("mansa", "Mansa", "Mansa's free channels of Black culture"),
+        170 to
+            ServiceInfo(
+                "localnow",
+                "Local Now",
+                "Local news for one market, and national channels",
+                listOf(dma, market),
+            ),
+        180 to ServiceInfo(
             "pbs",
             "PBS member stations",
             "Your local PBS station and its Create and World channels",
             listOf(zip),
             startsOn = false,
         ),
-        ServiceInfo("ballysports", "Bally Sports", "Bally Sports' free channels"),
-        ServiceInfo("adultswim", "Adult Swim marathons", "Adult Swim's marathon streams"),
-        ServiceInfo(
+        190 to ServiceInfo("ballysports", "Bally Sports", "Bally Sports' free channels"),
+        200 to ServiceInfo("adultswim", "Adult Swim marathons", "Adult Swim's marathon streams"),
+        210 to ServiceInfo(
             "hdhomerun",
             "HDHomeRun tuner",
             "Your antenna's broadcast stations, from an HDHomeRun on the LAN",
             listOf(url),
         ),
-        ServiceInfo(
+        220 to ServiceInfo(
             "virtual",
             "Virtual channels",
             "Channels you schedule from your own libraries, on the Channels page's Virtual tab",
@@ -115,17 +120,16 @@ object ServiceCatalog {
     )
 
     /**
-     * The coded services at priorities 10, 20, 30... in list order, with each shipped manifest's catalog block among
-     * them by its `priority`; a tie goes to the coded service.
+     * The coded services at the priorities written beside them (10, 20, 30... by their place on the Sources page,
+     * which a service keeps when it becomes a manifest), with each shipped manifest's catalog block among them by its
+     * `priority`; a tie goes to the coded service.
      */
     val all: List<ServiceInfo> = (
-        coded.mapIndexed { index, info -> (index + 1) * PRIORITY_STEP to info } +
+        coded +
             ProviderManifests.shipped.values.mapNotNull { loaded ->
                 loaded.manifest.catalog?.let { it.priority to info(loaded.manifest.service, it) }
             }
         ).sortedBy { it.first }.map { it.second }
-
-    private const val PRIORITY_STEP = 10
 
     private fun info(service: String, catalog: ManifestCatalog) = ServiceInfo(
         service,

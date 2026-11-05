@@ -1,6 +1,6 @@
 # Provider manifests
 
-A provider manifest is a native provider written as data. A service that answers in JSON, or in a document that decodes to JSON, needs no Kotlin client: its requests, the mapping from its answers to channels and programs, and the way its streams resolve are one JSON file. The server ships some manifests in its jar and reads others from the data directory, so a service that changes its schema is fixed by editing a file, not by a release. The [providers](providers.md) page lists the services; `cw` and `hallmark` are manifests, and the other services are Kotlin clients.
+A provider manifest is a native provider written as data. A service that answers in JSON, or in a document that decodes to JSON, needs no Kotlin client: its requests, the mapping from its answers to channels and programs, and the way its streams resolve are one JSON file. The server ships some manifests in its jar and reads others from the data directory, so a service that changes its schema is fixed by editing a file, not by a release. The [providers](providers.md) page lists the services; every file under `providers/` in the jar is a manifest, and the other services are Kotlin clients.
 
 ## Where manifests load from
 
@@ -38,7 +38,7 @@ A manifest is a JSON object. Unknown keys are errors. `validate()` rejects an un
 | --- | --- | --- |
 | `label` | Required | The switch's name |
 | `carries` | Required | One sentence on what the service carries |
-| `priority` | `0` | Place in the starter policy's order. The Kotlin services count 10, 20, 30 in the order of `ServiceCatalog`; a tie goes to the Kotlin service |
+| `priority` | `0` | Place in the starter policy's order. The Kotlin services carry 10, 20, 30 in `ServiceCatalog`, the places they had on the Sources page; a tie goes to the Kotlin service |
 | `startsOn` | `true` | Whether a fresh server ticks it before anything is set; never when an option is required |
 | `options` | `[]` | Objects of `key`, `label`, `hint`, `required` and `pattern` (a regular expression) |
 
@@ -53,7 +53,7 @@ Each entry of `requests`:
 | `contentType` | `application/json` | Of the body |
 | `paging` | None | `start` (first `${page}`, default 1), `maxPages`, `count` and `size` (paths in the first answer; more pages follow while `count` exceeds `size`) and `defaultSize` |
 | `decode` | `[]` | Steps from the response body to JSON, in order |
-| `items` | `""` | Path of the array of items in the answer; empty for the whole answer |
+| `items` | `""` | Path of the array of items in the answer; empty for the whole answer. An answer that is itself an array is the items whatever the path says |
 | `optional` | `false` | A failure reads as no answer instead of failing the import |
 | `cacheSeconds` | `0` | How long the answer is shared; not for a request that uses `${channel...}` |
 
@@ -69,6 +69,7 @@ Decode steps are `base64`, `zlib`, `gzip`, `jsonArrayAfter:<key>` (the first arr
 | `map` | Required | `id` and `name` (required), `logo`, `group`, `number`, and `tags` (literal strings) |
 | `vars` | `{}` | Named values kept per channel, for `${channel.vars.NAME}` |
 | `join` | None | Looks up each channel in another request's items: `request`, `key` (path in the item), `on` (a template for the channel), `vars` and `set` (`logo`, `name`, `group` or `number`) to take from the match |
+| `sortBy` | None | A path to a number in the item; channels list in ascending order of it, items without one last |
 | `distinctBy` | None | `id` keeps the first channel of an id |
 | `requireNonEmpty` | `false` | An empty list fails the import as a service fault |
 
@@ -132,4 +133,4 @@ Values are not URL-encoded.
 
 ## Write one
 
-Copy `cw.json` or `hallmark.json` from `server/src/main/resources/providers/` and change what the service returns. Put the service's sanitized answers under `server/src/test/resources/providers/`, test it in `ManifestClientTest` against `ProviderFixture`, and check it against the live service with `scripts/provider-smoke.py`. A shipped manifest also goes in `SHIPPED_NAMES` in `ProviderManifests`, and `ProviderManifestsTest` checks that it validates and that the service is in the configuration table of [providers](providers.md).
+Copy `cw.json` or `hallmark.json` from `server/src/main/resources/providers/` and change what the service returns. Put the service's sanitized answers under `server/src/test/resources/providers/`, test it in a `manifest/<Service>ManifestTest` against `ProviderFixture` (`manifestClient` in `ManifestTestSupport` builds the client), and check it against the live service with `scripts/provider-smoke.py`. A shipped manifest also goes in `SHIPPED_NAMES` in `ProviderManifests`, and `ProviderManifestsTest` checks that it validates and that the service is in the configuration table of [providers](providers.md).

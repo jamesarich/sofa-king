@@ -87,7 +87,6 @@ object ServiceCatalog {
         120 to ServiceInfo("stirr", "STIRR", "Sinclair's local and national channels"),
         140 to ServiceInfo("zeam", "Zeam", "Local news and free channels from Zeam"),
         150 to ServiceInfo("ognetwork", "OG Network", "OG Network's free channels"),
-        160 to ServiceInfo("mansa", "Mansa", "Mansa's free channels of Black culture"),
         170 to
             ServiceInfo(
                 "localnow",

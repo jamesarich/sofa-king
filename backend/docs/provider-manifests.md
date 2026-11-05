@@ -86,7 +86,8 @@ A field reads a value from an item. A string is a `path`; an object combines the
 | `http` | Keeps only an HTTP or HTTPS URL |
 | `dropIf` | Reads as nothing when equal to this, ignoring case |
 | `unlessEquals` | Reads as nothing when equal to the value at this path |
-| `as` | `epochSeconds` or `iso`: reads a time |
+| `as` | `epochSeconds`, `epochMillis` or `iso`: reads a time |
+| `nonUrl` | `path` names an array: the first text in it that does not start with `http` |
 | `sentenceCase` | Lowercases, then capitalizes the first letter |
 | `usRating` | Reads a content rating and its system |
 
@@ -97,6 +98,8 @@ A field reads a value from an item. A string is a `path`; an object combines the
 | `mode` | `inline`: each channel item carries its programs at `programs`. `perChannel`: `request` runs once per wanted channel. `keyed`: `request` runs once and each item names its channel |
 | `requireVar` | A channel variable that must be set for a wanted channel, else the guide fails as a service fault |
 | `key`, `keyVar` | `keyed` only: the path in a program item that names its channel, matched to the channel variable `keyVar` (to the channel id when there is none) |
+| `fallbackKey` | `keyed` only: for an item whose `key` no channel has, the path of a name matched to the channel names with case and punctuation ignored |
+| `pastHours` | `keyed` only: a program that ended more than this many hours ago is dropped |
 | `map` | `title`, `start`, `end` (required; `end` after `start`), `description`, `subTitle`, `icon`, `category`, `rating`, `season` and `episode` (positive numbers become episode numbers), as fields over a program item |
 
 The guide lists every channel and holds programs only for the channels the lineup wants.

@@ -260,7 +260,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "direct" -> DirectClient(context)
             "zeam" -> ZeamClient(context)
             "ognetwork" -> OgNetworkClient(context)
-            "mansa" -> MansaClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

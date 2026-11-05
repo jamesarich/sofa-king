@@ -1,21 +1,24 @@
 package dev.jamesrich.sofaking.backend.providers.manifest
 
 import dev.jamesrich.sofaking.backend.catalog.ProgramRating
+import dev.jamesrich.sofaking.backend.providers.array
 import dev.jamesrich.sofaking.backend.providers.httpOrNull
 import dev.jamesrich.sofaking.backend.providers.instantOrNull
 import dev.jamesrich.sofaking.backend.providers.long
+import dev.jamesrich.sofaking.backend.providers.string
 import dev.jamesrich.sofaking.backend.providers.truthy
 import kotlinx.serialization.json.JsonElement
 import java.time.Instant
 import dev.jamesrich.sofaking.backend.providers.usRating as ratingOf
 
-internal val FIELD_TYPES = setOf("epochSeconds", "iso")
+internal val FIELD_TYPES = setOf("epochSeconds", "epochMillis", "iso")
 internal val FILTER_OPS = setOf("eq", "neq", "truthy", "falsy", "http", "nonEmpty", "startsWith")
 
 /** The value [spec] reads from [item]: text, or an [Instant] or [ProgramRating] when it says `as` or `usRating`. */
 internal fun FieldSpec.read(item: JsonElement?): Any? {
     var text: String? = when {
         value != null -> value
+        path != null && nonUrl -> item.at(path).array.firstNotNullOfOrNull { it.string?.takeUnless(::isUrl) }
         path != null -> item.textAt(path)
         firstOf != null -> firstOf.firstNotNullOfOrNull { item.textAt(it) }
         firstHttp != null -> firstHttp.firstNotNullOfOrNull { httpOrNull(item.textAt(it)) }
@@ -31,6 +34,7 @@ internal fun FieldSpec.read(item: JsonElement?): Any? {
     return when {
         text == null -> null
         asType == "epochSeconds" -> text.toLongOrNull()?.let(Instant::ofEpochSecond)
+        asType == "epochMillis" -> text.toLongOrNull()?.let(Instant::ofEpochMilli)
         asType == "iso" -> instantOrNull(text)
         usRating -> ratingOf(text)
         else -> text
@@ -58,6 +62,8 @@ internal fun ManifestFilter.passes(item: JsonElement?): Boolean {
         else -> false
     }
 }
+
+private fun isUrl(text: String) = text.startsWith("http")
 
 /** JSON `true`, the text "true" or a number other than zero. */
 private fun JsonElement?.isSet(): Boolean = truthy || (long ?: 0L) != 0L

@@ -1,5 +1,11 @@
-package dev.jamesrich.sofaking.backend.providers
+package dev.jamesrich.sofaking.backend.providers.manifest
 
+import dev.jamesrich.sofaking.backend.providers.Canned
+import dev.jamesrich.sofaking.backend.providers.ProviderContext
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ProviderFixture
+import dev.jamesrich.sofaking.backend.providers.ProviderScope
+import dev.jamesrich.sofaking.backend.providers.providerTest
 import dev.jamesrich.sofaking.backend.store.providerState
 import java.time.Duration
 import kotlin.test.Test
@@ -8,15 +14,14 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class MansaClientTest {
-    private fun ProviderScope.mansa(): MansaClient {
+class MansaManifestTest {
+    private fun ProviderScope.mansa(): ManifestClient {
         fixture.json("/playlist", ProviderFixture.resource("mansa-playlist.json"))
         fixture.json("/epgs", ProviderFixture.resource("mansa-epgs.json"))
-        return MansaClient(
-            context(
-                "mansa",
-                mapOf("playlistUrl" to "${fixture.base}/playlist", "guideUrl" to "${fixture.base}/epgs"),
-            ),
+        return manifestClient(
+            "mansa",
+            "mansa",
+            mapOf("playlistUrl" to "${fixture.base}/playlist", "guideUrl" to "${fixture.base}/epgs"),
         )
     }
 
@@ -61,7 +66,7 @@ class MansaClientTest {
         providerTest("sofa-mansa-") {
             val client = mansa()
             val wanted = setOf("1106544567159898165", "-134915139385471409")
-            val guide = client.guide(wanted)
+            val guide = checkNotNull(client.guide(wanted))
             assertEquals(4, guide.channels.size)
             assertEquals(
                 listOf("Current Movie", "Next Movie", "Manifest Hour"),
@@ -82,7 +87,7 @@ class MansaClientTest {
 
     @Test fun `guide fetches nothing when no listed channel is wanted`() = providerTest("sofa-mansa-") {
         val client = mansa()
-        assertTrue(client.guide(setOf("unknown")).programs.isEmpty())
+        assertTrue(checkNotNull(client.guide(setOf("unknown"))).programs.isEmpty())
         assertEquals(0, fixture.hits("/epgs"))
     }
 

@@ -239,6 +239,24 @@ Info held, or Stream info on the bar, opens the stream card: the stream's audio 
 
 Pause shows how many seconds the picture is behind live and that resuming after 30 seconds paused rejoins live; when it does, "Live" shows for a moment. A failed stream's card counts down to the next automatic reconnect, and a channel the server has no working source for says so.
 
+### Web player keys
+
+In the web app's live player, with the picture focused:
+
+| Key | Does |
+| --- | --- |
+| Up / Down | The channel above / below in the guide, inside the guide's filter; a run of presses tunes once, 0.4 seconds after the last |
+| Page Up / Page Down | The next higher / lower channel number |
+| Digits | Enter a channel number; Enter or a 1.5-second pause tunes it, and a number no channel has reads "No channel N" |
+| L | Return to the previously watched channel |
+| + (or =) / - | Volume up / down by 5 |
+| M | Mute and unmute |
+| C | Toggle captions |
+| F | Full screen |
+| Space | Pause and resume |
+
+Each zap shows a banner with the channel, the program on now with its hours and the program next, which fades after 4 seconds. Left and Right move focus between the buttons, and Up and Down move it too while a button has focus. "Reconnecting" and "Press Enter to play" show over the picture whether or not the buttons are showing. In a text field, Up, Down and Escape step out of the field.
+
 ## Links
 
 The app opens `sofaking://` links on Android, Android TV, iOS and Apple TV, so a home automation, a shortcut or another app can start something:

@@ -136,7 +136,58 @@ body.playing .page { padding: 0; }
 }
 .player:hover .controls, .controls:focus-within { opacity: 1; }
 .controls .title { font-weight: 600; flex: 1; }
-.controls .status { margin: 0; }
+
+.player-status {
+    position: absolute;
+    left: 50%;
+    bottom: 64px;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: #000c;
+    max-width: 90%;
+    text-align: center;
+}
+.player-status[hidden] { display: none; }
+
+.channel-banner {
+    position: absolute;
+    left: 24px;
+    bottom: 24px;
+    max-width: min(70ch, 90%);
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: #000c;
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+}
+.channel-banner.shown { opacity: 1; }
+.channel-banner p { margin: 0; }
+.banner-heading { font-size: 22px; font-weight: 700; }
+.banner-now { margin-top: 4px; }
+.banner-next { color: var(--dim); }
+.banner-now:empty, .banner-next:empty { display: none; }
+
+.player-toast {
+    position: absolute;
+    top: 64px;
+    left: 16px;
+    margin: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: #000c;
+    font-size: 20px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.player-toast.shown { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .channel-banner, .player-toast { transition: none; }
+}
 
 .break {
     position: absolute;

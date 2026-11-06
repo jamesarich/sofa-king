@@ -13,7 +13,7 @@ A change to playback, focus or the remote needs a walk on a device. Threads run 
 
 1. Copy the shape of an existing flow (`app/maestro/guide.yaml`, `library_player_keys.yaml`, `library_up_next.yaml`): remote keys (`pressKey: Remote Dpad Center`, `Back`), elements by test tag (`id: "player"`) or text, `extendedWaitUntil` with a timeout for anything that loads. `app/scripts/tv-monkey.py` runs the flows one after another in one app session, so a flow starts where the one before it left the app; say in its header comment where it starts and ends.
 2. Push; the workflow also runs on pull requests that change `app/maestro/**`, so the pull request shows the flow passing. Read its artifact (screenshots and logcat) if it fails.
-3. Remove the check's line from the owed list once the flow is green.
+3. Keep the flow once it is green; it is the check from then on.
 
 Use a JVM screen test in `ui`'s `jvmTest` instead when the behavior is a focus or key decision; it runs on every pull request.
 

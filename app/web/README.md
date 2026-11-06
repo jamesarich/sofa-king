@@ -1,6 +1,6 @@
 # Sofa King web client
 
-Plain TypeScript and hls.js, bundled by esbuild, on `core`'s JS library (`SofaKingWeb` in `core/src/jsMain`). The server serves the build at `/app2/`.
+Plain TypeScript and hls.js, bundled by esbuild, on `core`'s JS library (`SofaKingWeb` in `core/src/jsMain`). The server serves the build at `/app/`.
 
 ```sh
 (cd .. && ./gradlew :core:jsBrowserProductionLibraryDistribution)

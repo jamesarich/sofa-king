@@ -32,7 +32,7 @@ kotlin {
     watchosSimulatorArm64()
     linuxX64()
     linuxArm64()
-    // Tests run on Node; browsers get the same klibs through the ui module's web apps. Mocha's 2-second default failed
+    // Tests run on Node; the browser app in app/web imports the js target's library build. Mocha's 2-second default failed
     // a 90 ms test on a busy CI runner, where the first logged stack trace waits for its source maps.
     // The `web` app in app/web imports the js target as an ES module library (`SofaKingWeb`, exported in jsMain); its
     // tests run on Node, so the browser test task stays off.

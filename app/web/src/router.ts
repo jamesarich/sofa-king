@@ -1,4 +1,4 @@
-// Pages by hash, since the server serves one file under /app2/: #/guide, #/watch/ID, #/library, #/library/ID,
+// Pages by hash, since the server serves one file under /app/: #/guide, #/watch/ID, #/library, #/library/ID,
 // #/item/ID, #/play/ID, #/settings.
 
 export type Route =

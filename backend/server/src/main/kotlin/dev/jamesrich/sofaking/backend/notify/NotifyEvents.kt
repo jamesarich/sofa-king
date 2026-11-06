@@ -16,11 +16,15 @@ object NotifyEvent {
     const val RECORDING_FINISHED = "recording.finished"
     const val RECORDING_FAILED = "recording.failed"
     const val RECORDING_CONFLICT = EventType.RECORDING_CONFLICT
+    const val RECORDING_PREEMPTED = "recording.preempted"
+    const val RECORDING_CULLED = "recording.culled"
     const val SOURCE_QUARANTINED = EventType.SOURCE_QUARANTINED
     const val SOURCE_RECOVERED = EventType.SOURCE_RECOVERED
     const val DISK_LOW = EventType.DISK_LOW
     const val UPDATE_AVAILABLE = EventType.UPDATE_AVAILABLE
     const val LIBRARY_ADDED = EventType.LIBRARY_ADDED
+    const val JOB_FAILED = "job.failed"
+    const val BACKUP_STALE = "backup.stale"
     const val ATTENTION_RAISED = "attention.raised"
     const val ATTENTION_CLEARED = "attention.cleared"
 
@@ -34,11 +38,15 @@ object NotifyEvent {
         RECORDING_FINISHED to "A recording finishes",
         RECORDING_FAILED to "A recording fails or is missed",
         RECORDING_CONFLICT to "Recordings conflict for a tuner slot",
+        RECORDING_PREEMPTED to "A recording takes a viewer's slot",
+        RECORDING_CULLED to "A recording is deleted to free space or by retention",
         SOURCE_QUARANTINED to "A source is quarantined",
         SOURCE_RECOVERED to "A quarantined source recovers",
         DISK_LOW to "The recordings disk runs low",
         UPDATE_AVAILABLE to "An update is published",
         LIBRARY_ADDED to "A scan adds library files",
+        JOB_FAILED to "A background job starts failing",
+        BACKUP_STALE to "No database backup in three days",
         ATTENTION_RAISED to "An item needs attention on Home",
         ATTENTION_CLEARED to "An attention item clears",
     )
@@ -76,16 +84,12 @@ internal fun notificationsOf(event: ServerEvent): List<Notification> {
     return when (event.type) {
         EventType.RECORDING_STATE -> listOfNotNull(recordingNote(event))
 
-        EventType.RECORDING_CONFLICT ->
-            listOf(
-                note(
-                    NotifyEvent.RECORDING_CONFLICT,
-                    "Recording conflict",
-                    "${recordingName(data)} has no free slot at its time",
-                    NotifyTone.WARNING,
-                    "/admin/recordings",
-                ),
-            )
+        NotifyEvent.RECORDING_CONFLICT,
+        NotifyEvent.RECORDING_PREEMPTED,
+        NotifyEvent.RECORDING_CULLED,
+        NotifyEvent.JOB_FAILED,
+        NotifyEvent.BACKUP_STALE,
+        -> listOf(operationNote(event))
 
         EventType.SOURCE_QUARANTINED ->
             listOf(
@@ -138,6 +142,60 @@ internal fun notificationsOf(event: ServerEvent): List<Notification> {
         else -> emptyList()
     }
 }
+
+/**
+ * The notification for a `recording.conflict`, `recording.preempted`, `recording.culled`, `job.failed` or
+ * `backup.stale` event.
+ */
+private fun operationNote(event: ServerEvent): Notification {
+    val data = event.data
+    val note = when (event.type) {
+        NotifyEvent.RECORDING_CONFLICT ->
+            Note(
+                "Recording conflict",
+                "${recordingName(data)} has no free slot at its time",
+                NotifyTone.WARNING,
+                "/admin/recordings",
+            )
+
+        NotifyEvent.RECORDING_PREEMPTED ->
+            Note(
+                "Recording took a viewer's slot",
+                "A recording on ${data.text("forChannelName") ?: "a channel"} replaced the session watching " +
+                    (data.text("channelName") ?: "a channel"),
+                NotifyTone.WARNING,
+                "/admin/recordings",
+            )
+
+        NotifyEvent.RECORDING_CULLED ->
+            Note(
+                "Recording deleted",
+                recordingName(data) + data.text("reason")?.let { " ($it)" }.orEmpty(),
+                NotifyTone.WARNING,
+                "/admin/recordings",
+            )
+
+        NotifyEvent.JOB_FAILED ->
+            Note(
+                "Job failed",
+                (data.text("label") ?: data.text("id") ?: "A job") + data.text("note")?.let { ": $it" }.orEmpty(),
+                NotifyTone.FAILURE,
+                "/admin/system/jobs",
+            )
+
+        else ->
+            Note(
+                "No recent backup",
+                data.text("lastBackupAt")?.let { "The newest database backup is from $it" }
+                    ?: "There is no database backup",
+                NotifyTone.FAILURE,
+                "/admin/system/backup",
+            )
+    }
+    return Notification(event.type, event.at, note.title, note.message, note.tone, data, note.path)
+}
+
+private data class Note(val title: String, val message: String, val tone: NotifyTone, val path: String)
 
 private fun recordingNote(event: ServerEvent): Notification? {
     val data = event.data

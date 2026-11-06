@@ -1,6 +1,6 @@
 # Sofa King app
 
-The Sofa King app is the front of a home media center: live TV with a program guide, recordings and your own movies and shows, all from your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no subscription.
+The Sofa King app is the front of a home media center: live TV with a program guide, recordings and your own movies and shows, all from your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same Compose app runs on Android phones and on Linux, macOS and Windows desktops. SwiftUI apps run on iPhone, iPad and Apple TV, and a smaller web client plays live TV and the library in a browser. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no subscription.
 
 One remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **DVR** for what the server recorded, each of the last two shown when the server keeps it, and **Settings** for the server, playback and the device.
 
@@ -16,6 +16,8 @@ One remote, Sofa King simple: **Live** for the guide and the channels, **Library
 - **Live captions.** CEA-608 and CEA-708 captions, with timing you can set per channel on Android ([captions](docs/usage.md#captions)).
 - **Light on the server.** One playback session at a time; a failed stream reconnects with backoff.
 
+These describe the Compose and SwiftUI apps. The web client has the guide as a list, the live player, the library and Settings, and [usage](docs/usage.md#web) lists what it lacks.
+
 ## Platforms
 
 | Platform | Runs on | Streams |
@@ -24,7 +26,7 @@ One remote, Sofa King simple: **Live** for the guide and the channels, **Library
 | Desktop | Linux, macOS and Windows, with [VLC](https://www.videolan.org/vlc/) 3 installed | MPEG-TS and HLS |
 | iPhone, iPad | iOS 17 or later, built from source | HLS |
 | Apple TV | tvOS 17 or later, as a SwiftUI app on the same data layer, built from source | HLS |
-| Web | Chrome, Edge, Firefox and Safari, served as [getting started](docs/getting-started.md#web) describes | HLS, through hls.js (the browser's own HLS on Safari) |
+| Web | Chrome, Edge, Firefox and Safari, served as [getting started](docs/getting-started.md#web) describes | HLS, through hls.js (the browser's own HLS on Safari); the guide as a list, the live player, the library and Settings |
 
 Every platform needs a Sofa King server it can reach over the network.
 
@@ -42,7 +44,7 @@ The [documentation index](docs/README.md) lists every page. [CONTRIBUTING.md](..
 
 ## Limitations
 
-- The web app does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
+- The web app is a smaller client: no program grid or preview, recordings, multiview, channel keys, volume or parental controls ([web](docs/usage.md#web)). It does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
 - iOS, Apple TV and the web play MPEG-TS channels as the HLS the server packages, so their first picture takes a few seconds longer; Android and desktops play MPEG-TS directly. Library files and recordings play on every platform, since the server converts what a player cannot take.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - Only music plays in the background ([music](docs/usage.md#music)). On an Android phone or tablet a video player shrinks into picture-in-picture when the app leaves the screen; elsewhere video stops, and a library item or recording resumes where it stopped.

@@ -13,28 +13,35 @@ class ExternalSessions internal constructor(
     private val clock: Clock,
     private val sources: SourceChoice,
 ) {
-    /** A new session on [channelId] for the player at [client]; [shareable] false keeps [joinable] from sharing it. */
-    suspend fun open(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession =
-        table.mutex.withLock {
-            table.reap()
-            val offering = sources.select(channelId)
-            table.makeRoom()
-            val id = UUID.randomUUID().toString()
-            val now = clock.instant()
-            val session =
-                LiveSession(
-                    id,
-                    OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"),
-                    offering,
-                    now.plus(SessionManager.EXTERNAL_IDLE),
-                    external = true,
-                    shareable = shareable,
-                    startedAt = now,
-                    client = client,
-                )
-            table.add(session)
-            session.descriptor(now)
-        }
+    /**
+     * A new session on [channelId] for the player at [client]; [shareable] false keeps [joinable] from sharing it.
+     * With [preempt], set for a recording, a full pool gives up the stalest app session that is watching.
+     */
+    suspend fun open(
+        channelId: String,
+        client: String? = null,
+        shareable: Boolean = true,
+        preempt: Boolean = false,
+    ): PlaybackSession = table.mutex.withLock {
+        table.reap()
+        val offering = sources.select(channelId)
+        table.makeRoom(channelId.takeIf { preempt })
+        val id = UUID.randomUUID().toString()
+        val now = clock.instant()
+        val session =
+            LiveSession(
+                id,
+                OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"),
+                offering,
+                now.plus(SessionManager.EXTERNAL_IDLE),
+                external = true,
+                shareable = shareable,
+                startedAt = now,
+                client = client,
+            )
+        table.add(session)
+        session.descriptor(now)
+    }
 
     /**
      * A shareable HLS session already playing [channelId], for a second player to share. A TS root replaces its

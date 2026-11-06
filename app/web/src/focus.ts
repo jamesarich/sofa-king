@@ -99,6 +99,14 @@ function typing(target: EventTarget | null): boolean {
     return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 }
 
+const TEXT_INPUTS = new Set(['', 'text', 'search', 'url', 'tel', 'email', 'password']);
+
+/** True when a field of [type] needs [key] for itself: every key but Up and Down in a one-line text field. */
+export function inputKeepsKey(key: string, type: string): boolean {
+    if (key !== 'ArrowUp' && key !== 'ArrowDown') return true;
+    return !TEXT_INPUTS.has(type);
+}
+
 export function installKeys(root: HTMLElement, back: () => void): void {
     document.addEventListener('keydown', (event) => {
         if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -106,9 +114,18 @@ export function installKeys(root: HTMLElement, back: () => void): void {
             event.preventDefault();
             return;
         }
-        if (event.key === 'Escape' || (event.key === 'Backspace' && !typing(event.target))) {
-            if (typing(event.target)) (event.target as HTMLElement).blur();
-            else back();
+        if (typing(event.target)) {
+            const field = event.target as HTMLInputElement | HTMLTextAreaElement;
+            const leaves = event.key === 'Escape' || !inputKeepsKey(event.key, field.type);
+            if (!leaves) return;
+            // Escape and Up/Down step out of the field to the control nearest below or above it, as the TV ladder does.
+            const direction: Direction = event.key === 'ArrowUp' ? 'up' : 'down';
+            if (!moveFocus(root, direction)) field.blur();
+            event.preventDefault();
+            return;
+        }
+        if (event.key === 'Escape' || event.key === 'Backspace') {
+            back();
             event.preventDefault();
             return;
         }

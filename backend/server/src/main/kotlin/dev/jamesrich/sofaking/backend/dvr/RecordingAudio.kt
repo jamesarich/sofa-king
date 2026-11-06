@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.AUDIO_RATE
 import dev.jamesrich.sofaking.backend.playback.LOUDNESS_WINDOW_MS
 import dev.jamesrich.sofaking.backend.playback.SILENT_DB
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
@@ -57,7 +58,8 @@ class RecordingAudio(private val ffmpeg: String, private val timeout: Duration =
 
     private suspend fun <T : Any> run(file: Path, format: List<String>, read: (java.io.InputStream) -> T): T? {
         val command = (if (Files.isExecutable(Path.of(NICE))) listOf(NICE, "-n", "10") else emptyList()) +
-            listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-i", file.toString()) +
+            listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") +
+            FFMPEG_LOCAL_PROTOCOL_WHITELIST + listOf("-i", file.toString()) +
             listOf("-map", "0:a:0", "-ac", "1", "-ar", AUDIO_RATE.toString()) + format + "pipe:1"
         val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         try {

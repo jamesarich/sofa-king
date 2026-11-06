@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideMapping
@@ -17,9 +18,12 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -215,6 +219,54 @@ class GuideServiceTest {
                 }
             }
         } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test fun `a guide that keeps trickling bytes past the download limit fails the import`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guides-slow-")
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val executor = Executors.newCachedThreadPool()
+        server.executor = executor
+        server.createContext("/slow.xml") { exchange ->
+            exchange.sendResponseHeaders(200, 0)
+            runCatching {
+                exchange.responseBody.use { out ->
+                    out.write("""<?xml version="1.0"?><tv>""".toByteArray())
+                    // One more byte every 50 ms for 20 s, long past the limit but inside the socket's silence limit.
+                    repeat(400) {
+                        out.write(' '.code)
+                        out.flush()
+                        Thread.sleep(50)
+                    }
+                }
+            }
+        }
+        server.start()
+        try {
+            HttpClient(CIO) { followRedirects = false }.use { http ->
+                openStore(dir).use { store ->
+                    val config = GuideConfig("slow", "http://127.0.0.1:${server.address.port}/slow.xml")
+                    val guides = GuideService(
+                        listOf(config),
+                        store,
+                        http,
+                        MutableClock(),
+                        UpstreamPolicy(allowLoopback = true),
+                        downloadLimit = Duration.ofMillis(500),
+                    ) { emptyMap() }
+                    val started = System.nanoTime()
+                    guides.refresh(config)
+                    val tookMs = (System.nanoTime() - started) / 1_000_000
+                    val status = guides.statuses.single()
+                    assertEquals("IMPORT_FAILED", status.errorCode)
+                    assertEquals("Guide download exceeded its time limit", status.error)
+                    assertTrue(tookMs < 10_000, "the import stopped after $tookMs ms, not when the server ended")
+                }
+            }
+        } finally {
+            server.stop(0)
+            executor.shutdownNow()
             dir.toFile().deleteRecursively()
         }
     }

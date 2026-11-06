@@ -61,7 +61,7 @@ On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.
 
 ### Web
 
-The Sofa King server serves the web app: open `http://SERVER_HOST:9193/app/` in a browser, or the server's address alone. Settings fills in the page's origin as the server address, so pair as [connect to the server](#3-connect-to-the-server) describes, or choose Open the web app on the admin portal's [Devices page](../../backend/docs/admin.md#devices), which opens it already paired. This copy comes with the server and updates when it does. It plays through hls.js, so it plays in Firefox as well as Chrome, Edge and Safari.
+The Sofa King server serves the web app: open `http://SERVER_HOST:9193/app/` in a browser, or the server's address alone. In Settings, leave the address empty and select Pair with a pairing code to pair with the server that served the page, or enter the address and token as [connect to the server](#3-connect-to-the-server) describes, or choose Open the web app on the admin portal's [Devices page](../../backend/docs/admin.md#devices), which opens it already paired. This copy comes with the server and updates when it does. It plays through hls.js, so it plays in Firefox as well as Chrome, Edge and Safari. It is a smaller client than the apps: [web](usage.md#web) lists what it has and what it does not.
 
 To host the files elsewhere (`sofa-king-snapshot-web.zip`), see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app), which covers the reverse proxy, CORS and HTTPS. The browser saves the address in localStorage for the page's origin, so each origin keeps its own settings. The web app plays HLS channels only.
 
@@ -75,7 +75,7 @@ The first start opens on Connect to your Sofa King server with the header's Sett
 
 - On a TV, enter the Server address (for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS) and the six digits under Pairing code, then select Pair. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, iPhone and iPad, desktops and Apple TV).
 - On an Android phone, an iPhone or an iPad with the app installed, scan the QR code on that page with the camera.
-- The web app fills in its page's own origin, which is right behind a proxy, as [web](#web) describes.
+- The web app pairs with the server that served the page when its address is left empty, which is right behind a proxy, as [web](#web) describes.
 
 The app stores the token the server hands out. If the app already uses another server, it asks before switching ([links](usage.md#links)).
 
@@ -85,8 +85,8 @@ The guide opens and fills in: channels first, then their programs.
 
 ## 4. Watch a channel
 
-Move through the guide with the D-pad or the arrow keys. The focused channel plays in a muted preview and opens full screen after a pause ([timing](usage.md#preview)). Press OK to open it at once.
+Move through the guide with the D-pad or the arrow keys. The focused channel plays in a muted preview and opens full screen after a pause ([timing](usage.md#preview)). Press OK to open it at once. The web app has no preview: select a channel in the list.
 
-In the player, Up and Down change channels in the direction they move the guide and Back returns to the guide. The next start opens the channel you last watched.
+In the player, Up and Down change channels in the direction they move the guide and Back returns to the guide. The next start opens the channel you last watched. The web app has no channel up and down and always starts on the guide; Escape returns to it.
 
 [Using Sofa King](usage.md) has every control, the library, recordings, captions and the settings. [Troubleshooting](troubleshooting.md) covers a guide that stays empty or a channel that does not play.

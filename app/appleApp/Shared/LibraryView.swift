@@ -64,10 +64,8 @@ struct LibraryHomeView: View {
                 shelves(ready.home)
             }
         case let failed as LibraryHomeStateFailed:
-            VStack(spacing: 32) {
-                Text(strings.libraryLoadFailed).font(.title2)
-                Text(failed.message).foregroundStyle(.secondary)
-                Button(strings.retry) { model.core.refreshLibrary() }
+            LoadFailureView(headline: strings.libraryLoadFailed, message: failed.message) {
+                model.core.refreshLibrary()
             }
         case is LibraryHomeStateUnavailable:
             ContentUnavailableView(

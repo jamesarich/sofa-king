@@ -76,7 +76,7 @@ Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monit
 
 ## Upgrade and rollback
 
-A host that runs the [updater](deploy.md#update-automatically) does all of this itself. To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then pull and start the new version, from the Compose directory:
+A host that runs the [updater](deploy.md#update-automatically) does all of this itself. It installs only an image whose signature and attestation verify (when the host has the tools), never while a recording runs or is about to start, and rolls back to the previous image and the backup when the new container is unhealthy or cannot open a playback session. To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then pull and start the new version, from the Compose directory:
 
 ```sh
 docker tag "$(docker inspect --format '{{.Image}}' sofa-king-backend)" sofa-king-backend:previous

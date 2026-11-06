@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.events.EventType
 import dev.jamesrich.sofaking.backend.events.ServerEvents
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.recordingRules
 import dev.jamesrich.sofaking.backend.store.recordings
@@ -13,6 +14,35 @@ import java.util.Locale
 /** Publishes [recording]'s new state as a `recording.state` event, when there is anywhere to publish it. */
 internal fun ServerEvents?.recordingChanged(recording: StoredRecording) {
     this?.publish(EventType.RECORDING_STATE, recording.eventData())
+}
+
+/** Publishes `recording.culled` for [recording], deleted for [reason] (`KEEP`, `AGE` or `SPACE`), with its fields. */
+internal fun ServerEvents?.recordingCulled(recording: StoredRecording, reason: String) {
+    this?.publish(
+        NotifyEvent.RECORDING_CULLED,
+        buildJsonObject {
+            recording.eventData().forEach { (key, value) -> put(key, value) }
+            put("reason", reason)
+        },
+    )
+}
+
+/** Publishes `recording.preempted`: a recording on [forChannelId] took the slot of a session watching [channelId]. */
+internal fun ServerEvents?.recordingPreempted(
+    channelId: String,
+    channelName: String?,
+    forChannelId: String,
+    forChannelName: String?,
+) {
+    this?.publish(
+        NotifyEvent.RECORDING_PREEMPTED,
+        buildJsonObject {
+            put("channelId", channelId)
+            put("channelName", channelName)
+            put("forChannelId", forChannelId)
+            put("forChannelName", forChannelName)
+        },
+    )
 }
 
 private fun StoredRecording.eventData(): JsonObject = buildJsonObject {

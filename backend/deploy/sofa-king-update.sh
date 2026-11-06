@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Pulls the published image and swaps it in when it differs from the running one. The database is backed up first;
-# when the new container is not healthy in time, the backup and the previous image are put back and that image is
-# not tried again. Every run writes what it did to update-status.json in the config folder, which the admin portal's
+# Pulls the published image and swaps it in when it differs from the running one. The image's signature and build
+# attestation are checked first, and nothing is swapped while a recording runs or is about to start. The database is
+# backed up; when the new container is not healthy in time or cannot open a playback session, the backup and the
+# previous image are put back and that image is not tried again. Every run writes what it did to update-status.json in the config folder, which the admin portal's
 # About page shows, and starts by removing the update-requested file the portal writes, which the path unit watches.
 #
 # Install it from the Compose directory with: sudo ./sofa-king-update.sh install
@@ -70,6 +71,10 @@ local_tag=${local_tag:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}
 keep=${SOFA_UPDATE_KEEP_BACKUPS:-5}
 wait_seconds=${SOFA_UPDATE_HEALTH_SECONDS:-180}
+# The repository whose backend.yml signs the published image, where the running server answers the gates, and the lock.
+verify_repo=jamesarich/sofa-king
+server_url=${SOFA_UPDATE_URL:-http://127.0.0.1:${SOFA_PORT:-9193}}
+lock_file=${SOFA_UPDATE_LOCK_FILE:-/run/lock/sofa-king-update.lock}
 # The config folder compose.yaml mounts at /config: the portal reads the status file and writes the request file there.
 config=${SOFA_UPDATE_CONFIG_DIR:-$dir/config}
 status_file="$config/update-status.json"
@@ -125,7 +130,163 @@ target.close()
 EOF
 }
 
-exec 9>/run/lock/sofa-king-update.lock
+# Runs a command with a time limit when the host has timeout.
+bounded() {
+  local seconds=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$seconds" "$@"; else "$@"; fi
+}
+
+# Invariant: an image is swapped in only if this repository's backend.yml signed it and attested its build, for each
+# check the host can run. A missing tool, or gh without a login, is a skip; a check that runs and fails is not.
+# Sets verify_error and returns 1 on a failure.
+verify_image() {
+  local ref
+  case "$image" in
+    ghcr.io/"$verify_repo":* | ghcr.io/"$verify_repo"@*) ;;
+    *) log "not verifying $image: only ghcr.io/$verify_repo is signed"; return 0 ;;
+  esac
+  # The digest this pull resolved, so a tag that moves during the checks is not verified instead.
+  ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image" 2>/dev/null || true)
+  ref=${ref:-$image}
+  if command -v cosign >/dev/null 2>&1; then
+    if ! bounded 120 cosign verify "$ref" \
+      --certificate-identity-regexp "^https://github.com/$verify_repo/\\.github/workflows/backend\\.yml@refs/(heads/main|tags/v.*)\$" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
+      verify_error="the signature on $ref did not verify"
+      return 1
+    fi
+    log "signature on $ref verified"
+  else
+    log "cosign is not installed; not checking the signature"
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    log "gh is not installed; not checking the build attestation"
+  elif ! gh auth status >/dev/null 2>&1; then
+    log "gh is not logged in; not checking the build attestation"
+  elif bounded 120 gh attestation verify "oci://$ref" --repo "$verify_repo" >/dev/null 2>&1; then
+    log "build attestation on $ref verified"
+  else
+    verify_error="the build attestation on $ref did not verify"
+    return 1
+  fi
+}
+
+# Calls the running server for the gates below: api METHOD PATH OUT [JSON]. Prints the HTTP status, 000 when the
+# server cannot be reached in time, and writes the body to OUT. The token goes in through curl's stdin, not argv.
+api() {
+  local method=$1 path=$2 out=$3 json=${4:-}
+  printf 'header = "Authorization: Bearer %s"\n' "$api_token" |
+    curl --silent --config - --max-time "$api_seconds" --request "$method" --output "$out" --write-out '%{http_code}' \
+      ${json:+--header 'Content-Type: application/json' --data "$json"} "$server_url$path" 2>/dev/null || true
+}
+# The API token the server generated; secrets.json has none when SOFA_API_TOKEN sets it.
+read_api_token() {
+  [ -f "$config/secrets.json" ] && command -v python3 >/dev/null 2>&1 || return 0
+  python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("apiToken") or "")' "$config/secrets.json" 2>/dev/null || true
+}
+
+# Invariant: the container is not recreated while a recording runs or starts before the new one could be healthy,
+# since the swap ends the recording and leaves a gap in its file. Sets busy_reason and returns 1 when the update must
+# wait; a server that cannot be asked does not block it, since nothing records on a server that is down.
+recordings_idle() {
+  local body code
+  busy_reason=""
+  api_token=$(read_api_token)
+  if [ -z "$api_token" ]; then
+    log "no API token in $config/secrets.json; not checking for recordings"
+    return 0
+  fi
+  api_seconds=10
+  body=$(mktemp "$state/recordings.XXXXXX")
+  code=$(api GET /api/v1/recordings "$body")
+  if [ "$code" = 200 ]; then
+    busy_reason=$(python3 -I - "$body" "$wait_seconds" <<'EOF' || true
+import datetime, json, sys
+
+horizon = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=int(sys.argv[2]))
+for recording in json.load(open(sys.argv[1])).get("recordings", []):
+    title = recording.get("title", "a recording")
+    if recording.get("state") == "recording":
+        print(f"{title} is recording")
+        break
+    if recording.get("state") == "scheduled":
+        starts = datetime.datetime.fromisoformat(recording["startsAt"].replace("Z", "+00:00"))
+        if starts - datetime.timedelta(seconds=recording.get("startPaddingSeconds", 0)) <= horizon:
+            print(f"{title} starts at {recording['startsAt']}")
+            break
+EOF
+    )
+  else
+    log "could not list recordings (HTTP $code); not waiting for any"
+  fi
+  rm -f "$body"
+  [ -z "$busy_reason" ]
+}
+
+# Invariant: a new container counts as healthy only if it opens a playback session on a playable channel and serves
+# its playlist, which /readyz does not exercise. The check takes at most 30 seconds. A host with no playable channel,
+# no full playback slot or no readable API token skips it. Sets smoke_error and returns 1 on a failure.
+playback_smoke() {
+  local deadline body code channel session id url
+  smoke_error=""
+  deadline=$(($(date +%s) + 30))
+  api_token=$(read_api_token)
+  if [ -z "$api_token" ]; then
+    log "no API token in $config/secrets.json; not checking playback"
+    return 0
+  fi
+  body=$(mktemp "$state/playback.XXXXXX")
+  api_seconds=10
+  code=$(api GET /api/v1/channels "$body")
+  case "$code" in
+    200) ;;
+    401 | 403) rm -f "$body"; log "the API token was refused; not checking playback"; return 0 ;;
+    *) rm -f "$body"; smoke_error="the channel list answered HTTP $code"; return 1 ;;
+  esac
+  channel=$(python3 -I -c 'import json, sys; print(next((c["id"] for c in json.load(open(sys.argv[1])).get("channels", []) if c.get("playbackEligible")), ""))' "$body" 2>/dev/null || true)
+  if [ -z "$channel" ]; then
+    rm -f "$body"
+    log "no channel can play yet; not checking playback"
+    return 0
+  fi
+  code=$(api POST /api/v1/playback-sessions "$body" "{\"channelId\":\"$channel\",\"intent\":\"preview\",\"idempotencyKey\":\"updater-$(date +%s)-$$\"}")
+  if [ "$code" = 429 ]; then
+    rm -f "$body"
+    log "every playback slot is in use; not checking playback"
+    return 0
+  fi
+  session=$(python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); print(s["id"], s["descriptor"]["url"])' "$body" 2>/dev/null || true)
+  if { [ "$code" != 200 ] && [ "$code" != 201 ]; } || [ -z "$session" ]; then
+    rm -f "$body"
+    smoke_error="a playback session on channel $channel answered HTTP $code"
+    return 1
+  fi
+  id=${session%% *}
+  url=${session#* }
+  smoke_error="the playlist of the session on channel $channel did not load"
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    api_seconds=$((deadline - $(date +%s)))
+    [ "$api_seconds" -le 10 ] || api_seconds=10
+    code=$(api GET "$url" "$body")
+    # A media playlist starts with #EXTM3U; a session on the source's own format has no playlist to read.
+    if [ "$code" = 200 ]; then
+      case "${url%%\?*}" in
+        *.m3u8) if head -c 7 "$body" | grep -q '^#EXTM3U'; then smoke_error=""; fi ;;
+        *) smoke_error="" ;;
+      esac
+      [ -n "$smoke_error" ] || break
+    fi
+    sleep 1
+  done
+  api_seconds=10
+  api DELETE "/api/v1/playback-sessions/$id" "$body" >/dev/null
+  rm -f "$body"
+  [ -n "$smoke_error" ] || log "playback on channel $channel works"
+  [ -z "$smoke_error" ]
+}
+
+exec 9>"$lock_file"
 flock -n 9 || { log "another update is running"; exit 0; }
 mkdir -p "$state"
 # The portal's request is taken whatever this run finds, so the path unit does not start it again for the same request.
@@ -148,11 +309,26 @@ if [ "$candidate" = "$running" ] && [ "$(docker inspect --format '{{.State.Runni
   report up-to-date "running $to"
   exit 0
 fi
-if [ -f "$state/failed-image" ] && [ "$(cat "$state/failed-image")" = "$candidate" ]; then
-  # When Compose runs the pulled tag itself, the pull moved it to the skipped image; point it back at the running
-  # one, so a later docker compose up does not start the skipped image.
+# When Compose runs the pulled tag itself, the pull moved it to the candidate; a run that does not install the
+# candidate points it back at the running image, so a later docker compose up does not start it.
+keep_running_tag() {
   if [ "$local_tag" = "$image" ] && [ "$running" != none ]; then docker tag "$running" "$local_tag"; fi
+}
+if [ -f "$state/failed-image" ] && [ "$(cat "$state/failed-image")" = "$candidate" ]; then
+  keep_running_tag
   report skipped "$to was not healthy before; waiting for a newer image"
+  exit 0
+fi
+if ! verify_image; then
+  keep_running_tag
+  log "$verify_error; not updating"
+  report verify-failed "$verify_error; $from is still running"
+  exit 1
+fi
+if ! recordings_idle; then
+  keep_running_tag
+  log "$busy_reason; not updating now"
+  report skipped "$busy_reason; $from keeps running until the recordings are done"
   exit 0
 fi
 
@@ -189,17 +365,21 @@ done
 docker tag "$running" "$previous_tag"
 docker tag "$candidate" "$local_tag"
 # A container that fails to be created or started counts as unhealthy, so the rollback below still runs.
+failure="was not healthy after ${wait_seconds}s"
 if compose up -d --no-build --force-recreate && healthy; then
-  rm -f "$state/failed-image"
-  # The update is done; a prune that fails, as one does while another runs, only leaves old images for the next.
-  docker image prune --force >/dev/null || log "could not prune old images"
-  log "running $to"
-  report updated "updated $from to $to"
-  exit 0
+  if playback_smoke; then
+    rm -f "$state/failed-image"
+    # The update is done; a prune that fails, as one does while another runs, only leaves old images for the next.
+    docker image prune --force >/dev/null || log "could not prune old images"
+    log "running $to"
+    report updated "updated $from to $to"
+    exit 0
+  fi
+  failure="failed its playback check: $smoke_error"
 fi
 
 # Migrations only move forward, so the previous image needs the database from before this one started.
-log "$to was not healthy after ${wait_seconds}s; restoring $from and its database"
+log "$to $failure; restoring $from and its database"
 # Kept first, so a restore that fails below is not followed by another try of this image on the next run.
 echo "$candidate" > "$state/failed-image"
 # With the container stopped nothing can put a link in place of the database between the rm and the cp.
@@ -213,15 +393,15 @@ restore_database() {
 }
 if ! restore_database; then
   log "could not put back the database from $backup; restore it by hand before starting $from"
-  report failed "$to was not healthy after ${wait_seconds}s, and its database backup could not be put back"
+  report failed "$to $failure, and its database backup could not be put back"
   exit 1
 fi
 docker tag "$previous_tag" "$local_tag"
 if compose up -d --no-build --force-recreate && healthy; then
   log "running $from again"
-  report rolled-back "$to was not healthy after ${wait_seconds}s; running $from again"
+  report rolled-back "$to $failure; running $from again"
 else
   log "$from is not healthy either; check docker compose logs"
-  report failed "$to was not healthy after ${wait_seconds}s, and $from is not healthy either"
+  report failed "$to $failure, and $from is not healthy either"
 fi
 exit 1

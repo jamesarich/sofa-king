@@ -48,7 +48,7 @@ The detekt CLI lacks the Compose rules, so the Gradle `detekt` task still has th
 ## What only CI checks
 
 - Swift, the iPhone, iPad and Apple TV apps, XCUITest walks and Apple simulator tests: macOS only. A Kotlin rename changes its Objective-C facade (`<File>Kt`), so grep `app/appleApp` (the SwiftUI iPhone, iPad and Apple TV apps) for the old name.
-- `:core:jsBrowserProductionLibraryDistribution` and `core`'s Wasm browser tests: slow, and Kotlin's karma fork downloads from `codeload.github.com`, which the container cannot reach.
+- `:core:jsBrowserProductionLibraryDistribution`: slow, and Kotlin's karma fork downloads from `codeload.github.com`, which the container cannot reach. `core`'s js and wasm tests run on Node (`:core:jsNodeTest`, `:core:wasmJsNodeTest`) and need no browser.
 - The API fuzz (`python3 scripts/api-fuzz.py`) and the smoke scripts need a built distribution; run them when you change a route or the OpenAPI document.
 
 When CI goes red anyway, use the `ci-failure` skill before pushing again.

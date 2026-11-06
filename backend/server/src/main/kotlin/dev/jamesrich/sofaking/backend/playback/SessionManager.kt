@@ -246,6 +246,13 @@ class SessionManager(
             table.onCensus = value
         }
 
+    /** Hears that a recording took the slot of an app session: the channel it was watching, and the recording's. */
+    var onPreempted: (String, String) -> Unit
+        get() = table.onPreempted
+        set(value) {
+            table.onPreempted = value
+        }
+
     /** Where each session's start and end is recorded; none until the runtime sets it. */
     var history: SessionHistory?
         get() = table.history

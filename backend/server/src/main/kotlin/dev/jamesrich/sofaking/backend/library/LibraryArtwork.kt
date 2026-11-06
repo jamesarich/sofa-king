@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import dev.jamesrich.sofaking.backend.upstream.Hop
 import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
@@ -139,7 +140,7 @@ class LibraryArtwork(
                     val seek = if (source.atMs > 0) listOf("-ss", seconds) else emptyList()
                     val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y") + seek +
                         listOf(
-                            "-i", video.toString(),
+                            *FFMPEG_LOCAL_PROTOCOL_WHITELIST.toTypedArray(), "-i", video.toString(),
                             "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
                         )
                     val made = try {
@@ -201,7 +202,7 @@ class LibraryArtwork(
     /** The picture at [url], following the redirects the Cover Art Archive answers with, to hosts [policy] allows. */
     private suspend fun download(url: String): ByteArray? = runCatchingCancellable {
         followRedirects(URI(url), reject = { throw UpstreamRejectedException(it.message) }) { target ->
-            policy.check(target)
+            policy.admit(target)
             http!!.prepareGet(target.toString()) {
                 userAgent?.let { header(HttpHeaders.UserAgent, it) }
             }.execute { response ->

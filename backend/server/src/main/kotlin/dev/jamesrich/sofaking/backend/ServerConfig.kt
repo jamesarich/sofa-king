@@ -133,6 +133,8 @@ data class ServerConfig(
     val recordingsFreeGib: Int = DEFAULT_RECORDINGS_FREE_GIB,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
     val recordingsKeepDays: Int = 0,
+    /** `SOFA_RECORDING_PREEMPTS`: whether a recording that finds every slot taken may end a viewer's session. */
+    val recordingPreempts: Boolean = true,
     /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
     val learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW,
     /**
@@ -297,6 +299,7 @@ data class ServerConfig(
                 multiview = MultiviewMode.parse(environment[Settings.MULTIVIEW.name]),
                 recordingsFreeGib = env.number(Settings.RECORDINGS_FREE_GIB),
                 recordingsKeepDays = env.number(Settings.RECORDINGS_KEEP_DAYS),
+                recordingPreempts = env.choice(Settings.RECORDING_PREEMPTS) != "off",
                 learnedBreaks = LearnedBreaks.of(env.choice(Settings.LEARNED_BREAKS)) ?: LearnedBreaks.SHADOW,
                 appStreams = AppStreams.of(env.choice(Settings.APP_STREAMS)) ?: AppStreams.HLS,
                 adListeners = env.number(Settings.AD_LISTENERS),

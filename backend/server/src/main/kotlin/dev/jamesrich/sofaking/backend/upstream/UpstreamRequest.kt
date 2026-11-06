@@ -8,6 +8,11 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.URLProtocol
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 import java.net.URI
 
@@ -27,33 +32,70 @@ class LocalOrigin {
     fun admits(target: URI): Boolean = prefix?.let { target.normalize().toString().startsWith(it) } == true
 }
 
+/** Looks up every address of [host]; throws [java.net.UnknownHostException] for a name that does not resolve. */
+fun interface HostResolver {
+    fun resolve(host: String): List<InetAddress>
+}
+
+private val SystemResolver = HostResolver { InetAddress.getAllByName(it).toList() }
+
+/** How long [UpstreamPolicy.admit] waits for a name to resolve before it refuses the host. */
+private const val LOOKUP_TIMEOUT_MS = 3_000L
+
 /**
  * Which upstream hosts the server will fetch. RFC1918 LAN hosts are always allowed because the
- * household's sources live there; loopback, link-local and unspecified literals are refused unless
- * [allowLoopback] is set for a development fixture, or the URL is on the server's own [local] route. Hostnames are not
- * resolved before the request.
+ * household's sources live there; loopback, link-local and unspecified addresses are refused unless
+ * [allowLoopback] is set for a development fixture, or the URL is on the server's own [local] route. [check] judges
+ * literals and `localhost` names without a lookup; [admit] also resolves any other name through [resolver] and refuses
+ * the host when any of its addresses is refused. A name that does not resolve is left to the connection to fail.
  */
-data class UpstreamPolicy(val allowLoopback: Boolean = false, val local: LocalOrigin = LocalOrigin()) {
+data class UpstreamPolicy(
+    val allowLoopback: Boolean = false,
+    val local: LocalOrigin = LocalOrigin(),
+    val resolver: HostResolver = SystemResolver,
+) {
     fun check(target: URI) {
         rejection(target)?.let { throw UpstreamRejectedException(it) }
+    }
+
+    /** [check], then a bounded lookup off the calling thread for a host that is a name, once per request or hop. */
+    suspend fun admit(target: URI) {
+        check(target)
+        val host = literalHost(target) ?: return
+        if (isLiteral(host) || isLocalName(host)) return
+        val addresses = lookup(host) ?: throw UpstreamRejectedException("Upstream address lookup timed out")
+        addresses.firstNotNullOfOrNull { addressRejection(it, target) }?.let { throw UpstreamRejectedException(it) }
+    }
+
+    /** The addresses of [host]; empty when it does not resolve, null when the lookup outlasts the limit. */
+    private suspend fun lookup(host: String): List<InetAddress>? {
+        // Not a child of the caller: a blocked resolver thread cannot be canceled, and must not hold the caller.
+        val lookup = LookupScope.async { runCatching { resolver.resolve(host) }.getOrElse { emptyList() } }
+        return withTimeoutOrNull(LOOKUP_TIMEOUT_MS) { lookup.await() }
     }
 
     /** Why the relay refuses to fetch [target], or null when it may. */
     private fun rejection(target: URI): String? {
         val host = literalHost(target) ?: return UNSUPPORTED
-        val literal = if (host.all { it.isDigit() || it == '.' } || host.contains(':')) {
-            runCatching { InetAddress.getByName(host) }.getOrNull()
-        } else {
-            null
-        }
-        val loopback = literal?.isLoopbackAddress ?: (host == "localhost" || host.endsWith(".localhost"))
-        return when {
-            literal != null && literal.unroutable -> "Unroutable upstream address"
-            loopback && !allowLoopback && !local.admits(target) -> "Loopback upstream address"
-            else -> null
-        }
+        val literal = if (isLiteral(host)) runCatching { InetAddress.getByName(host) }.getOrNull() else null
+        if (literal != null) return addressRejection(literal, target)
+        return if (isLocalName(host) && !allowLoopback && !local.admits(target)) LOOPBACK else null
+    }
+
+    private fun addressRejection(address: InetAddress, target: URI): String? = when {
+        address.unroutable -> "Unroutable upstream address"
+        address.isLoopbackAddress && !allowLoopback && !local.admits(target) -> LOOPBACK
+        else -> null
     }
 }
+
+private val LookupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+private fun isLiteral(host: String): Boolean = host.all { it.isDigit() || it == '.' } || host.contains(':')
+
+private fun isLocalName(host: String): Boolean = host == "localhost" || host.endsWith(".localhost")
+
+private const val LOOPBACK = "Loopback upstream address"
 
 /** [target]'s host, lowercase and without brackets or a trailing dot; null for one the relay never fetches. */
 private fun literalHost(target: URI): String? {
@@ -94,7 +136,7 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
         throw UpstreamRejectedException(RedirectProblem.INSECURE.message)
     }
     return followRedirects(start, reject = { throw UpstreamRejectedException(it.message) }) { target ->
-        policy.check(target)
+        policy.admit(target)
         prepareGet(target.toString()) {
             providerHeaders.forEach { (key, value) ->
                 if (sameOrigin(origin, target) || key.lowercase() in portableHeaders) header(key, value)

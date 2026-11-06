@@ -24,6 +24,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -31,9 +33,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -52,6 +56,8 @@ class GuideService(
     private val onImported: () -> Unit = {},
     /** Where each import is recorded for the portal's Jobs page. */
     private val jobs: Jobs = Jobs(clock),
+    /** The longest one XMLTV download may take, [GUIDE_DOWNLOAD_LIMIT] unless a test says otherwise. */
+    downloadLimit: Duration = GUIDE_DOWNLOAD_LIMIT,
     /** Guide id to the XMLTV channel ids the lineup maps onto it. */
     private val wanted: () -> Map<String, Set<String>>,
 ) {
@@ -65,7 +71,7 @@ class GuideService(
     private val log = LoggerFactory.getLogger(GuideService::class.java)
     private val published = AtomicReference(Published(emptyMap()))
     private val _statuses = AtomicReference(configs.map { GuideStatus(it.id) })
-    private val fetcher = GuideFetcher(http, upstream, providers)
+    private val fetcher = GuideFetcher(http, upstream, providers, downloadLimit)
     private val locks = configs.associate { it.id to Mutex() }
 
     init {
@@ -219,6 +225,8 @@ private class GuideFetcher(
     private val http: HttpClient,
     private val upstream: UpstreamPolicy,
     private val providers: ProviderRegistry?,
+    /** The longest one XMLTV download may take, whatever bytes keep arriving. */
+    private val downloadLimit: Duration,
 ) {
     /** The guide, holding the programs of the channels in [wanted] only. */
     suspend fun fetch(config: GuideConfig, wanted: Set<String>): ParsedGuide {
@@ -228,16 +236,43 @@ private class GuideFetcher(
             return checkNotNull(client.guide(wanted)) { "Service has no guide" }
         }
         val url = checkNotNull(config.url)
-        // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
-        return http.withUpstreamResponse(url, url, config.headers, unbounded = true, policy = upstream) { response ->
-            require(response.status == HttpStatusCode.OK) { "Guide fetch failed" }
-            val body = response.bodyAsChannel()
-            withContext(Dispatchers.IO) {
-                body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wanted } }
+        val deadline = System.nanoTime() + downloadLimit.toNanos()
+        val expired = AtomicBoolean(false)
+        // Guides run to tens of megabytes, so the request has no timeout of its own and a silent socket is the only
+        // fault it sees; a server that keeps trickling bytes is stopped by the whole download's limit instead.
+        val parsed = runCatchingCancellable {
+            withTimeoutOrNull(downloadLimit.toMillis()) {
+                http.withUpstreamResponse(url, url, config.headers, unbounded = true, policy = upstream) { response ->
+                    require(response.status == HttpStatusCode.OK) { "Guide fetch failed" }
+                    val body = response.bodyAsChannel()
+                    coroutineScope {
+                        val watchdog = launch {
+                            delay(maxOf(0L, (deadline - System.nanoTime()) / NANOS_PER_MS))
+                            expired.set(true)
+                            body.cancel(null)
+                        }
+                        try {
+                            withContext(Dispatchers.IO) {
+                                body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wanted } }
+                            }
+                        } finally {
+                            watchdog.cancel()
+                        }
+                    }
+                }
             }
+        }.getOrElse { e ->
+            if (!expired.get()) throw e
+            null
         }
+        return parsed ?: throw IOException("Guide download exceeded its time limit")
     }
 }
+
+/** The longest one XMLTV download may take, from the request to the last byte parsed. */
+val GUIDE_DOWNLOAD_LIMIT: Duration = Duration.ofMinutes(15)
+
+private const val NANOS_PER_MS = 1_000_000L
 
 private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
 private val whitespace = Regex("\\s+")

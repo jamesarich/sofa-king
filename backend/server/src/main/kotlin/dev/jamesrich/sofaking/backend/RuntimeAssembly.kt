@@ -18,6 +18,7 @@ import dev.jamesrich.sofaking.backend.dvr.Recorder
 import dev.jamesrich.sofaking.backend.dvr.RecordingAds
 import dev.jamesrich.sofaking.backend.dvr.RecordingAudio
 import dev.jamesrich.sofaking.backend.dvr.Retention
+import dev.jamesrich.sofaking.backend.dvr.recordingPreempted
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
@@ -373,6 +374,7 @@ internal class RuntimeAssembly(
         sessions.history = history
         history.start(scope)
         notifier.start(scope, events.events)
+        jobs.events = events
         scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
         library = BreakLibrary(store, clock).also { it.load() }
         sessions.library = library
@@ -387,6 +389,10 @@ internal class RuntimeAssembly(
             sessions.capacity = values.maxSessions
             sessions.learnedBreaks = LearnedBreaks.of(values.learnedBreaks) ?: LearnedBreaks.SHADOW
             plex?.setInterval(values.plexSyncMinutes)
+        }
+        sessions.onPreempted = { watching, recording ->
+            val names = lineup.entries().associate { it.id to it.name }
+            events.recordingPreempted(watching, names[watching], recording, names[recording])
         }
         sessions.onCensus = { channel, provider, census ->
             scope.launch { store.recordAdChannel(channel, provider, census, clock.instant()) }
@@ -441,7 +447,15 @@ internal class RuntimeAssembly(
 
     private fun dvr(): Dvr = Dvr(
         store, lineup, guides,
-        Recorder(config.ffmpeg, sessions, feeds, clock, loopback, shared = relay::joinShared),
+        Recorder(
+            config.ffmpeg,
+            sessions,
+            feeds,
+            clock,
+            loopback,
+            shared = relay::joinShared,
+            preempts = { settings.current.recordingPreempts },
+        ),
         config.recordingsDirectory, clock, { settings.current.maxSessions },
         { Duration.ofDays(settings.current.guideDays.toLong()) },
         retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },

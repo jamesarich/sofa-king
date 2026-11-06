@@ -252,6 +252,7 @@ final class RemoteTests: XCTestCase {
     /// Presses Menu until the player has gone and released its session; once more would leave the app.
     @MainActor
     private func leavePlayer() {
+        waitForPlayerToSettle()
         for _ in 0..<3 {
             remote.press(.menu)
             let deadline = Date().addingTimeInterval(5)
@@ -260,12 +261,46 @@ final class RemoteTests: XCTestCase {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             }
         }
-        XCTFail("Menu did not leave the player and release its session\n\(screen)")
+        XCTFail("Menu did not leave the player and release its session\n\(playerReport)")
+    }
+
+    /// Waits, up to `timeout`, until the player has stopped loading: no buffering indicator for two seconds running.
+    /// Presses sent while the spinner is up can be dropped, so the first press waits for this. Returns whether it settled.
+    @MainActor
+    @discardableResult
+    private func waitForPlayerToSettle(timeout: TimeInterval = 20) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var quietSince: Date?
+        while Date() < deadline {
+            if app.activityIndicators.count == 0 {
+                let since = quietSince ?? Date()
+                quietSince = since
+                if Date().timeIntervalSince(since) >= 2 { return true }
+            } else {
+                quietSince = nil
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        print("[remote] the player was still loading after \(Int(timeout)) s")
+        return false
+    }
+
+    /// What was true when a player step failed: the server's sessions, the app's state, whether the guide is up, the
+    /// buffering indicators, what has focus, and the screen.
+    @MainActor
+    private var playerReport: String {
+        let sessions = (try? JSONSerialization.data(withJSONObject: server.sessions(), options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let focus = focused
+        let focusedId = focus.exists ? "id '\(focus.identifier)' label '\(focus.label)' type \(focus.elementType.rawValue)" : "none"
+        return "sessions: \(sessions)\napp.state: \(app.state.rawValue) (4 is foreground)\nguide exists: \(guide.exists)\n"
+            + "buffering indicators: \(app.activityIndicators.count)\nfocused: \(focusedId)\n\(screen)"
     }
 
     /// Shows the player's transport bar and moves focus to `element` in it: Up from the scrubber, then along the row.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
+        waitForPlayerToSettle()
         let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
         for move in moves {
             if !element.exists {
@@ -277,7 +312,7 @@ final class RemoteTests: XCTestCase {
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
-        XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(screen)")
+        XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
     }
 
     /// Presses `direction` until `element` has focus.

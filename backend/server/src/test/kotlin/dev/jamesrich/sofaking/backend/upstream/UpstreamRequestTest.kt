@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
+import java.net.InetAddress
 import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -123,6 +124,67 @@ class UpstreamRequestTest {
             assertFailsWith<UpstreamRejectedException> {
                 fetch("http://169.254.1.1/x", UpstreamPolicy(allowLoopback = true))
             }
+        }
+    }
+
+    private fun resolving(vararg answers: Pair<String, String>) = HostResolver { host ->
+        val address = answers.toMap()[host] ?: throw java.net.UnknownHostException(host)
+        listOf(InetAddress.getByName(address))
+    }
+
+    @Test fun `a name that resolves to a refused address is refused and a LAN name is served`() = runBlocking<Unit> {
+        val policy = UpstreamPolicy(
+            resolver = resolving(
+                "loop.example" to "127.0.0.1",
+                "meta.example" to "169.254.169.254",
+                "nas.example" to "192.168.1.3",
+            ),
+        )
+        HttpClient(MockEngine { respond("ok") }) { followRedirects = false }.use { http ->
+            suspend fun fetch(url: String, using: UpstreamPolicy = policy) =
+                http.withUpstreamResponse(url, url, emptyMap(), policy = using) { it.bodyAsText() }
+            assertEquals("ok", fetch("http://nas.example/live.ts"))
+            assertEquals("ok", fetch("http://unresolved.example/live.ts"))
+            assertFailsWith<UpstreamRejectedException> { fetch("http://loop.example/x") }
+            assertFailsWith<UpstreamRejectedException> { fetch("https://meta.example/x") }
+            assertEquals("ok", fetch("http://loop.example/x", policy.copy(allowLoopback = true)))
+            assertFailsWith<UpstreamRejectedException> {
+                fetch("http://meta.example/x", policy.copy(allowLoopback = true))
+            }
+        }
+    }
+
+    @Test fun `a redirect to a name that resolves to loopback is refused`() = runBlocking<Unit> {
+        val policy = UpstreamPolicy(resolver = resolving("loop.example" to "127.0.0.1", "cdn.example" to "10.0.0.9"))
+        HttpClient(
+            MockEngine { request ->
+                if (request.url.host == "cdn.example") {
+                    respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "http://loop.example/in"))
+                } else {
+                    respond("leaked")
+                }
+            },
+        ) { followRedirects = false }.use { http ->
+            assertFailsWith<UpstreamRejectedException> {
+                http.withUpstreamResponse("http://cdn.example/a", "http://cdn.example/a", emptyMap(), policy = policy) {
+                    it.bodyAsText()
+                }
+            }
+        }
+    }
+
+    @Test fun `a lookup that never answers refuses the host`() = runBlocking<Unit> {
+        val hang = java.util.concurrent.CountDownLatch(1)
+        val policy = UpstreamPolicy(
+            resolver = HostResolver {
+                hang.await()
+                emptyList()
+            },
+        )
+        try {
+            assertFailsWith<UpstreamRejectedException> { policy.admit(URI("http://slow.example/x")) }
+        } finally {
+            hang.countDown()
         }
     }
 

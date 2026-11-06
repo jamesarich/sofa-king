@@ -4,7 +4,9 @@ import SwiftUI
 import SofaKingCore
 
 /// One channel full screen on AVPlayer, through a server watch session that core opens, renews and releases.
-/// Menu dismisses it; leaving releases the session, and backgrounding releases it until the app returns.
+/// Menu dismisses it; leaving releases the session, and backgrounding releases it until the app returns, unless
+/// Picture in Picture is playing it. On the Apple TV, Up and Down click through the lineup and a long press of Select
+/// returns to the last channel; on the iPhone a swipe up or down does.
 /// A stream that fails or stalls is reopened through the same session after a growing pause, as the Compose app does.
 /// The transport bar's menu records the program on now, stars the channel and switches to another: recent, favorites
 /// or any channel. While the program on now is recording, Watch from start plays the recording from its start over the
@@ -45,6 +47,8 @@ struct PlayerView: View {
     /// The channel's logo bytes for the info panel, and the program the item's metadata was last set for.
     @State private var logo: Data?
     @State private var metadataKey = ""
+    /// The channel watched before this one, for the last channel recall.
+    @State private var previousGuideId: String?
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -58,7 +62,9 @@ struct PlayerView: View {
                 menuItems: menuItems,
                 actions: breakActions,
                 itemsContext: itemsContext,
-                breakScreen: breakScreen
+                breakScreen: breakScreen,
+                zap: { zap($0) },
+                recall: { recallLastChannel() }
             )
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
@@ -148,11 +154,8 @@ struct PlayerView: View {
             // A cover over the channel owns the shared player slot and its own session.
             guard fromStart == nil, multiview == nil else { return }
             switch phase {
-            case .background:
-                stopCovering()
-                reconnect?.cancel()
-                player.replaceCurrentItem(with: nil)
-                Task { try? await model.core.release() }
+            case .background where !model.pictureInPicture:
+                suspendForBackground()
             case .active where player.currentItem == nil:
                 Task {
                     if let stream = try? await model.core.reopen() { play(stream) }
@@ -161,12 +164,26 @@ struct PlayerView: View {
                 break
             }
         }
+        .onChange(of: model.pictureInPicture) { _, active in
+            // The small window closed while the app was in the background: nothing is watching, so the session goes.
+            guard !active, scenePhase == .background, fromStart == nil, multiview == nil, player.currentItem != nil else { return }
+            suspendForBackground()
+        }
+        .onChange(of: channel.guideId) { old, _ in previousGuideId = old }
         .onChange(of: model.requestedChannel) { _, requested in
             // A Top Shelf link while the player is up switches it to that channel.
             guard let requested, let next = model.lineup?.channels.first(where: { $0.guideId == requested }) else { return }
             model.requestedChannel = nil
             switchTo(next)
         }
+    }
+
+    /// Gives the player and the session up until the app comes back.
+    private func suspendForBackground() {
+        stopCovering()
+        reconnect?.cancel()
+        player.replaceCurrentItem(with: nil)
+        Task { try? await model.core.release() }
     }
 
     /// Sets the playing item's info panel, Control Center and Siri metadata: the program on now as the title, the
@@ -421,6 +438,19 @@ struct PlayerView: View {
         Task { await tune() }
     }
 
+    /// Tunes the channel `step` places on in the lineup, wrapping at either end; Up is -1 and Down is 1, as in the guide.
+    private func zap(_ step: Int) {
+        guard let channels = model.lineup?.channels, channels.count > 1,
+              let index = channels.firstIndex(where: { $0.guideId == channel.guideId }) else { return }
+        switchTo(channels[(index + step + channels.count) % channels.count])
+    }
+
+    /// Returns to the channel watched before this one, which makes this one the next recall.
+    private func recallLastChannel() {
+        guard let previous = model.lineup?.channels.first(where: { $0.guideId == previousGuideId }) else { return }
+        switchTo(previous)
+    }
+
     private func tune() async {
         do {
             let stream = try await model.core.watchChannel(channelId: channel.guideId)
@@ -441,9 +471,7 @@ struct PlayerView: View {
     private func play(_ stream: PlaybackStream) {
         // The recording played from its start holds the session; the channel tunes again when it closes.
         guard fromStart == nil, multiview == nil, let url = URL(string: stream.url) else { return }
-        // The preview's item, when it plays this stream already, carries on without reloading.
-        let current = player.currentItem.flatMap { ($0.asset as? AVURLAsset)?.url == url ? $0 : nil }
-        let item = current ?? AVPlayerItem(url: url)
+        let item = PlayerView.reusableItem(player.currentItem, for: url) ?? AVPlayerItem(url: url)
         itemObservers = [
             item.publisher(for: \.status).filter { $0 == .failed }.sink { _ in scheduleReconnect() },
             NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in scheduleReconnect() },
@@ -459,6 +487,13 @@ struct PlayerView: View {
         }
         if item !== player.currentItem { player.replaceCurrentItem(with: item) }
         player.play()
+    }
+
+    /// The preview's item when it plays `url` already and has not failed, so it carries on without reloading. A failed
+    /// item never plays again, so a reconnect builds a new one.
+    static func reusableItem(_ item: AVPlayerItem?, for url: URL) -> AVPlayerItem? {
+        guard let item, item.status != .failed, (item.asset as? AVURLAsset)?.url == url else { return nil }
+        return item
     }
 
     /// Reopens the channel after 2, 4, 8 and 15 seconds, then every 30, as every client does; the server hands back the
@@ -485,16 +520,36 @@ private struct PlayerController: UIViewControllerRepresentable {
     /// The channel and program the items' handlers act on.
     let itemsContext: String
     let breakScreen: BreakScreen?
+    /// Tunes the channel this many places on in the lineup.
+    let zap: (Int) -> Void
+    /// Returns to the channel watched before this one.
+    let recall: () -> Void
+    @Environment(AppModel.self) private var model
 
-    final class Coordinator {
+    final class Coordinator: NSObject {
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
+        var zap: (Int) -> Void = { _ in }
+        var recall: () -> Void = {}
         #if os(tvOS)
         let items = TransportBarItems()
+        #else
+        let pictureInPicture: PictureInPictureTracker
+        @MainActor init(model: AppModel) { pictureInPicture = PictureInPictureTracker(model: model) }
         #endif
+
+        @objc func zapUp() { zap(-1) }
+        @objc func zapDown() { zap(1) }
+        @objc func recallLast(_ gesture: UIGestureRecognizer) {
+            if gesture.state == .began { recall() }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
+        #if os(tvOS)
         let coordinator = Coordinator()
+        #else
+        let coordinator = Coordinator(model: model)
+        #endif
         coordinator.hosting.view.backgroundColor = .clear
         coordinator.hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         return coordinator
@@ -505,8 +560,10 @@ private struct PlayerController: UIViewControllerRepresentable {
         controller.player = player
         #if os(tvOS)
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
+        addZapGestures(to: controller, coordinator: context.coordinator)
         #else
-        controller.configureForPhone()
+        controller.configureForPhone(pictureInPicture: context.coordinator.pictureInPicture)
+        addZapGestures(to: controller, coordinator: context.coordinator)
         #endif
         if let overlay = controller.contentOverlayView {
             context.coordinator.hosting.view.frame = overlay.bounds
@@ -516,7 +573,30 @@ private struct PlayerController: UIViewControllerRepresentable {
         return controller
     }
 
+    /// Up and Down click the channel up or down the lineup and a long press of Select recalls the last one; a swipe up
+    /// or down does the same on the phone, up for the channel below as the picture follows the finger.
+    private func addZapGestures(to controller: AVPlayerViewController, coordinator: Coordinator) {
+        #if os(tvOS)
+        let up = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapUp))
+        up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
+        let down = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))
+        down.allowedPressTypes = [NSNumber(value: UIPress.PressType.downArrow.rawValue)]
+        let last = UILongPressGestureRecognizer(target: coordinator, action: #selector(Coordinator.recallLast))
+        last.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
+        last.allowedTouchTypes = []
+        for gesture in [up, down, last] { controller.view.addGestureRecognizer(gesture) }
+        #else
+        let next = UISwipeGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))
+        next.direction = .up
+        let previous = UISwipeGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapUp))
+        previous.direction = .down
+        for gesture in [next, previous] { controller.view.addGestureRecognizer(gesture) }
+        #endif
+    }
+
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        context.coordinator.zap = zap
+        context.coordinator.recall = recall
         #if os(tvOS)
         context.coordinator.items.apply(menus: menuItems, actions: actions, context: itemsContext, to: controller)
         #endif

@@ -3,9 +3,12 @@ package dev.jamesrich.sofaking.backend.dvr
 import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.ServerEvent
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.events.ServerEvents
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
 import dev.jamesrich.sofaking.backend.pollFor
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.addRecording
@@ -28,6 +31,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Timeout
 import java.net.InetSocketAddress
 import java.nio.file.Files
@@ -464,6 +468,71 @@ class DvrTest {
             assertFalse(Files.exists(root.resolve("TV/Show/old.ts")))
         }
     }
+
+    /**
+     * A DVR over [count] finished recordings, each a one-byte file under the recordings folder, for the space floor of
+     * 5 GiB; [free] reads the free space given how many files are left. The first [watched] have been watched.
+     */
+    private fun spaceCull(
+        count: Int,
+        watched: Int,
+        free: (filesLeft: Int) -> Long,
+        block: suspend (dvr: Dvr, left: suspend () -> Set<String>, events: List<ServerEvent>) -> Unit,
+    ) = withRuntime("sofa-dvr-space-", emptyList()) { dir, runtime ->
+        val root = dir.resolve("recordings")
+        val events = ServerEvents(Clock.systemUTC())
+        val seen = java.util.Collections.synchronizedList(mutableListOf<ServerEvent>())
+        coroutineScope {
+            val listening = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                events.events.collect { seen += it }
+            }
+            fun files() = Files.walk(root).use { found -> found.filter(Files::isRegularFile).count().toInt() }
+            val dvr = Dvr(
+                runtime.store, runtime.lineup, runtime.guides,
+                Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC(), runtime.loopback),
+                root, Clock.systemUTC(),
+                { 4 }, retention = { Retention(freeGib = 5) }, freeSpace = { free(files()) }, events = events,
+            )
+            val now = Instant.now()
+            for (n in 1..count) {
+                val start = now.minus(java.time.Duration.ofDays(n.toLong()))
+                val path = "TV/Show/r$n.ts"
+                Files.createDirectories(root.resolve(path).parent)
+                Files.write(root.resolve(path), byteArrayOf(0x47))
+                runtime.store.addRecording(
+                    StoredRecording(
+                        "r$n", null, "c", "C", start, start.plusSeconds(1800),
+                        java.time.Duration.ZERO, java.time.Duration.ZERO, "r$n",
+                        state = Wire.RecordingState.COMPLETED, path = path, bytes = 1, watched = n > count - watched,
+                        createdAt = start, updatedAt = start,
+                    ),
+                )
+            }
+            block(dvr, { dvr.recordings().recordings.map { it.id }.toSet() }, seen)
+            listening.cancel()
+        }
+    }
+
+    @Test fun `a disk whose free space never rises loses at most one pass of recordings and says so`() =
+        spaceCull(count = 25, watched = 3, free = { Dvr.GIB }) { dvr, left, events ->
+            dvr.cull("test")
+            val culled = events.filter { it.type == NotifyEvent.RECORDING_CULLED }
+            assertTrue(25 - left().size <= Dvr.SPACE_CULL_MAX, "${left().size} of 25 recordings are left")
+            assertEquals(25 - left().size, culled.size, "one event for each deleted recording")
+            assertEquals("SPACE", culled.first().data["reason"]!!.jsonPrimitive.content)
+        }
+
+    @Test fun `a disk that frees a little with each deletion still loses no more than the cap in a pass`() =
+        spaceCull(count = 25, watched = 0, free = { left -> Dvr.GIB + (25 - left) * 1024L * 1024 }) { dvr, left, _ ->
+            dvr.cull("test")
+            assertEquals(25 - Dvr.SPACE_CULL_MAX, left().size)
+        }
+
+    @Test fun `unwatched recordings survive when the watched ones free enough space`() =
+        spaceCull(count = 8, watched = 3, free = { left -> 3 * Dvr.GIB + (8 - left) * Dvr.GIB }) { dvr, left, _ ->
+            dvr.cull("test")
+            assertEquals(setOf("r1", "r2", "r3", "r4", "r5", "r6"), left())
+        }
 
     private class Ticking(
         val dvr: Dvr,

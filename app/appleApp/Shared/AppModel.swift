@@ -31,6 +31,8 @@ final class AppModel {
     var vod: VodRequest?
     /// The music, which plays apart from any page.
     let music: MusicPlayer
+    /// Whether Picture in Picture is playing the full screen player's stream; always false on the Apple TV.
+    var pictureInPicture = false
     /// Whether Now playing is open over the tabs.
     var nowPlayingShown = false
     /// The players' sleep timer, which lasts through Up next until the viewer leaves the player.

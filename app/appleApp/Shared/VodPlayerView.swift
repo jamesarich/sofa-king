@@ -47,7 +47,7 @@ struct VodRequest: Identifiable, Hashable {
 /// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
 /// to its end; inside a break the player offers Skip break, inside an episode's intro, Skip intro, and inside its
 /// credits, Skip credits, or Next episode when they run to the end. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
-/// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
+/// releases it until the app returns, when the item reopens where it was, unless Picture in Picture is playing it. Reaching the end of an episode offers the
 /// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
 /// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
 /// is, and subtitles are drawn over the picture from the item's position. The transport bar's Sleep timer leaves the
@@ -213,13 +213,14 @@ struct VodPlayerView: View {
             subtitles = try? await model.core.subtitles(itemId: item.id, index: index)
             if subtitles == nil && !Task.isCancelled { subtitleIndex = nil }
         }
+        .onChange(of: model.pictureInPicture) { _, active in
+            // The small window closed while the app was in the background: nothing is watching, so the session goes.
+            if !active && scenePhase == .background && stream != nil && !ended && !backgrounded { suspendForBackground() }
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .background where stream != nil && !ended:
-                backgrounded = true
-                stopped()
-                player.replaceCurrentItem(with: nil)
-                Task { try? await model.core.release() }
+            case .background where stream != nil && !ended && !model.pictureInPicture:
+                suspendForBackground()
             case .active where backgrounded:
                 backgrounded = false
                 Task {
@@ -235,6 +236,14 @@ struct VodPlayerView: View {
                 break
             }
         }
+    }
+
+    /// Saves the position and gives the player and the session up until the app comes back.
+    private func suspendForBackground() {
+        backgrounded = true
+        stopped()
+        player.replaceCurrentItem(with: nil)
+        Task { try? await model.core.release() }
     }
 
     private func open() async {
@@ -682,14 +691,22 @@ private struct VodController: UIViewControllerRepresentable {
     let actions: [UIAction]
     /// The item and stream the items' handlers act on.
     let itemsContext: String
+    @Environment(AppModel.self) private var model
 
     final class Coordinator {
         #if os(tvOS)
         let items = TransportBarItems()
+        #else
+        let pictureInPicture: PictureInPictureTracker
+        @MainActor init(model: AppModel) { pictureInPicture = PictureInPictureTracker(model: model) }
         #endif
     }
 
+    #if os(tvOS)
     func makeCoordinator() -> Coordinator { Coordinator() }
+    #else
+    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
+    #endif
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
@@ -698,7 +715,7 @@ private struct VodController: UIViewControllerRepresentable {
         #if os(tvOS)
         context.coordinator.items.apply(menus: menus, actions: actions, context: itemsContext, to: controller)
         #else
-        controller.configureForPhone()
+        controller.configureForPhone(pictureInPicture: context.coordinator.pictureInPicture)
         #endif
         return controller
     }

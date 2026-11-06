@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 
@@ -12,13 +13,19 @@ internal fun Throwable.describe(): String = when (this) {
     else -> message ?: toString()
 }
 
+/** True when the server answered 401 or 403: it no longer accepts this device's token, so pairing again is the fix. */
+internal fun Throwable.rejectsToken(): Boolean = this is SofaKingException &&
+    (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
+
 /**
  * The state a screen shows after its load failed: [loaded], the loaded state already on screen, stays; with nothing
- * loaded yet it is [failed] with why. The failure is logged as [what].
+ * loaded yet, or when the server turned this device's token away, it is [failed] with why and whether the token was
+ * turned away. The failure is logged as [what].
  */
-internal fun <S> failedLoad(what: String, failure: Throwable, loaded: S?, failed: (String) -> S): S {
+internal fun <S> failedLoad(what: String, failure: Throwable, loaded: S?, failed: (String, Boolean) -> S): S {
     log.w { "$what failed: ${failure.describe()}" }
-    return loaded ?: failed(failure.describe())
+    val signedOut = failure.rejectsToken()
+    return if (signedOut) failed(failure.describe(), true) else loaded ?: failed(failure.describe(), false)
 }
 
 /**

@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.jamesrich.sofaking.data.AppSettings
@@ -56,6 +57,7 @@ import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.player.VodTrack
 import dev.jamesrich.sofaking.ui.player.VodTracks
 import dev.jamesrich.sofaking.ui.player.VodUpNext
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
@@ -74,8 +76,11 @@ internal fun LibraryHomeDestination(
     music: MusicPlayback,
     tabBack: () -> Unit,
     headerFocused: Boolean,
+    settingsFocus: FocusRequester,
 ) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
+    val signedOut = (home as? LibraryHomeState.Failed)?.signedOut == true
+    LaunchedEffect(signedOut) { if (signedOut) requestFocusWhenAttached(settingsFocus) }
     BackHandler(onBack = tabBack)
     LibraryHomeScreen(
         state = home,

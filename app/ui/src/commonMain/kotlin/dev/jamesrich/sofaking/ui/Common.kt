@@ -32,6 +32,8 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.banner_logo
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.signed_out
+import dev.jamesrich.sofaking.resources.signed_out_hint
 import dev.jamesrich.sofaking.resources.tagline
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.painterResource
@@ -102,6 +104,12 @@ fun MessageScreen(
             }
         }
     }
+}
+
+/** What a tab shows when the server turned this device's token away; the header's Settings button holds focus. */
+@Composable
+fun SignedOutScreen() {
+    MessageScreen(stringResource(Res.string.signed_out), hint = stringResource(Res.string.signed_out_hint))
 }
 
 /** "<number>  <name>", as every list and overlay shows a channel. */

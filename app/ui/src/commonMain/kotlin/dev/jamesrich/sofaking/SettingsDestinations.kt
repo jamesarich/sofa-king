@@ -45,7 +45,7 @@ internal fun SettingsDestination(
             libraryOffered = offered.library,
             recordingsOffered = offered.recordings,
             reloading = loading,
-            serverUnreachable = state is LineupState.Failed,
+            serverUnreachable = (state as? LineupState.Failed)?.signedOut == false,
             actions = settingsActions(shell, vm, libraryVm),
             pairing = PairingUi(
                 busy = pairing.busy,

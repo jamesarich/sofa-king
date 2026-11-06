@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.Server
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.describe
+import dev.jamesrich.sofaking.data.rejectsToken
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
@@ -212,6 +213,11 @@ internal class LineupLoader(
      * spinner, or the failure itself when there is nothing to show. Returns the lineup now on screen.
      */
     private suspend fun FlowCollector<LineupState>.failed(e: Throwable, interim: Lineup?, last: Lineup?): Lineup? {
+        if (e.rejectsToken()) {
+            // A revoked device keeps its cached lineup on screen but can no longer load anything: say so.
+            emit(LineupState.Failed(e.describe(), signedOut = true))
+            return last
+        }
         val kept = when {
             // The new channels stay on screen without programs until a retry brings the guide; they are not cached,
             // so a cold start still shows the last complete lineup.
@@ -224,7 +230,7 @@ internal class LineupLoader(
         if (kept != null) {
             emit(LineupState.Ready(kept))
         } else if (last == null) {
-            emit(LineupState.Failed(e.describe()))
+            emit(LineupState.Failed(e.describe(), e.rejectsToken()))
         }
         return kept ?: last
     }

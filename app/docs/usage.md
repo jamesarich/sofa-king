@@ -40,7 +40,7 @@ Add to watchlist puts the program's title on the household's [watchlist](../../b
 
 ### Channel rows and refresh
 
-Each channel shows its logo beside its number. The details above the grid show the focused program's episode label and title, a New badge for a first airing, its rating and its image, when the guide source has them. Times follow the device's 12- or 24-hour clock setting. A channel without programs says why: No listing when its guide source lists nothing then, No guide for this channel when the server has no guide source mapped to it, and Guide out of date when the guide source's data has run out.
+Each channel shows its logo beside its number; one without a logo shows the first letters of its name on a colored tile. The details above the grid show the focused program's episode label and title, a New badge for a first airing, its rating and its image, when the guide source has them. Times follow the device's 12- or 24-hour clock setting. A channel without programs says why: No listing when its guide source lists nothing then, No guide for this channel when the server has no guide source mapped to it, and Guide out of date when the guide source's data has run out.
 
 The app shows its saved lineup while refreshing. Channels load before guide data. Automatic refresh runs every three hours and when the app returns to the front; Settings → Server → Reload requests a new load.
 

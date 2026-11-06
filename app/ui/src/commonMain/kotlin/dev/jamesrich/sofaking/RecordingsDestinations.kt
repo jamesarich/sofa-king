@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.DvrRecording
@@ -22,6 +23,7 @@ import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.recordings.RecordingsScreen
 import dev.jamesrich.sofaking.ui.recordings.recordingSubtitle
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import org.jetbrains.compose.resources.stringResource
 
 /** The Recordings tab: the list, read again each time it opens. [tabBack] climbs to the header, then opens Live. */
@@ -32,9 +34,12 @@ internal fun RecordingsDestination(
     recordingsVm: RecordingsViewModel,
     tabBack: () -> Unit,
     headerFocused: Boolean,
+    settingsFocus: FocusRequester,
 ) {
     val recordings by recordingsVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { recordingsVm.refresh() }
+    val signedOut = (recordings as? RecordingsState.Failed)?.signedOut == true
+    LaunchedEffect(signedOut) { if (signedOut) requestFocusWhenAttached(settingsFocus) }
     RecordingsScreen(
         state = recordings,
         onPlay = { recording, fromStart -> shell.push(Route.Recording(recording.id, fromStart)) },

@@ -126,11 +126,8 @@ struct ContentView: View {
             case is LineupStateUnconfigured:
                 SettingsGate()
             case let failed as LineupStateFailed:
-                VStack(spacing: 32) {
-                    Text(strings.loadFailed).font(.title2)
-                    Text(failed.message).foregroundStyle(.secondary)
-                    Button(strings.retry) { model.core.refresh() }
-                    NavigationLink(strings.tabSettings) { SettingsGate() }
+                LoadFailureView(headline: strings.loadFailed, message: failed.message, settingsLink: true) {
+                    model.core.refresh()
                 }
             default:
                 ProgressView(strings.loading)

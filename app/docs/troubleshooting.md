@@ -12,7 +12,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | On Apple TV, the keyboard closes by itself while you type | tvOS's keyboard sometimes loses track of which key it is on, and an arrow press then would stop the app; the app closes the keyboard instead. What you typed stays in the field; select the field to go on typing. |
 | Couldn't reach the Sofa King server | On Android 17, allow Nearby devices ([local network](security.md#local-network)). Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Try again, which has focus, or Settings → Server → Reload to try again; the app also tries again after 5, 10, 20 and 40 seconds, then every minute. |
 | `AUTH_REQUIRED` | The API token does not match the server's; [find it](getting-started.md#what-you-need). |
-| Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin; see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Behind a proxy, select Use this page's address under Server in Settings, then pair again. |
+| Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin; see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Behind a proxy, enter the page's own address under Server in Settings, or leave the address empty and select Pair, then pair again. |
 | A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server; put both behind the same HTTPS proxy ([serve the web app](../../backend/docs/deploy.md#serve-the-web-app)). |
 
 ## Channels and guide
@@ -25,7 +25,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | No guide for this channel | The server has no guide source mapped to the channel. Map one there. |
 | Guide out of date | The mapped guide source's data has run out. Check that it still imports on the server. |
 | A channel shows no logo | The server has no logo for it, or its logo failed to load. On the web, the proxy must forward `/logos/` too. |
-| No program image in the info bar | The guide source gives no image for that program. On the web, images from the guide source's host load only when it sends CORS headers. |
+| No program image in the info bar | The guide source gives no image for that program. The web app's guide shows no program images. |
 | The guide fills in after the channels | Programs load after the channel list. The saved lineup stays on screen while it refreshes. |
 | … is no longer on the server | The reloaded lineup has no channel with that number or name. Pick another channel from the guide. |
 | The Guide key does nothing | Some TV launchers take the Guide key for themselves. Menu does the same thing. |
@@ -38,9 +38,9 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | Can't play this channel | The server could not open a playback session, the stream ended, or the failure has no closer headline; the code names why. Press OK to retry or pick another channel. |
-| Can't reach this stream. Check the server and try again. | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
+| Can't reach this stream. Check the server and try again. | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; the web app shows Reconnecting beside the channel's name instead. The player reconnects with backoff; press OK to retry now. |
 | The server refused this stream. Try again, or try another one. | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
-| This stream's format isn't supported. Try another one. | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams a format the browser does not play; the server packages MPEG-TS as HLS for the web app, so this is another format, or a server from before that. |
+| This stream's format isn't supported. Try another one. | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. |
 | `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client. Stop a session, or see the [server's causes](../../backend/docs/troubleshooting.md#capacity-exhausted). |
 | `CHANNEL_NOT_FOUND` | The server's lineup changed. The app reloads it and follows the channel by number, then name. |
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
@@ -69,7 +69,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Captions run behind the speech | Live captions are typed after the words are spoken. On Android, show them earlier with the [caption timing](usage.md#captions). |
 | Captions run ahead of the speech | Some relays carry captions early. On Android, show them later with the [caption timing](usage.md#captions). |
 | Captions appear letter by letter | On Android, turn on Settings → Captions → Smooth live captions. |
-| The caption style setting changes nothing | On a desktop the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
+| The caption style setting changes nothing | On a desktop the player draws captions itself, and in a browser the browser draws them. [Captions](usage.md#captions) lists where the style applies. |
 
 ## Desktop, iOS and web
 
@@ -77,10 +77,9 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | --- | --- |
 | `VLC_NOT_INSTALLED` on a desktop | The desktop app plays through libVLC. Install VLC 3 (`sudo apt install vlc` on Ubuntu or Debian; a `.deb` installed with `apt install` brings it along), then restart the app. |
 | An MPEG-TS channel does not play on iOS | AVPlayer plays HLS only, so the server packages an MPEG-TS channel as HLS for it; the first picture takes a few seconds longer. On a server from before that, watch MPEG-TS channels on Android or a desktop. |
-| The screen dims or locks while a channel plays, on a Linux desktop or in a browser | A Linux desktop follows its own idle settings, since the app keeps the display awake only on Windows and macOS. A browser keeps it awake only on a page served over HTTPS, and only in browsers with the Screen Wake Lock API. |
-| No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
+| The screen dims or locks while a channel plays, on a Linux desktop or in a browser | A Linux desktop follows its own idle settings, since the app keeps the display awake only on Windows and macOS. The web app does not hold the screen awake; the browser and the system decide. |
+| No sound when the web app opens a channel | The browser blocks playback until you interact with the page. When the channel shows Press Enter to play, press Enter. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |
-| No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server sends no CORS headers on media for the page's origin. See [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Escape still returns to the guide. |
 | macOS or Windows will not open the app | Snapshot packages are unsigned. Allow the app in the system's security settings. |
 
 ## FAQ

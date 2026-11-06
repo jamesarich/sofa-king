@@ -5,7 +5,7 @@ import { pairingMessage, takePairing } from './pairing';
 
 function page(hash: string) {
     const replaced: string[] = [];
-    const location = { hash, origin: 'http://192.168.1.3:9193', pathname: '/app2/', search: '?x=1' };
+    const location = { hash, origin: 'http://192.168.1.3:9193', pathname: '/app/', search: '?x=1' };
     return { location, history: { replaceState: (_: unknown, __: string, url: string) => replaced.push(url) }, replaced };
 }
 
@@ -15,7 +15,7 @@ test('a pair fragment names the server that serves the page and is cleared from 
         { ...takePairing(new WebText(), location, history) },
         { serverUrl: 'http://192.168.1.3:9193', code: '123456' },
     );
-    assert.deepEqual(replaced, ['/app2/?x=1']);
+    assert.deepEqual(replaced, ['/app/?x=1']);
 });
 
 test('another fragment, or a code that is not six digits, pairs nothing and leaves the address alone', () => {

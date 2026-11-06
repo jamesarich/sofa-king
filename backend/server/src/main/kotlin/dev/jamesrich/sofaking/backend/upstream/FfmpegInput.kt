@@ -43,3 +43,10 @@ internal fun sourceOptions(source: FfmpegSource): List<String> =
  */
 internal fun ffmpegProcess(command: List<String>): ProcessBuilder =
     ProcessBuilder(command).also { it.environment().remove("http_proxy") }
+
+/**
+ * The protocols FFmpeg and FFprobe may open when they read a local file: the file itself and a pipe. A container that
+ * names another resource, such as an ffconcat script or an HLS playlist saved with a media extension, cannot make
+ * either tool open a URL. Pass it as an input option, before `-i`.
+ */
+internal val FFMPEG_LOCAL_PROTOCOL_WHITELIST = listOf("-protocol_whitelist", "file,pipe")

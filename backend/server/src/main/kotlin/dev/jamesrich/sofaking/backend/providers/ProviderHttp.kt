@@ -146,7 +146,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
         follow: Boolean,
     ): Hop<Fetched> {
         try {
-            policy.check(hop)
+            policy.admit(hop)
         } catch (e: UpstreamRejectedException) {
             throw ProviderFailure("Provider address refused", transient = false, cause = e)
         }

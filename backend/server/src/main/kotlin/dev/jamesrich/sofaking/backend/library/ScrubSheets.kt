@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryScrubs
 import dev.jamesrich.sofaking.backend.store.saveLibraryScrub
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,7 +82,8 @@ fun interface SheetMaker {
 class FfmpegSheetMaker(private val ffmpeg: String, private val timeout: Duration = 30.minutes) : SheetMaker {
     override suspend fun make(file: Path, into: Path): SheetSize? = withContext(Dispatchers.IO) {
         val exit = ProcessBuilder(
-            ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-skip_frame", "nokey", "-i", file.toString(),
+            ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-skip_frame", "nokey",
+            *FFMPEG_LOCAL_PROTOCOL_WHITELIST.toTypedArray(), "-i", file.toString(),
             "-map", "0:v:0", "-an", "-sn",
             "-vf", "fps=1000/$SCRUB_INTERVAL_MS:round=up,scale=$SCRUB_TILE_WIDTH:-2,tile=${SCRUB_COLUMNS}x$SCRUB_ROWS",
             "-q:v", "5", "-start_number", "0", "-y", into.resolve("%d.jpg").toString(),

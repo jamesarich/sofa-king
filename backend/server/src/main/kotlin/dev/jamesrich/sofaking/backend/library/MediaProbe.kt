@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.io.runFor
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -89,7 +90,8 @@ class MediaProbe(private val ffprobe: String, private val timeoutSeconds: Int = 
         try {
             val command =
                 listOf(
-                    ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", "--",
+                    ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams",
+                    *FFMPEG_LOCAL_PROTOCOL_WHITELIST.toTypedArray(), "--",
                     file.toString(),
                 )
             val exit = ProcessBuilder(

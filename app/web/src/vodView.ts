@@ -3,10 +3,12 @@ import Hls from 'hls.js';
 import { button, h } from './dom';
 import { setKeyHandler } from './focus';
 import { sendRelease, toggleFullScreen } from './liveView';
+import { StatusLine } from './status';
 import type { Context, View } from './view';
 
 const SAVE_EVERY_MS = 10_000;
 const SEEK_STEP_S = 10;
+const PRESS_TO_PLAY = 'Press Enter to play';
 
 /**
  * A library item or recording: the server's HLS through hls.js (or the browser's own where it has no MediaSource), or
@@ -15,11 +17,13 @@ const SEEK_STEP_S = 10;
  */
 export function vodView(ctx: Context, itemId: string, fromStart: boolean): View {
     const video = h('video', { attrs: { playsinline: true, controls: true, autoplay: true, 'aria-label': 'Picture' } });
-    const status = h('span', { class: 'status', attrs: { role: 'status' } });
+    const statusEl = h('p', { class: 'player-status', attrs: { role: 'status' } });
+    const status = new StatusLine(statusEl);
     const el = h(
         'section',
         { class: 'player vod' },
         video,
+        statusEl,
         h(
             'div',
             { class: 'controls' },
@@ -27,7 +31,6 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
             button('Back 10 s', () => seekBy(-SEEK_STEP_S)),
             button('Forward 10 s', () => seekBy(SEEK_STEP_S)),
             button('Full screen', () => toggleFullScreen(el)),
-            status,
         ),
     );
 
@@ -36,6 +39,8 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
     let disposed = false;
     let waited = 0;
     let lastSaved = 0;
+    let dropped = 0;
+    let reopenTimer: ReturnType<typeof setTimeout> | undefined;
 
     /** Where the item is now, in milliseconds. */
     const itemMs = () => (stream?.offsetMs ?? 0) + video.currentTime * 1000;
@@ -50,7 +55,7 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
         if (next.mode !== 'direct' && Hls.isSupported()) {
             const player = new Hls({ startPosition: start > 0 ? start : -1 });
             player.on(Hls.Events.ERROR, (_event, data) => {
-                if (data.fatal) status.textContent = 'The picture stopped. Go back and play it again.';
+                if (data.fatal) reopen();
             });
             hls = player;
             player.loadSource(next.url);
@@ -59,28 +64,49 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
             video.src = next.url;
             if (start > 0) video.addEventListener('loadedmetadata', () => (video.currentTime = start), { once: true });
         }
-        video.play().catch(() => (status.textContent = 'Press Enter to play'));
+        video.play().catch(() => status.set(PRESS_TO_PLAY));
     }
 
-    async function open(): Promise<void> {
+    /** Opens the session; [resumeMs] is the place in the item to carry on from after a drop, else where the item says. */
+    async function open(resumeMs: number | null = null): Promise<void> {
         try {
-            const next = await ctx.core.item.play(itemId, fromStart);
+            const next = await ctx.core.item.play(itemId, resumeMs === null && fromStart);
             if (disposed) return;
             waited = 0;
-            status.textContent = '';
-            load(next, (next.startAtMs - next.offsetMs) / 1000);
+            status.set('');
+            load(next, ((resumeMs ?? next.startAtMs) - next.offsetMs) / 1000);
         } catch (error) {
             if (disposed) return;
             const delay = ctx.core.decisions.isConverterBusy(error) ? (ctx.core.decisions.converterRetryDelayMs(waited) ?? null) : null;
             if (delay === null) {
-                status.textContent = 'This item did not open.';
+                if (resumeMs === null) status.set('This item did not open.');
+                else reopen();
                 return;
             }
-            status.textContent = 'Every converter is busy; trying again';
+            status.set('Every converter is busy; trying again');
             waited += delay;
-            setTimeout(() => void open(), delay);
+            reopenTimer = setTimeout(() => {
+                reopenTimer = undefined;
+                void open(resumeMs);
+            }, delay);
         }
     }
+
+    /** A dropped session is read again through the server and resumed where the picture was, never retried as it was. */
+    function reopen(): void {
+        if (disposed || reopenTimer !== undefined) return;
+        status.set('Reconnecting');
+        const resumeMs = itemMs();
+        reopenTimer = setTimeout(() => {
+            reopenTimer = undefined;
+            void open(resumeMs);
+        }, ctx.core.decisions.reconnectDelayMs(dropped++));
+    }
+
+    // The server replaced the stream under the held session: load the new one at the same place.
+    const replaced = ctx.core.channels.watchReplaced((next) => {
+        if (!disposed) load(next, (itemMs() - next.offsetMs) / 1000);
+    });
 
     async function seekTo(ms: number): Promise<void> {
         const plan = ctx.core.decisions.vodSeek(ms, writtenMs(), durationMs() || null);
@@ -97,7 +123,9 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
     }
 
     video.addEventListener('timeupdate', () => {
-        status.textContent = status.textContent?.startsWith('Press') ? '' : status.textContent;
+        dropped = 0;
+        status.clearIf(PRESS_TO_PLAY);
+        status.clearIf('Reconnecting');
         const now = Date.now();
         if (now - lastSaved < SAVE_EVERY_MS) return;
         lastSaved = now;
@@ -105,7 +133,7 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
     });
     video.addEventListener('ended', () => ctx.back());
     video.addEventListener('error', () => {
-        if (!disposed && !hls) status.textContent = 'The picture stopped.';
+        if (!disposed && !hls) reopen();
     });
 
     void open();
@@ -137,6 +165,8 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
         el,
         dispose() {
             disposed = true;
+            clearTimeout(reopenTimer);
+            replaced.cancel();
             setKeyHandler(null);
             window.removeEventListener('pagehide', onPageHide);
             if (stream) ctx.core.item.stopped(itemId, itemMs(), durationMs());

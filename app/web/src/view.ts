@@ -10,6 +10,8 @@ export interface View {
 export interface Context {
     core: SofaKingWeb;
     go(route: Route): void;
+    /** Shows [route] in place of the current page, with no history entry of its own: a zap is not a place to go Back to. */
+    replace(route: Route): void;
     back(): void;
 }
 

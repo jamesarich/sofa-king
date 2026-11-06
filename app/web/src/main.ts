@@ -25,6 +25,10 @@ const ctx: Context = {
     go: (route) => {
         window.location.hash = href(route);
     },
+    replace: (route) => {
+        window.history.replaceState(window.history.state, '', href(route));
+        show();
+    },
     back: () => {
         if (backStaysInApp(window.history.state)) {
             window.history.back();

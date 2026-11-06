@@ -71,7 +71,7 @@ defaults:
 jobs:
   test:
     # Ubuntu dropped Comskip after 24.10, and the image's noble base still ships it.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read

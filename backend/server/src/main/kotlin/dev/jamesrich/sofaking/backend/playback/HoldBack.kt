@@ -21,8 +21,8 @@ private val TARGET_DURATION = Regex("""^#EXT-X-TARGETDURATION:\s*(\d+(?:\.\d+)?)
  * [text], a live media playlist whose window holds [segments], with `#EXT-X-SERVER-CONTROL:HOLD-BACK` asking the
  * player to play [LIVE_HOLD_BACK_MS] behind its newest segment, or less where that would leave under three target
  * durations of the window behind the player, and the hold-back it was given. [kept], the one this playlist was given
- * last, stays while the window still fits it and has no more than one target duration of room beyond it, so the value
- * follows a window that is still growing without moving on every refresh. A playlist
+ * last, stays while the window still fits it, so the player's target does not move with every refresh: AVPlayer
+ * re-targets its live position on every HOLD-BACK change and never settles while a packaged window grows. A playlist
  * that ended, sets its own server control, or has no room to hold the player further back than the default comes
  * back as it was, with null.
  */
@@ -31,8 +31,7 @@ internal fun withHoldBack(text: String, segments: List<AdBreaks.Segment>, kept: 
     val target = TARGET_DURATION.find(text) ?: return text to null
     val targetMs = (target.groupValues[1].toDouble() * MS_PER_SECOND).roundToLong()
     val room = segments.sumOf { it.durationMs } - TARGET_DURATIONS * targetMs
-    val fitting = minOf(LIVE_HOLD_BACK_MS, room) / MS_PER_SECOND * MS_PER_SECOND
-    val holdBack = kept?.takeIf { it <= room && fitting - it <= targetMs } ?: fitting
+    val holdBack = kept?.takeIf { it <= room } ?: (minOf(LIVE_HOLD_BACK_MS, room) / MS_PER_SECOND * MS_PER_SECOND)
     if (holdBack <= TARGET_DURATIONS * targetMs) return text to null
     val at = target.range.last + 1
     val line = "\n#EXT-X-SERVER-CONTROL:HOLD-BACK=${holdBack / MS_PER_SECOND}"

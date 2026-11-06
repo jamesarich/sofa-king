@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.library
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.io.runFor
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -111,7 +112,8 @@ class VodSubtitles internal constructor(
         Files.createDirectories(dir)
         val partial = dir.resolve("$name.part")
         val command = listOf(
-            ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(),
+            ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+            *FFMPEG_LOCAL_PROTOCOL_WHITELIST.toTypedArray(), "-i", file.toString(),
             "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString(),
         )
         // A client that gives up mid-conversion ends FFmpeg; what it wrote goes with it.

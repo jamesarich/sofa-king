@@ -523,6 +523,15 @@ master_5_5535913.ts
     }
 
     @Test
+    fun `the hold-back follows a window that keeps growing up to 36 seconds`() {
+        val clock = AdClock()
+        assertTrue(clock.plain(window(100, 7), whaleBase).contains("HOLD-BACK=24\n"))
+        // One target duration more room is not enough to move it.
+        assertTrue(clock.plain(window(100, 8), whaleBase).contains("HOLD-BACK=24\n"))
+        assertTrue(clock.plain(window(100, 9), whaleBase).contains("HOLD-BACK=36\n"))
+    }
+
+    @Test
     fun `the hold-back shrinks with a window that no longer fits it and then stays put`() {
         val clock = AdClock()
         assertTrue(clock.plain(window(100, 10), whaleBase).contains("HOLD-BACK=36\n"))

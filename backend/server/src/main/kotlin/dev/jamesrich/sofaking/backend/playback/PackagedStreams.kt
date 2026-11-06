@@ -199,6 +199,8 @@ internal class PackagedStreams(
             log.info("packager retried with the default probe session={} provider={}", pack.id, offering.providerId)
             feed(pack, reader, probe = false)
         }
+        // The source went silent past the grace: move the session on, so the player's next request gets the 410.
+        if (reader.stalled) sessions.failover(pack.id, pack.epoch, pack.job, RemuxWatch.STALL)
     }
 
     /** Runs one FFmpeg on [reader] until either ends; true when a [probe] run died before its first playlist. */

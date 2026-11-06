@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.saveLibraryCredits
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.backend.store.saveLibraryIntros
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -106,7 +107,8 @@ class FfmpegFingerprinter(
             try {
                 val exit = ProcessBuilder(
                     ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", fromSeconds.toString(), "-t",
-                    seconds.toString(), "-i", file.toString(),
+                    seconds.toString(),
+                    *FFMPEG_LOCAL_PROTOCOL_WHITELIST.toTypedArray(), "-i", file.toString(),
                     "-map", "0:a:0", "-ac", "1", "-f", "chromaprint", "-fp_format", "raw", "-y", out.toString(),
                 ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
                     ?: throw IllegalStateException("ffmpeg ran past $timeout")

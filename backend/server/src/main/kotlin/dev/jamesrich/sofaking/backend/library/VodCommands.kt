@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
@@ -124,12 +125,13 @@ internal fun vodCommand(
     val seek = if (startMs > 0) listOf("-ss", seconds(startMs)) else emptyList()
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
+        addAll(FFMPEG_LOCAL_PROTOCOL_WHITELIST)
         if (!streams.copyVideo && !media.audioOnly) addAll(encoder.inputArgs())
         addAll(seek)
         if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
         addAll(listOf("-i", file.toString()))
         // A subtitle file is a second input, seeked to the same point.
-        burn?.file?.let { addAll(seek + listOf("-i", it.toString())) }
+        burn?.file?.let { addAll(FFMPEG_LOCAL_PROTOCOL_WHITELIST + seek + listOf("-i", it.toString())) }
         addAll(streams.args())
         if (firstSegment != null) {
             addAll(listOf("-output_ts_offset", seconds(startMs), "-start_number", "$firstSegment"))

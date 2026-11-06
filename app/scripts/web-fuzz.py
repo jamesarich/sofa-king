@@ -95,7 +95,8 @@ def main():
         page.on('response', answered)
         # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
         settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}
-        page.add_init_script(f'localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))})')
+        # A document that denies storage (about:blank after a Back out of the app) must not raise a page error here.
+        page.add_init_script(f'try {{ localStorage.getItem("sofaking.preferences") || localStorage.setItem("sofaking.settings", {json.dumps(json.dumps(settings))}) }} catch (e) {{}}')
         try:
             with page.expect_response(lambda response: '/api/v1/channels' in response.url, timeout=90_000):
                 page.goto(page_url)

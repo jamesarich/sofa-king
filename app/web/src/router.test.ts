@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { href, parseRoute, type Route } from './router';
+import { backStaysInApp, href, parseRoute, stampFor, type Route } from './router';
 
 test('every route reads back from the address it makes', () => {
     const routes: Route[] = [
@@ -21,4 +21,17 @@ test('an empty or unknown address opens the guide, and a page without its id the
     assert.deepEqual(parseRoute('#/nowhere'), { page: 'guide' });
     assert.deepEqual(parseRoute('#/watch'), { page: 'guide' });
     assert.deepEqual(parseRoute('#/item'), { page: 'library' });
+});
+
+test('Back goes up the history only from an entry the app stamped above its first', () => {
+    assert.equal(backStaysInApp(null), false);
+    assert.equal(backStaysInApp({ sk: 0 }), false);
+    assert.equal(backStaysInApp({ sk: 2 }), true);
+    assert.equal(backStaysInApp({ sk: -1 }), false);
+    assert.equal(backStaysInApp({ other: 1 }), false);
+});
+
+test('a new entry is stamped one deeper, and a revisited one keeps its stamp', () => {
+    assert.deepEqual(stampFor(null, 0), { sk: 1 });
+    assert.deepEqual(stampFor({ sk: 3 }, 5), { sk: 3 });
 });

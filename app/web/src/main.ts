@@ -7,7 +7,7 @@ import { itemView } from './itemView';
 import { gridView, libraryView } from './libraryView';
 import { liveView } from './liveView';
 import { pairingMessage, takePairing } from './pairing';
-import { href, parseRoute, type Route } from './router';
+import { backStaysInApp, href, parseRoute, stampFor, type Route } from './router';
 import { noteFromPairing, settingsView } from './settingsView';
 import type { Context, View } from './view';
 import { vodView } from './vodView';
@@ -15,9 +15,10 @@ import { vodView } from './vodView';
 const core = new SofaKingWeb();
 const root = document.getElementById('app') as HTMLElement;
 
-// How many pages this tab has opened inside the app, so Back leaves the app's own pages only by going to the guide.
-let depth = 0;
-let leaving = false;
+// Every history entry the app is on carries a stamp, so Back never leaves the app's own pages: the first entry, or
+// one the app did not make, goes to the guide in place.
+let stamp = stampFor(window.history.state, -1);
+window.history.replaceState(stamp, '');
 
 const ctx: Context = {
     core,
@@ -25,8 +26,7 @@ const ctx: Context = {
         window.location.hash = href(route);
     },
     back: () => {
-        if (depth > 0) {
-            leaving = true;
+        if (backStaysInApp(window.history.state)) {
             window.history.back();
         } else {
             window.location.hash = href({ page: 'guide' });
@@ -102,12 +102,8 @@ function show(): void {
 }
 
 window.addEventListener('hashchange', () => {
-    if (leaving) {
-        leaving = false;
-        depth = Math.max(0, depth - 1);
-    } else {
-        depth += 1;
-    }
+    stamp = stampFor(window.history.state, stamp.sk);
+    window.history.replaceState(stamp, '');
     show();
 });
 
@@ -121,6 +117,7 @@ core.channels.watchCapabilities((capabilities) => {
 
 // A code in the address pairs this page with the server that serves it, and opens the guide.
 const pairing = takePairing(core.text, window.location, window.history);
+if (pairing) window.history.replaceState(stamp, '');
 show();
 if (pairing) {
     void core.settings.pair(pairing.serverUrl, pairing.code).then((failure) => {

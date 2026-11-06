@@ -30,6 +30,23 @@ export function parseRoute(hash: string): Route {
     }
 }
 
+/** What the app writes into `history.state` of each entry it is on: how many of its own pages lie below. */
+export type Stamp = { sk: number };
+
+function stamped(state: unknown): state is Stamp {
+    return typeof state === 'object' && state !== null && Number.isInteger((state as Stamp).sk) && (state as Stamp).sk >= 0;
+}
+
+/** The stamp for an entry just reached: its own when it has one, else one deeper than the entry it came from. */
+export function stampFor(state: unknown, previous: number): Stamp {
+    return stamped(state) ? state : { sk: previous + 1 };
+}
+
+/** Back leaves the page only for an entry the app made; the first entry, or one it did not stamp, goes to the guide. */
+export function backStaysInApp(state: unknown): boolean {
+    return stamped(state) && state.sk > 0;
+}
+
 export function href(route: Route): string {
     switch (route.page) {
         case 'guide':

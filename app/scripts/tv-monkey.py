@@ -127,7 +127,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     print(f'Seed {args.seed}, {args.keys} keys', flush=True)
 
-    with serve(out, short=True) as base:
+    # Breaks a minute apart on the marked channel, so the break flow waits at most that long for one.
+    with serve(out, short=True, mark_every=60) as base:
         logcat = None
         flows_failed = []
         try:

@@ -29,13 +29,22 @@ name: Break screen over a marked ad break
     visible:
       id: "player"
     timeout: 30000
-# The next break starts within 240 s of tuning in and the player sits a few seconds behind the newest segment.
-- extendedWaitUntil:
-    visible: "You're watching.*"
-    timeout: 280000
+# The next break starts within 240 s of tuning in and the player sits a few seconds behind the newest segment. The
+# screen's label is "Commercial break" and its countdown reads "Back in m:ss"; one long wait ends early on the emulator,
+# so short waits repeat until the screen is up.
+- repeat:
+    times: 30
+    while:
+      notVisible: "Commercial break|Back in .*"
+    commands:
+      - extendedWaitUntil:
+          visible: "Commercial break|Back in .*"
+          timeout: 10000
+          optional: true
+- assertVisible: "Commercial break|Back in .*"
 # The break is 30 s long, so the screen has to be gone well within a minute.
 - extendedWaitUntil:
-    notVisible: "You're watching.*"
+    notVisible: "Commercial break|Back in .*"
     timeout: 60000
 - assertVisible:
     id: "player"

@@ -113,6 +113,26 @@ class DvrPlannerTest {
         assertEquals(listOf("moved"), plan.drop.map { it.id })
     }
 
+    @Test fun `an episode whose guide time moved is scheduled at its new time in the same pass`() {
+        val earlier = now.plus(Duration.ofMinutes(40))
+        val scheduled = recording("moved", earlier, ruleId = "r", season = 1, episode = 1)
+        val moved = airing(0, episode = "S01E01").let {
+            it.copy(program = it.program.copy(startsAt = now.plus(Duration.ofMinutes(60)), endsAt = at(2)))
+        }
+        val plan = DvrPlanner.plan(listOf(rule(id = "r")), listOf(moved), listOf(scheduled), now)
+        assertEquals(listOf("moved"), plan.drop.map { it.id })
+        assertEquals(listOf(moved.program.startsAt), plan.add.map { it.second.program.startsAt })
+    }
+
+    @Test fun `a numbered episode already recorded is not re-added when a different airing of it is dropped`() {
+        val completed = recording("kept", at(-48), state = Wire.RecordingState.COMPLETED, season = 1, episode = 1)
+        val stale = recording("stale", at(3), ruleId = "r", season = 1, episode = 1)
+        val airings = listOf(airing(5, episode = "S01E01"))
+        val plan = DvrPlanner.plan(listOf(rule(id = "r")), airings, listOf(completed, stale), now)
+        assertEquals(listOf("stale"), plan.drop.map { it.id })
+        assertEquals(emptyList(), plan.add)
+    }
+
     @Test fun `recordings beyond the slots conflict, lowest rank first`() {
         val oneOff = recording("one-off", at(1))
         val high = recording("high", at(1), ruleId = "high", channel = "b")

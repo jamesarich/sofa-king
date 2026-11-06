@@ -60,27 +60,29 @@ object DvrPlanner {
      * and start, whatever its state, or holds the same episode; and one already ended is never added.
      */
     fun plan(rules: List<StoredRule>, airings: List<Airing>, existing: List<StoredRecording>, now: Instant): Plan {
-        val taken = existing.mapTo(HashSet()) { it.channelId to it.startsAt }
-        val episodes = existing.filter { it.state in HELD }.mapNotNullTo(HashSet(), ::key)
-        val add = mutableListOf<Pair<StoredRule, Airing>>()
-        val wanted = HashSet<Pair<String, Instant>>()
-        for (rule in rules.sortedByDescending { it.priority }) {
+        val matched = rules.sortedByDescending { it.priority }.flatMap { rule ->
             val matcher = RuleMatcher(rule)
-            for (airing in airings.filter { matches(rule, matcher, it) }.sortedBy { it.program.startsAt }) {
-                val slot = airing.channelId to airing.program.startsAt
-                wanted += slot
-                val episode = key(airing)
-                val open = airing.program.endsAt > now && slot !in taken && (episode == null || episode !in episodes)
-                if (open) {
-                    episode?.let(episodes::add)
-                    taken += slot
-                    add += rule to airing
-                }
-            }
+            airings.filter { matches(rule, matcher, it) }.sortedBy { it.program.startsAt }.map { rule to it }
         }
+        val wanted = matched.mapTo(HashSet()) { (_, airing) -> airing.channelId to airing.program.startsAt }
         val drop = existing.filter {
             it.ruleId != null && it.state == Wire.RecordingState.SCHEDULED &&
                 it.recordFrom > now && (it.channelId to it.startsAt) !in wanted
+        }
+        // A row being dropped no longer holds its episode, so the airing it moved to is admitted in this same pass.
+        val dropped = drop.mapTo(HashSet()) { it.id }
+        val taken = existing.mapTo(HashSet()) { it.channelId to it.startsAt }
+        val episodes = existing.filter { it.state in HELD && it.id !in dropped }.mapNotNullTo(HashSet(), ::key)
+        val add = mutableListOf<Pair<StoredRule, Airing>>()
+        for ((rule, airing) in matched) {
+            val slot = airing.channelId to airing.program.startsAt
+            val episode = key(airing)
+            val open = airing.program.endsAt > now && slot !in taken && (episode == null || episode !in episodes)
+            if (open) {
+                episode?.let(episodes::add)
+                taken += slot
+                add += rule to airing
+            }
         }
         return Plan(add, drop)
     }

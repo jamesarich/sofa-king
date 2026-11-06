@@ -202,6 +202,55 @@ class NotifierTest {
         assertEquals("1.5 GiB free, under the 10 GiB floor", disk().message)
     }
 
+    @Test fun `the events beyond a recording's state become notifications naming what happened`() {
+        val preempted = notificationsOf(
+            event(
+                NotifyEvent.RECORDING_PREEMPTED,
+                buildJsonObject {
+                    put("channelName", "Movies")
+                    put("forChannelName", "News")
+                },
+            ),
+        ).single()
+        assertEquals(NotifyEvent.RECORDING_PREEMPTED, preempted.event)
+        assertEquals("A recording on News replaced the session watching Movies", preempted.message)
+        val culled = notificationsOf(
+            event(
+                NotifyEvent.RECORDING_CULLED,
+                buildJsonObject {
+                    put("title", "Movie")
+                    put("channelName", "Channel")
+                    put("reason", "SPACE")
+                },
+            ),
+        ).single()
+        assertEquals(NotifyEvent.RECORDING_CULLED, culled.event)
+        assertEquals("Movie on Channel (SPACE)", culled.message)
+        val job = notificationsOf(
+            event(
+                NotifyEvent.JOB_FAILED,
+                buildJsonObject {
+                    put("id", "backup")
+                    put("label", "Database backup")
+                    put("note", "IOException")
+                },
+            ),
+        ).single()
+        assertEquals("Database backup: IOException", job.message)
+        assertEquals(NotifyTone.FAILURE, job.tone)
+        val stale = notificationsOf(
+            event(
+                NotifyEvent.BACKUP_STALE,
+                buildJsonObject {
+                    put("lastBackupAt", null as String?)
+                    put("days", 3)
+                },
+            ),
+        ).single()
+        assertEquals("There is no database backup", stale.message)
+        assertTrue(NotifyEvent.ALL.containsAll(listOf(preempted.event, culled.event, job.event, stale.event)))
+    }
+
     private fun recording(state: String, reason: String? = null) = event(
         EventType.RECORDING_STATE,
         buildJsonObject {

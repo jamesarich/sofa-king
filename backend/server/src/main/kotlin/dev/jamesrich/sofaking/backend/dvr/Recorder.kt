@@ -76,6 +76,8 @@ class Recorder internal constructor(
     private val shared: (suspend (Offering, ResolvedStream) -> TsFanout.Reader)? = null,
     /** How long FFmpeg may write nothing before its source counts as stalled and is reopened. */
     private val stallAfter: Duration = STALL_AFTER,
+    /** Whether a recording that finds every slot taken may take the slot of the stalest watching app session. */
+    private val preempts: () -> Boolean = { false },
 ) {
     /** The best write window each channel's last recording showed, by channel id; gone with the process. */
     private val bestRates = ConcurrentHashMap<String, Long>()
@@ -132,7 +134,7 @@ class Recorder internal constructor(
         markers: PlaylistMarkers,
         rate: WriteRate,
     ): String? {
-        val session = sessions.external.open(channelId, CLIENT, shareable = false)
+        val session = sessions.external.open(channelId, CLIENT, shareable = false, preempt = preempts())
         // Taken while the session is up: most reads end because it went, and the table then no longer answers for it.
         val counter = sessions.media.bytesOf(session.id)
         try {

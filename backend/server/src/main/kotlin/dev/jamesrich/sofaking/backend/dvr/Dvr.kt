@@ -346,7 +346,8 @@ class Dvr(
     /**
      * Deletes the finished recordings the retention no longer keeps: a rule's oldest beyond its keep count, any older
      * than the keep days, then, while the disk has less free space than the floor, the oldest of the rest, watched
-     * ones first. Protected recordings and running ones are never deleted. Logs every deletion with its reason.
+     * ones first: at most [SPACE_CULL_MAX] per pass, and none after one that freed no space. Protected recordings
+     * and running ones are never deleted. Logs and publishes every deletion with its reason.
      */
     suspend fun cull(cause: String) = jobs.record(CULL_JOB) {
         val now = clock.instant()
@@ -355,15 +356,21 @@ class Dvr(
             val rules = store.recordingRules().associateBy { it.id }
             val all = store.recordings()
             val plan = DvrPlanner.cull(all, rules, keep, now)
-            plan.forEach { (recording, reason) -> store.cull(files, recording, reason) }
+            plan.forEach { (recording, reason) -> store.cull(files, recording, reason, events) }
             val gone = plan.mapTo(HashSet()) { it.first.id }
             val floor = keep.freeGib.toLong() * GIB
-            val oldest = DvrPlanner.byCullOrder(all.filter { it.id !in gone }).iterator()
-            // The oldest go one at a time until the disk has the floor free, or its free space cannot be read.
-            while (oldest.hasNext() && files.free()?.let { it < floor } == true) {
-                val recording = oldest.next()
-                store.cull(files, recording, "SPACE")
+            val oldest = DvrPlanner.byCullOrder(all.filter { it.id !in gone })
+            // The oldest go one at a time until the disk has the floor free, or its free space cannot be read. A pass
+            // stops at SPACE_CULL_MAX deletions and as soon as one frees nothing, so a disk that is low for reasons
+            // outside the recordings never loses the whole history.
+            var free = files.free()
+            for (recording in oldest.take(SPACE_CULL_MAX)) {
+                val before = free
+                if (before == null || before >= floor) break
+                store.cull(files, recording, "SPACE", events)
                 gone += recording.id
+                // Free space that did not rise, or cannot be read, ends the pass at the top of the next turn.
+                free = files.free()?.takeIf { it > before }
             }
             gone.size
         }
@@ -394,6 +401,9 @@ class Dvr(
          * so the database can still write.
          */
         const val MIN_FREE_BYTES = 512L * 1024 * 1024
+
+        /** The most recordings one cleanup pass deletes for space; a later pass goes on if the floor is unmet. */
+        const val SPACE_CULL_MAX = 10
 
         /** How often a running recording may make cleanup run for space. */
         val SPACE_CULL_EVERY: Duration = Duration.ofMinutes(1)
@@ -485,9 +495,15 @@ private suspend fun GuideService.programAt(entry: LineupEntryRecord, start: Inst
 }
 
 /** Deletes [recording] and its files for [reason], and logs why. */
-private suspend fun BackendStore.cull(files: RecordingFiles, recording: StoredRecording, reason: String) {
+private suspend fun BackendStore.cull(
+    files: RecordingFiles,
+    recording: StoredRecording,
+    reason: String,
+    events: ServerEvents?,
+) {
     withContext(Dispatchers.IO) { recording.path?.let { files.remove(it) } }
     deleteRecording(recording.id)
+    events.recordingCulled(recording, reason)
     log.info("recording culled id={} title=\"{}\" reason={}", recording.id, recording.title, reason)
 }
 

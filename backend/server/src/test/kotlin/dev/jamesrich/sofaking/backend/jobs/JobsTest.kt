@@ -1,7 +1,14 @@
 package dev.jamesrich.sofaking.backend.jobs
 
+import dev.jamesrich.sofaking.backend.api.ServerEvent
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.events.ServerEvents
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,6 +54,28 @@ class JobsTest {
         assertEquals("IllegalStateException", job.lastNote)
         assertFalse(job.canRunNow)
         assertNull(job.nextDueAt, "a job with no interval is never due")
+    }
+
+    @Test fun `a job whose runs start failing publishes job failed once, until it succeeds again`() = runTest {
+        val clock = MutableClock()
+        val events = ServerEvents(clock)
+        val jobs = Jobs(clock).also { it.events = events }
+        jobs.register("guide:a", "Guide a")
+        val seen = mutableListOf<ServerEvent>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { events.events.collect { seen += it } }
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
+        assertFailsWith<IllegalStateException> { jobs.record("guide:a") { error("boom") } }
+        jobs.record("guide:a") { JobOutcome(true, "2 channels") }
+        runCurrent()
+        assertEquals(1, seen.size, "one for the streak, none for the runs after its first")
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
+        runCurrent()
+        assertEquals(listOf(NotifyEvent.JOB_FAILED, NotifyEvent.JOB_FAILED), seen.map { it.type })
+        val data = seen.first().data
+        assertEquals("guide:a", data["id"]!!.jsonPrimitive.content)
+        assertEquals("Guide a", data["label"]!!.jsonPrimitive.content)
+        assertEquals("IMPORT_FAILED (IOException)", data["note"]!!.jsonPrimitive.content)
     }
 
     @Test fun `progress shows only while the job runs`() = runTest {

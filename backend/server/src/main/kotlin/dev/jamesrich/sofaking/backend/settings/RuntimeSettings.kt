@@ -28,6 +28,7 @@ data class RuntimeValues(private val values: Map<String, String>) {
     val maxSessions: Int get() = int(Settings.MAX_SESSIONS)
     val recordingsFreeGib: Int get() = int(Settings.RECORDINGS_FREE_GIB)
     val recordingsKeepDays: Int get() = int(Settings.RECORDINGS_KEEP_DAYS)
+    val recordingPreempts: Boolean get() = values.getValue(Settings.RECORDING_PREEMPTS.name) == "on"
     val learnedBreaks: String get() = values.getValue(Settings.LEARNED_BREAKS.name)
     val adListeners: Int get() = int(Settings.AD_LISTENERS)
     val iptvOrg: IptvOrgSettings

@@ -1,8 +1,17 @@
 package dev.jamesrich.sofaking.backend.store
 
+import dev.jamesrich.sofaking.backend.api.ServerEvent
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -54,6 +63,43 @@ class DatabaseBackupsTest {
             }
         } finally {
             copy.toFile().deleteRecursively()
+        }
+    }
+
+    @Test fun `no backup in three days is reported once, until a recent one exists`() = runBlocking {
+        val dir = Files.createTempDirectory("sofa-backups-stale-")
+        val store = openStore(dir, clock)
+        val events = ServerEvents(clock)
+        val jobs = Jobs(clock).also { it.events = events }
+        val backups = DatabaseBackups(dir, clock, jobs, {}, store::schemaVersion)
+        val seen = mutableListOf<ServerEvent>()
+        val listening = launch(start = CoroutineStart.UNDISPATCHED) { events.events.collect { seen += it } }
+        try {
+            backups.checkStale()
+            backups.checkStale()
+            yield()
+            assertEquals(1, seen.size, "none at all is reported once")
+            assertEquals(NotifyEvent.BACKUP_STALE, seen.single().type)
+            assertNull(seen.single().data["lastBackupAt"]!!.jsonPrimitive.contentOrNull)
+            val taken = backups.take(BackupKind.DAILY)
+            clock.now = clock.now.plus(Duration.ofDays(2))
+            backups.checkStale()
+            yield()
+            assertEquals(1, seen.size, "a backup two days old is recent")
+            clock.now = clock.now.plus(Duration.ofDays(2))
+            backups.checkStale()
+            backups.checkStale()
+            yield()
+            assertEquals(2, seen.size, "four days old is reported once")
+            assertEquals(
+                backups.list().single { it.name == taken.name }.takenAt.toString(),
+                seen.last().data["lastBackupAt"]!!.jsonPrimitive.content,
+            )
+            assertEquals(3, seen.last().data["days"]!!.jsonPrimitive.int)
+        } finally {
+            listening.cancel()
+            store.close()
+            dir.toFile().deleteRecursively()
         }
     }
 

@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,8 @@ import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
 import java.io.InputStream
@@ -88,6 +92,8 @@ class DatabaseBackups(
 ) {
     private val mutex = Mutex()
     private val requests = Channel<Unit>(Channel.CONFLATED)
+
+    @Volatile private var staleReported = false
 
     val directory: Path get() = dataDirectory.resolve(BACKUP_FOLDER)
 
@@ -187,13 +193,36 @@ class DatabaseBackups(
                 requests.onReceive { }
                 onTimeout(wait) { }
             }
-            jobs.record(JOB) {
-                val backup = take(BackupKind.DAILY)
-                val dropped = prune()
-                JobOutcome(true, backup.name + if (dropped > 0) ", dropped $dropped old" else "")
-            }
+            // A failed backup is on the Jobs page and in the log; the loop goes on to the next day's.
+            runCatchingCancellable {
+                jobs.record(JOB) {
+                    val backup = take(BackupKind.DAILY)
+                    val dropped = prune()
+                    JobOutcome(true, backup.name + if (dropped > 0) ", dropped $dropped old" else "")
+                }
+            }.onFailure { log.warn("backup: the daily backup failed class={}", it.javaClass.simpleName) }
+            runCatchingCancellable { checkStale() }
             wait = every.toMillis()
         }
+    }
+
+    /**
+     * Publishes `backup.stale` when no backup in the folder, of any kind, is newer than [STALE_AFTER], once until one
+     * is.
+     */
+    internal suspend fun checkStale() {
+        val newest = list().maxOfOrNull { it.takenAt }
+        val stale = newest == null || newest < clock.instant().minus(STALE_AFTER)
+        if (stale && !staleReported) {
+            jobs.events?.publish(
+                NotifyEvent.BACKUP_STALE,
+                buildJsonObject {
+                    put("lastBackupAt", newest?.toString())
+                    put("days", STALE_AFTER.toDays())
+                },
+            )
+        }
+        staleReported = stale
     }
 
     private suspend fun untilDue(): Duration {
@@ -207,6 +236,9 @@ class DatabaseBackups(
 
         /** How many daily backups stay. */
         const val KEEP = 7
+
+        /** How old the newest backup may be before the server says there is none recent. */
+        val STALE_AFTER: Duration = Duration.ofDays(3)
     }
 }
 

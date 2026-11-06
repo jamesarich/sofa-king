@@ -1,5 +1,9 @@
 package dev.jamesrich.sofaking.backend.jobs
 
+import dev.jamesrich.sofaking.backend.events.ServerEvents
+import dev.jamesrich.sofaking.backend.notify.NotifyEvent
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -78,6 +82,12 @@ class Jobs(private val clock: Clock) {
     private val entries = ConcurrentHashMap<String, Entry>()
     private val sequence = AtomicInteger()
 
+    /**
+     * Where `job.failed` is published, once as a job's runs start failing and not again until one succeeds; none
+     * until the runtime sets it.
+     */
+    @Volatile var events: ServerEvents? = null
+
     private fun entry(id: String): Entry = entries.computeIfAbsent(id) { Entry(id, sequence.getAndIncrement()) }
 
     /** Names the job [id] as [label], says how often its loop runs it, and gives the kick that starts it on request. */
@@ -105,12 +115,23 @@ class Jobs(private val clock: Clock) {
     }
 
     private fun finish(entry: Entry, started: Instant, outcome: JobOutcome) {
+        val startsFailing = !outcome.ok && entry.lastOk != false
         entry.lastStartedAt = started
         entry.lastEndedAt = clock.instant()
         entry.lastOk = outcome.ok
         entry.lastNote = outcome.note
         entry.runningSince = null
         entry.progress = null
+        if (startsFailing) {
+            events?.publish(
+                NotifyEvent.JOB_FAILED,
+                buildJsonObject {
+                    put("id", entry.id)
+                    put("label", entry.label)
+                    put("note", outcome.note)
+                },
+            )
+        }
     }
 
     /** Says how far the running job [id] has come; the Activity page shows it until the run ends. */

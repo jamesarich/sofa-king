@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -29,6 +30,8 @@ internal class UpstreamStatusException(val status: Int) : RuntimeException("Upst
 
 /** The upstream body carries [protocol], not the protocol the offering was imported with. */
 internal class UpstreamProtocolException(val protocol: String) : RuntimeException("Upstream is $protocol")
+
+internal class SilentUpstreamException : RuntimeException("Upstream sent nothing for the grace period")
 
 internal class SlowReaderException : RuntimeException("Reader buffer overflow")
 
@@ -48,6 +51,9 @@ internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.
         0xFF.toByte()
     it[3] = 0x10
 }
+
+/** Overrides every fan-out's grace period, in milliseconds; a test sets it to reach a stall without waiting. */
+@Volatile internal var graceMillisForTest: Long? = null
 
 /** How much of the upstream body one read takes. */
 private const val READ_SIZE = 32 * 1024
@@ -77,6 +83,9 @@ internal class TsFanout(
         /** Completes once the first aligned packets arrived, or fails with the first connection's error. */
         suspend fun awaitStarted() = started.await()
 
+        /** Whether the upstream stopped sending for the whole grace period, which is what ended [chunks]. */
+        val stalled: Boolean get() = gaveUp
+
         suspend fun close() = removeReader(this)
     }
 
@@ -94,6 +103,8 @@ internal class TsFanout(
     @Volatile private var lastDataAt = now()
 
     @Volatile private var chunks = 0L
+
+    @Volatile private var gaveUp = false
 
     @Volatile var reconnects = 0
         private set
@@ -211,7 +222,7 @@ internal class TsFanout(
         }
         var backoff = FIRST_BACKOFF_MS
         while (readersPresent()) {
-            val remaining = lastDataAt + config.graceMillis - now()
+            val remaining = lastDataAt + (graceMillisForTest ?: config.graceMillis) - now()
             if (remaining <= 0) {
                 log.warn(
                     "relay upstream gave up offering={} graceMillis={} reconnects={}",
@@ -219,6 +230,7 @@ internal class TsFanout(
                     config.graceMillis,
                     reconnects,
                 )
+                gaveUp = true
                 break
             }
             delay(backoff.coerceAtMost(remaining))
@@ -242,15 +254,29 @@ internal class TsFanout(
 
     private suspend fun readersPresent() = mutex.withLock { readers.isNotEmpty() }
 
-    private suspend fun pump() {
-        connect { body ->
-            if (started.isCompleted) log.info("relay reconnected offering={} attempt={}", key, reconnects)
-            val packets = PacketBuffer()
-            var read = packets.read(body)
-            while (read >= 0) {
-                if (read > 0) packets.take(read, sniff = !started.isCompleted)?.let { send(it) }
-                read = packets.read(body)
+    /**
+     * Reads one upstream connection until its body ends. An upstream that stays connected but sends nothing for the
+     * grace period counts as down: the watchdog fails the read, and the loop in [relay] reconnects or gives up.
+     */
+    private suspend fun pump() = coroutineScope {
+        val watchdog = launch(CoroutineName("ts-watchdog")) {
+            while (true) {
+                delay(config.keepaliveMillis)
+                if (now() - lastDataAt > (graceMillisForTest ?: config.graceMillis)) throw SilentUpstreamException()
             }
+        }
+        try {
+            connect { body ->
+                if (started.isCompleted) log.info("relay reconnected offering={} attempt={}", key, reconnects)
+                val packets = PacketBuffer()
+                var read = packets.read(body)
+                while (read >= 0) {
+                    if (read > 0) packets.take(read, sniff = !started.isCompleted)?.let { send(it) }
+                    read = packets.read(body)
+                }
+            }
+        } finally {
+            watchdog.cancel()
         }
     }
 

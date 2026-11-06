@@ -274,6 +274,12 @@ class MediaRelay(
                     resource.stats.bytes.addAndGet(chunk.size.toLong())
                     flush()
                 }
+                // The source went silent past the grace: move the session on before the player re-reads it, and its
+                // next request at this epoch gets the 410 that sends it to the new source.
+                if (reader.stalled) {
+                    resource.stats.stalls.incrementAndGet()
+                    sessions.media.failover(id, epoch, job, RemuxWatch.STALL)
+                }
             }
         } finally {
             withContext(NonCancellable) { reader.close() }

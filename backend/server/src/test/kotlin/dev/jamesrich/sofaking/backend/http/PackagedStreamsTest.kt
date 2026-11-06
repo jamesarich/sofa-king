@@ -121,6 +121,24 @@ class PackagedStreamsTest {
                 latest.contains("#EXT-X-SERVER-CONTROL:HOLD-BACK=")
             }
             assertTrue(latest.contains("#EXT-X-PROGRAM-DATE-TIME:"), latest)
+            // The value follows the window: no more than it leaves behind three target durations, and within one
+            // target duration of that (or of the 36 s cap) after the refresh that wrote it.
+            fun window(playlist: String) =
+                Regex("#EXTINF:([0-9.]+)").findAll(playlist).sumOf { it.groupValues[1].toDouble() }
+            fun checkHoldBack(playlist: String) {
+                val holdBack = Regex("HOLD-BACK=(\\d+)").find(playlist)!!.groupValues[1].toDouble()
+                val target = Regex("#EXT-X-TARGETDURATION:(\\d+)").find(playlist)!!.groupValues[1].toDouble()
+                val room = minOf(36.0, window(playlist) - 3 * target)
+                assertTrue(holdBack <= room + target, "hold-back $holdBack beyond room $room: $playlist")
+                assertTrue(holdBack >= room - 2 * target, "hold-back $holdBack stuck below room $room: $playlist")
+            }
+            checkHoldBack(latest)
+            // Once the window has grown well past the first value's room, the value has grown with it.
+            pollUntil(40_000, 500) {
+                latest = client.get(session.descriptor.url).bodyAsText()
+                window(latest) >= 30.0
+            }
+            checkHoldBack(latest)
 
             client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
             pollUntil(10_000, 100) { runtime.relay.packaged == 0 }

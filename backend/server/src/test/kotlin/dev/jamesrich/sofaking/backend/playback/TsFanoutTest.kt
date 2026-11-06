@@ -96,6 +96,18 @@ class TsFanoutTest {
         assertTrue(testScheduler.currentTime - eofAt >= 10_000)
         assertTrue(connections > 2, "reconnect attempts: $connections")
         assertEquals(0, streams.active())
+        assertTrue(reader.stalled, "a source silent past the grace is reported as stalled")
+    }
+
+    @Test fun `a reader that leaves while the source is live is not reported as stalled`() = runTest {
+        val streams = SharedStreams(backgroundScope, FanoutConfig(graceMillis = 10_000)) { testScheduler.currentTime }
+        val body = ByteChannel()
+        val reader = streams.join("source") { consume -> consume(body) }
+        body.writeFully(p[0] + p[1] + p[2])
+        body.flush()
+        assertContentEquals(p[0] + p[1] + p[2], reader.chunks.receive())
+        reader.close()
+        assertTrue(!reader.stalled)
     }
 
     @Test fun `first connection failure fails readers and a slow reader is dropped alone`() = runTest {

@@ -5,11 +5,38 @@ import SofaKingCore
 extension AVPlayerViewController {
     /// The system player as the phone and tablet show it: its own scrubber, captions, AirPlay and Picture in Picture,
     /// with the player's info in Control Center and on the lock screen.
-    func configureForPhone() {
+    func configureForPhone(pictureInPicture tracker: PictureInPictureTracker) {
+        delegate = tracker
         showsPlaybackControls = true
         allowsPictureInPicturePlayback = true
         canStartPictureInPictureAutomaticallyFromInline = true
         updatesNowPlayingInfoCenter = true
+    }
+}
+
+/// Tells the model whether Picture in Picture is up, which the players read when the app goes to the background: the
+/// stream and its session stay while the small window plays, and go with the window when it closes.
+@MainActor
+final class PictureInPictureTracker: NSObject, AVPlayerViewControllerDelegate {
+    private let model: AppModel
+
+    init(model: AppModel) {
+        self.model = model
+    }
+
+    func playerViewControllerWillStartPictureInPicture(_ controller: AVPlayerViewController) {
+        model.pictureInPicture = true
+    }
+
+    func playerViewControllerDidStopPictureInPicture(_ controller: AVPlayerViewController) {
+        model.pictureInPicture = false
+    }
+
+    func playerViewControllerRestoreUserInterfaceForPictureInPictureStop(
+        _ controller: AVPlayerViewController,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(true)
     }
 }
 

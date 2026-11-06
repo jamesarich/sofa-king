@@ -45,10 +45,8 @@ struct RecordingsView: View {
         case let ready as RecordingsStateReady:
             list(ready)
         case let failed as RecordingsStateFailed:
-            VStack(spacing: 32) {
-                Text("The recordings didn't load").font(.title2)
-                Text(failed.message).foregroundStyle(.secondary)
-                Button(strings.retry) { model.core.refreshRecordings() }
+            LoadFailureView(headline: "The recordings didn't load", message: failed.message) {
+                model.core.refreshRecordings()
             }
         case is RecordingsStateUnavailable:
             ContentUnavailableView(recordingStrings.unavailable, systemImage: "record.circle")

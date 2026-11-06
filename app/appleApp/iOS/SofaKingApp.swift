@@ -6,7 +6,8 @@ struct SofaKingApp: App {
     @State private var model = AppModel()
 
     init() {
-        // Playback category, so video carries on in Picture in Picture and music behind the app.
+        // Playback category, which Picture in Picture and music behind the app need; the players keep their stream
+        // through the background only while Picture in Picture or the music is playing.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
     }
 

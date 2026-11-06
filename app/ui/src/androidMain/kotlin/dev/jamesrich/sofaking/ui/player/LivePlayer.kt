@@ -23,6 +23,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
@@ -37,6 +38,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
+
+private val log = Logger.withTag("SofaKing")
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -94,6 +97,12 @@ internal class ExoLivePlayer(
 
         override fun onCues(cueGroup: CueGroup) = tracks.onCues(cueGroup)
 
+        override fun onRenderedFirstFrame() {
+            if (tunedAtMs == 0L) return
+            log.i { "first picture ${uptimeMs() - tunedAtMs} ms" }
+            tunedAtMs = 0L
+        }
+
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             _videoSize.value = videoSize.displaySize()
         }
@@ -112,6 +121,13 @@ internal class ExoLivePlayer(
 
     init {
         exo.addListener(listener)
+    }
+
+    /** When the tune in flight began, or 0 once its first picture rendered (or with none in flight). */
+    private var tunedAtMs = 0L
+
+    override fun markTune() {
+        tunedAtMs = uptimeMs()
     }
 
     override val currentChannelId: String?

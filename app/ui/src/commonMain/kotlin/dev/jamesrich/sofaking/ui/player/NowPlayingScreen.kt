@@ -264,7 +264,7 @@ private fun SongControls(
             )
         }
         music.failure?.let {
-            Text(stringResource(failureReasonRes(it, live = false)), color = MaterialTheme.colorScheme.error)
+            Text(stringResource(failureCopy(it, live = false).reason), color = MaterialTheme.colorScheme.error)
         }
         val length = music.durationMs
         if (length != null && length > 0) {

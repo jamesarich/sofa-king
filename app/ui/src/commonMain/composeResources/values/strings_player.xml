@@ -10,7 +10,16 @@
     <string name="player_retry_in">Trying again in %1$d s</string>
     <string name="player_retry_now">Trying again now…</string>
     <string name="no_working_source">No working source for this channel right now</string>
-    <string name="no_working_source_hint">Every source for it is down or quarantined. The server checks again on its own; press OK to try now, or pick another channel.</string>
+    <string name="no_working_source_hint">Every source for it is down. The server checks again on its own; press OK to try now, or pick another channel.</string>
+    <string name="player_no_answer">The server didn't start this channel</string>
+    <string name="player_no_answer_hint">Check that this device is online and the server is running. It keeps trying; press OK to try now, or pick another channel.</string>
+    <string name="player_server_busy">The server is busy</string>
+    <string name="player_server_busy_hint">It is playing as many channels as it can. Stop one on another device, then press OK to try again.</string>
+    <string name="player_signed_out">This device is signed out</string>
+    <string name="player_signed_out_hint">The server no longer accepts this device. Open Settings and pair it again.</string>
+    <string name="player_channel_gone">This channel is no longer on the server</string>
+    <string name="player_channel_gone_hint">The app looks for it again by number and name. Pick another channel if it does not come back.</string>
+    <string name="player_code_label">Code for support: %1$s</string>
     <string name="player_control_stream">Stream info</string>
     <string name="player_control_full_screen">Full screen</string>
     <string name="player_control_exit_full_screen">Exit full screen</string>

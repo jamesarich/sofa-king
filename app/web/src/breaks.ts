@@ -3,7 +3,7 @@
 
 /** What the overlay needs of core's `WebBreakMarks`. */
 export interface MarksLike {
-    addLine(tag: string): void;
+    replaceLines(tags: string[]): void;
     at(wallClockMs: number): { remainingMs: number | null | undefined } | null | undefined;
 }
 
@@ -50,11 +50,16 @@ export class BreakTracker {
         this.mode = mode;
     }
 
-    /** Takes the date ranges of a playlist the player read, which hls.js keys by their ids. */
+    /**
+     * Takes the date ranges of a playlist the player read, which hls.js keys by their ids: all the playlist holds now,
+     * so a range with no end that a later read lacks has ended.
+     */
     onRanges(ranges: Record<string, DateRangeLike | undefined> | undefined): void {
+        const lines: string[] = [];
         for (const range of Object.values(ranges ?? {})) {
-            if (range) this.marks.addLine(dateRangeLine(range));
+            if (range) lines.push(dateRangeLine(range));
         }
+        this.marks.replaceLines(lines);
     }
 
     /** The viewer chose Show picture for the break now on. */

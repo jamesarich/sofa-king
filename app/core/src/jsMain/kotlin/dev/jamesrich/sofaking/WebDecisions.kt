@@ -28,7 +28,15 @@ class WebBreakMarks {
     private val marks = BreakMarks()
 
     /** Adds the mark an ad `#EXT-X-DATERANGE` [tag] holds; any other tag is ignored. */
-    fun addLine(tag: String) = marks.addLines(listOf(tag))
+    fun addLine(tag: String) {
+        parseBreakMarkOf(tag)?.let(marks::add)
+    }
+
+    /**
+     * Takes the date ranges the playlist holds now, one `#EXT-X-DATERANGE` line each: a mark with no end that is not
+     * among them has ended.
+     */
+    fun replaceLines(tags: Array<String>) = marks.addLines(tags.toList())
 
     /** The break covering [wallClockMs], milliseconds since the epoch, or null outside every mark. */
     fun at(wallClockMs: Double): WebBreak? =

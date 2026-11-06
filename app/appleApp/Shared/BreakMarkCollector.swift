@@ -41,18 +41,20 @@ final class BreakMarkCollector: NSObject, AVPlayerItemMetadataCollectorPushDeleg
         indexesOfNewGroups: IndexSet,
         indexesOfModifiedGroups: IndexSet
     ) {
-        for group in metadataGroups where group.classifyingLabel == adClass {
-            guard let id = group.uniqueID else { continue }
-            let startMs = Self.ms(group.startDate)
-            if let end = group.endDate {
-                marks.add(mark: BreakMark(id: id, startMs: startMs, endMs: KotlinLong(value: Self.ms(end)), planned: false))
-                continue
-            }
-            let planned = group.items.first { $0.keySpace == .hlsDateRange && ($0.key as? String) == "PLANNED-DURATION" }?
-                .numberValue?.doubleValue
-            let endMs = planned.map { KotlinLong(value: startMs + Int64($0 * 1000)) }
-            marks.add(mark: BreakMark(id: id, startMs: startMs, endMs: endMs, planned: planned != nil))
+        // Each callback carries every group the playlist holds now, so one it no longer lists has ended.
+        marks.replaceOpen(current: metadataGroups.compactMap(mark))
+    }
+
+    private func mark(_ group: AVDateRangeMetadataGroup) -> BreakMark? {
+        guard group.classifyingLabel == adClass, let id = group.uniqueID else { return nil }
+        let startMs = Self.ms(group.startDate)
+        if let end = group.endDate {
+            return BreakMark(id: id, startMs: startMs, endMs: KotlinLong(value: Self.ms(end)), planned: false)
         }
+        let planned = group.items.first { $0.keySpace == .hlsDateRange && ($0.key as? String) == "PLANNED-DURATION" }?
+            .numberValue?.doubleValue
+        let endMs = planned.map { KotlinLong(value: startMs + Int64($0 * 1000)) }
+        return BreakMark(id: id, startMs: startMs, endMs: endMs, planned: planned != nil)
     }
 
     private static func ms(_ date: Date) -> Int64 {

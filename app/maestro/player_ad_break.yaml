@@ -1,6 +1,6 @@
 # The break screen on the marked channel (#671): the fixture server's first channel carries a 30-second ad mark every 240
 # seconds, so with Settings > Live TV > During ads on "Logo, muted" the screen has to come up over the break and clear
-# when it ends. Starts on any tab (a player left open is left first), tunes channel 1 by its link, waits through at most
+# when it ends. Starts on any tab (a player left open is left first), tunes it by its link (the fixture numbers its channels from 2), waits through at most
 # one gap between breaks, and ends back on a tab with During ads on "Show them" again.
 appId: dev.jamesrich.sofaking
 name: Break screen over a marked ad break
@@ -24,7 +24,7 @@ name: Break screen over a marked ad break
 - extendedWaitUntil:
     visible: "Settings"
     timeout: 15000
-- openLink: "sofaking://live/1"
+- openLink: "sofaking://live/2"
 - extendedWaitUntil:
     visible:
       id: "player"

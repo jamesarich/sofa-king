@@ -20,6 +20,9 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
     /** Gets what each app session that played found on its channel, as it ends. */
     @Volatile var onCensus: (String, String, AdCensus) -> Unit = { _, _, _ -> }
 
+    /** Hears that a recording took the slot of an app session: the channel it was watching, and the recording's. */
+    @Volatile var onPreempted: (String, String) -> Unit = { _, _ -> }
+
     /** Where each session's start and end is recorded; none until the runtime sets it. */
     @Volatile var history: SessionHistory? = null
 
@@ -48,11 +51,19 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
      * Previews are the surfing state and idle player sessions are leftovers of a zap; either yields its slot before
      * the request is refused. A playing HLS player is idle between segments too, so the stalest one (least recent
      * media request, the earliest expiry) goes, never the one still fetching.
+     *
+     * A request made for a recording passes [preemptFor], the recording's channel: with nothing else to give, the
+     * stalest app session that is watching yields its slot too, and [onPreempted] hears of it. Recordings, taps and
+     * other players outside the app are never taken.
      */
-    fun makeRoom() {
+    fun makeRoom(preemptFor: String? = null) {
         if (sessions.size < capacity) return
         val victim = sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
             ?: sessions.values.filter { it.external && !it.busy }.minByOrNull { it.expires }
+            ?: preemptFor?.let { recording ->
+                sessions.values.filter { !it.external && it.intent == Wire.Intent.WATCH }.minByOrNull { it.expires }
+                    ?.also { onPreempted(it.request.channelId, recording) }
+            }
             ?: throw ApiFailure(
                 HttpStatusCode.TooManyRequests,
                 Wire.ErrorCode.CAPACITY_EXHAUSTED,

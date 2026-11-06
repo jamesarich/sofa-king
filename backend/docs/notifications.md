@@ -1,6 +1,6 @@
 # Notifications
 
-The server tells you when something happens: a recording starts, finishes, fails or has no free tuner slot, a source is quarantined or recovers, the recordings disk runs low, an update is published, or a library scan adds files. It sends each to the targets you add: an [ntfy](https://ntfy.sh) topic for your phone, an [Apprise API](https://github.com/caronc/apprise-api) server for Discord, Telegram, Pushover, Gotify, email and the rest, or any webhook, such as a Home Assistant automation.
+The server tells you when something happens: a recording starts, finishes, fails, has no free tuner slot, takes a viewer's slot or is deleted by cleanup, a source is quarantined or recovers, the recordings disk runs low, an update is published, a library scan adds files, a background job fails, or the database has gone three days without a backup. It sends each to the targets you add: an [ntfy](https://ntfy.sh) topic for your phone, an [Apprise API](https://github.com/caronc/apprise-api) server for Discord, Telegram, Pushover, Gotify, email and the rest, or any webhook, such as a Home Assistant automation.
 
 ## Add a target
 
@@ -27,11 +27,15 @@ The same targets are in the [admin API](api.md#notifications) under `/api/v1/adm
 | `recording.finished` | A recording finishes |
 | `recording.failed` | A recording fails or is missed, with the reason |
 | `recording.conflict` | A scheduled recording newly has no free slot at its time. Conflicts the server finds when it starts are not sent again |
+| `recording.preempted` | A recording took the slot of an app session that was watching, because every slot was taken (`SOFA_RECORDING_PREEMPTS`); names the channel that was being watched and the recording's |
+| `recording.culled` | [Cleanup](recordings.md#cleanup) deleted a finished recording, with its reason: `KEEP`, `AGE` or `SPACE` |
 | `source.quarantined` | A source fails its probes and is set aside ([source health](source-health.md)) |
 | `source.recovered` | A quarantined source passes its probes again |
 | `disk.low` | The recordings disk drops under the free space [cleanup](recordings.md#cleanup) keeps; once, until it is back over |
 | `update.available` | A newer server image is published ([update](admin.md#update)); once per build |
 | `library.added` | A library scan adds files, with up to ten of their names |
+| `job.failed` | A background job on the Jobs page, such as a guide import, a library scan or the database backup, fails after succeeding or never having run; once per run of failures, not for each one |
+| `backup.stale` | No database backup, of any kind, is newer than three days when the daily backup has just run; once, until a newer one exists |
 | `attention.raised` | An item appears on the home page's attention list, or gets worse |
 | `attention.cleared` | An item leaves the attention list |
 

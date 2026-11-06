@@ -812,10 +812,14 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" "http://SERVER_HOST:919
 | `session.ended` | The session's history entry |
 | `recording.state` | A recording that started, finished, failed, was missed or was canceled: `id`, `title`, `episodeTitle`, `channelId`, `channelName`, `state`, `reason` and `bytes` |
 | `recording.conflict` | A scheduled or running recording that newly has no free slot, with the fields of `recording.state` |
+| `recording.preempted` | A recording took the slot of an app session that was watching: `channelId` and `channelName` of the channel it was watching, `forChannelId` and `forChannelName` of the recording's |
+| `recording.culled` | Cleanup deleted a finished recording, with the fields of `recording.state` and `reason` set to `KEEP`, `AGE` or `SPACE` |
 | `source.quarantined`, `source.recovered` | A source set aside by its probes, or back to healthy: `offeringId`, `providerId`, `channelId` and `channelName` |
 | `disk.low` | The recordings disk dropped under the cleanup floor: `freeBytes`, `floorBytes`, `freeGib` and `floorGib`; once until it is back over |
 | `update.available` | A newer image is published: `revision`, `version`, `runningRevision` and `runningVersion`; once per build |
 | `library.added` | A scan added files: `libraryId`, `library`, `added` (how many) and `titles` (up to ten) |
+| `job.failed` | A background job failed after a run that succeeded, or its first run failed: `id`, `label` and `note`; once until the job succeeds again |
+| `backup.stale` | No database backup is newer than three days after the daily backup ran: `lastBackupAt` (null with none) and `days`; once until a newer backup exists |
 | `attention.changed` | The home page's attention items that appeared or changed tone (`raised`) and went (`cleared`), each with `key`, `tone`, `title`, `detail` and `href`; read once a minute |
 
 `?types=session.ended,recording.state` sends only those types. A comment line every 15 seconds keeps an idle stream open through proxies. Nothing is replayed: a client that reconnects reads the history for what it missed.

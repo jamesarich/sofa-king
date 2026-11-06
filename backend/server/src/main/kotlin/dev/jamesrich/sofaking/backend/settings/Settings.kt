@@ -255,6 +255,17 @@ internal object Settings {
         runtime = true,
     ) { it.recordingsKeepDays }
 
+    val RECORDING_PREEMPTS = choice(
+        "SOFA_RECORDING_PREEMPTS",
+        "on",
+        listOf("on", "off"),
+        "Recordings may end a viewer's session",
+        "on lets a recording that finds every playback slot taken end the stalest app session that is watching and " +
+            "use its slot, so the recording is not lost; off makes it retry until a slot frees or its window closes.",
+        SettingArea.LIBRARY,
+        runtime = true,
+    ) { if (it.recordingPreempts) "on" else "off" }
+
     val LEARNED_BREAKS = choice(
         "SOFA_LEARNED_BREAKS",
         LearnedBreaks.SHADOW.setting,
@@ -660,7 +671,8 @@ internal object Settings {
 
     val all: List<SettingDef> = listOf(
         LOG_LEVEL, XMLTV_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB,
-        RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS, IPTV_ORG, IPTV_ORG_STREAMS, IPTV_ORG_REGION, HOST, PORT,
+        RECORDINGS_KEEP_DAYS, RECORDING_PREEMPTS, LEARNED_BREAKS, AD_LISTENERS,
+        IPTV_ORG, IPTV_ORG_STREAMS, IPTV_ORG_REGION, HOST, PORT,
         MDNS, DATA_DIR, RECORDINGS_DIR, SOURCES,
         POLICY, API_TOKEN, ADMIN_TOKEN, OUTPUT_TOKEN, PLEX_TOKEN, TMDB_TOKEN, FANART_KEY, LISTENBRAINZ_TOKEN, FFMPEG,
         COMSKIP, QUALITY_FLOORS, MUSICBRAINZ, PROBE_PARALLELISM, PROBE_REQUESTS, RESTREAM_ORIGINS,

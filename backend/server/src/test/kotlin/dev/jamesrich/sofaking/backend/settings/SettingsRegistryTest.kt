@@ -58,6 +58,7 @@ class SettingsRegistryTest {
         "multiview" to listOf("SOFA_MULTIVIEW"),
         "recordingsFreeGib" to listOf("SOFA_RECORDINGS_FREE_GIB"),
         "recordingsKeepDays" to listOf("SOFA_RECORDINGS_KEEP_DAYS"),
+        "recordingPreempts" to listOf("SOFA_RECORDING_PREEMPTS"),
         "learnedBreaks" to listOf("SOFA_LEARNED_BREAKS"),
         "appStreams" to listOf("SOFA_APP_STREAMS"),
         "adListeners" to listOf("SOFA_AD_LISTENERS"),

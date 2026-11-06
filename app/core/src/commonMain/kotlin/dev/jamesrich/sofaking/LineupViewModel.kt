@@ -56,7 +56,9 @@ sealed interface LineupState {
      * is what this device shows of it (see [visibleLineup]).
      */
     data class Ready(val lineup: Lineup, val visible: Lineup = lineup) : LineupState
-    data class Failed(val message: String) : LineupState
+
+    /** The load failed with [message]; [signedOut] when the server no longer accepts this device's token. */
+    data class Failed(val message: String, val signedOut: Boolean = false) : LineupState
 }
 
 /** Why a pairing code was not accepted: the code itself, a server too old to pair, or no server at that address. */

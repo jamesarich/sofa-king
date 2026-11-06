@@ -25,6 +25,7 @@ import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
+import dev.jamesrich.sofaking.ui.SignedOutScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideActions
 import dev.jamesrich.sofaking.ui.guide.GuideArrival
@@ -89,6 +90,8 @@ internal fun GuideDestination(
             message = stringResource(Res.string.unconfigured),
             hint = stringResource(Res.string.unconfigured_hint),
         )
+
+        s is LineupState.Failed && s.signedOut -> SignedOutScreen()
 
         s is LineupState.Failed -> MessageScreen(
             message = stringResource(Res.string.load_failed),

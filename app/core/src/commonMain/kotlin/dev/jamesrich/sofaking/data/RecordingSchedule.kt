@@ -38,7 +38,9 @@ sealed interface RecordingsState {
         val space: RecordingSpace,
         val rules: List<SeriesRule> = emptyList(),
     ) : RecordingsState
-    data class Failed(val message: String) : RecordingsState
+
+    /** The load failed with [message]; [signedOut] when the server no longer accepts this device's token. */
+    data class Failed(val message: String, val signedOut: Boolean = false) : RecordingsState
 }
 
 /**

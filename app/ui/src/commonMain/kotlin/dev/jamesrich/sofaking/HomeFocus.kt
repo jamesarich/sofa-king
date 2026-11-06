@@ -6,5 +6,6 @@ internal enum class HomeFocus { SETTINGS, GRID, NONE }
 internal fun homeFocusFor(state: LineupState): HomeFocus = when (state) {
     LineupState.Unconfigured -> HomeFocus.SETTINGS
     is LineupState.Ready -> if (state.lineup.channels.isEmpty()) HomeFocus.NONE else HomeFocus.GRID
-    LineupState.Loading, is LineupState.Failed -> HomeFocus.NONE
+    is LineupState.Failed -> if (state.signedOut) HomeFocus.SETTINGS else HomeFocus.NONE
+    LineupState.Loading -> HomeFocus.NONE
 }

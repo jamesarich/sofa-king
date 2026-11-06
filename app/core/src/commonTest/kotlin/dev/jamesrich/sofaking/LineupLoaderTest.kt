@@ -60,7 +60,7 @@ class LineupLoaderTest {
     }
 
     /** A loader over a cache holding one channel with a "Cached" program, whose decode waits for [Run.decode]. */
-    private suspend fun TestScope.start(failCatalog: Boolean = false): Run {
+    private suspend fun TestScope.start(failCatalog: Boolean = false, rejectToken: Boolean = false): Run {
         val store = MemoryDataStore<CachedLineup?>(null)
         val program = Program("c1", now - 10.minutes, now + 50.minutes, "Cached", null)
         val channel = Channel("c1", 1.0, "Channel c1", null, listOf("All"))
@@ -68,7 +68,9 @@ class LineupLoaderTest {
         val decode = HeldDispatcher(StandardTestDispatcher(testScheduler))
         val http = FakeHttp(this) { request ->
             when (request.path) {
-                "/api/v1/channels" -> if (failCatalog) {
+                "/api/v1/channels" -> if (rejectToken) {
+                    apiError(401, "AUTH_REQUIRED")
+                } else if (failCatalog) {
                     apiError(503, "NOT_READY")
                 } else {
                     json(
@@ -129,5 +131,48 @@ class LineupLoaderTest {
         val last = (run.states.last() as LineupState.Ready).lineup
         assertEquals(listOf("Cached"), last.guide.values.flatten().map { it.title })
         assertEquals(false, last.guideLoading)
+    }
+
+    @Test
+    fun `a revoked device with a cached lineup is told it is signed out`() = runTest {
+        val run = start(rejectToken = true)
+        runCurrent()
+        run.decode.release()
+        runCurrent()
+
+        assertTrue((run.states.last() as LineupState.Failed).signedOut)
+    }
+
+    /** The states a loader with no cache shows when every request answers [status]. */
+    private suspend fun TestScope.failedWith(status: Int, code: String): List<LineupState> {
+        val http = FakeHttp(this) { apiError(status, code) }
+        val states = mutableListOf<LineupState>()
+        val decode = StandardTestDispatcher(testScheduler)
+        val loader =
+            LineupLoader(MemoryDataStore<CachedLineup?>(null), clock, decode, GuideDays(clock, backgroundScope))
+        val repository = SofaKingRepository(http.api(), decode) { now }
+        val server = Server("http://sofa.test", "t", http.api())
+        backgroundScope.launch {
+            flow { with(loader) { load(server to repository) {} } }.toList(states)
+        }
+        runCurrent()
+        return states
+    }
+
+    @Test
+    fun `a 401 from the server reads as signed out`() = runTest {
+        val failed = failedWith(401, "AUTH_REQUIRED").last() as LineupState.Failed
+
+        assertTrue(failed.signedOut)
+    }
+
+    @Test
+    fun `a 403 from the server reads as signed out`() = runTest {
+        assertTrue((failedWith(403, "FORBIDDEN").last() as LineupState.Failed).signedOut)
+    }
+
+    @Test
+    fun `a server error is not signed out`() = runTest {
+        assertEquals(false, (failedWith(503, "NOT_READY").last() as LineupState.Failed).signedOut)
     }
 }

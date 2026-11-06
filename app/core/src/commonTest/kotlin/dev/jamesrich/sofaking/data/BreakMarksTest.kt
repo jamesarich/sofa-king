@@ -74,6 +74,49 @@ class BreakMarksTest {
     }
 
     @Test
+    fun `an open mark absent from the next refresh stops covering`() {
+        val marks = BreakMarks()
+        marks.addLines(listOf(line()))
+        assertEquals(AdBreakNow(remainingMs = null), marks.at(startMs + 60_000))
+        marks.addLines(emptyList())
+        assertNull(marks.at(startMs + 60_000))
+    }
+
+    @Test
+    fun `a renamed open mark does not leave the old one covering`() {
+        val marks = BreakMarks()
+        marks.addLines(listOf(line(id = "sofa-ad-10")))
+        val later = "2026-11-04T20:00:20.000Z"
+        marks.addLines(listOf(line(id = "sofa-ad-12", date = later)))
+        // The old mark ended where the new one starts; only the new one covers after it, and it has no end.
+        assertEquals(AdBreakNow(remainingMs = null), marks.at(startMs + 60_000))
+        marks.addLines(listOf(line(id = "sofa-ad-12", date = later, duration = 10_000)))
+        assertNull(marks.at(startMs + 60_000))
+        assertEquals(AdBreakNow(remainingMs = 5_000), marks.at(startMs + 25_000))
+    }
+
+    @Test
+    fun `a closed mark still counts after it leaves the refresh until it ends`() {
+        val marks = BreakMarks()
+        marks.replaceOpen(listOf(BreakMark("a", startMs, startMs + 30_000, planned = false)))
+        marks.replaceOpen(listOf(BreakMark("b", startMs + 100_000, null, planned = false)))
+        assertEquals(AdBreakNow(5_000), marks.at(startMs + 25_000))
+        assertNull(marks.at(startMs + 30_000))
+    }
+
+    @Test
+    fun `a closed mark wins over an open one that covers the same moment`() {
+        val marks = BreakMarks()
+        marks.replaceOpen(
+            listOf(
+                BreakMark("closed", startMs, startMs + 30_000, planned = false),
+                BreakMark("open", startMs + 5_000, null, planned = false),
+            ),
+        )
+        assertEquals(AdBreakNow(10_000), marks.at(startMs + 20_000))
+    }
+
+    @Test
     fun `marks past the limit are dropped oldest first`() {
         val marks = BreakMarks(limit = 2)
         for (i in 0 until 3) marks.add(BreakMark("m$i", i * 100_000L, i * 100_000L + 10_000, planned = false))

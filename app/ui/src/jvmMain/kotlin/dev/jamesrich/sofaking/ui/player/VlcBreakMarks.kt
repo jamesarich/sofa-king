@@ -75,7 +75,7 @@ internal class VlcBreakMarks(
         val liveEdgeMs = playlist.liveEdgeMs ?: return
         val read = timeSource.markNow()
         synchronized(lock) {
-            playlist.marks.forEach(marks::add)
+            marks.replaceOpen(playlist.marks)
             edge = liveEdgeMs to read
         }
     }

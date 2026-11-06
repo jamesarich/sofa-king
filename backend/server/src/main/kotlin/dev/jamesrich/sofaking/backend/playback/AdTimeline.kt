@@ -84,6 +84,9 @@ internal class AdTimeline(
 
     class Run(val first: Long, var last: Long, var plannedEndMs: Long?)
 
+    /** The breaks announced as date ranges, which keep their ID and start across refreshes. */
+    val dateBreaks = DateBreaks(this)
+
     /** Extends the timeline with [segments]; a window that no longer meets what was seen starts it again. */
     fun place(segments: List<AdBreaks.Segment>) {
         val first = segments.firstOrNull() ?: return
@@ -114,6 +117,7 @@ internal class AdTimeline(
         starts.clear()
         durations.clear()
         runs.clear()
+        dateBreaks.clear()
         splices.clear()
         quiet.clear()
         learnedMarks.clear()

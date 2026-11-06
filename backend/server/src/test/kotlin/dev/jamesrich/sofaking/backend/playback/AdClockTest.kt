@@ -201,6 +201,44 @@ master_5_5535913.ts
     }
 
     @Test
+    fun `a break keeps one ID and start while the window slides past its first segment, and its close persists`() {
+        val clock = AdClock(clock = dated)
+        val at = iso(start - 24_000 + 12_000)
+        val seen = ArrayList<List<AdDateRange>>()
+        for (first in listOf(100, 103, 106, 108, 110, 112)) {
+            val tags = if (first == 100) arrayOf(102 to "#EXT-X-CUE-OUT:DURATION=30") else emptyArray()
+            seen += ranges(clock.annotate(live(first, 4, *tags), whaleBase))
+        }
+        assertEquals(listOf(AdDateRange("sofa-ad-102", at, plannedDurationMs = 30_000)), seen[0])
+        assertEquals(listOf(AdDateRange("sofa-ad-102", at, plannedDurationMs = 30_000)), seen[1])
+        // The window starting at 106 holds the break's last segment and the show after it: 102 to 107 is 30 s.
+        val closed = AdDateRange("sofa-ad-102", at, durationMs = 30_000)
+        assertEquals(listOf(closed), seen[2])
+        // Its segments have left the window; the closed range stays for two more refreshes.
+        assertEquals(listOf(closed), seen[3])
+        assertEquals(listOf(closed), seen[4])
+        assertEquals(emptyList(), seen[5])
+    }
+
+    @Test
+    fun `two separate breaks get two IDs, and a reset forgets them`() {
+        val clock = AdClock(clock = dated)
+        clock.annotate(live(100, 4, 100 to "#EXT-X-CUE-OUT:DURATION=12"), whaleBase)
+        val second = ranges(clock.annotate(live(104, 6, 107 to "#EXT-X-CUE-OUT:DURATION=12"), whaleBase)).sortedBy {
+            it.id
+        }
+        assertEquals(listOf("sofa-ad-100", "sofa-ad-107"), second.map { it.id })
+        // The first is closed by the window that moved on; the second is still open with its planned length.
+        assertEquals(listOf(24_000L, null), second.map { it.durationMs })
+        assertEquals(listOf(null, 12_000L), second.map { it.plannedDurationMs })
+        // A window that skips ahead starts the timeline again, and with it the breaks.
+        dated.now = dated.now.plus(Duration.ofSeconds(1000))
+        assertEquals(emptyList(), ranges(clock.annotate(live(500, 4), whaleBase)))
+        val fresh = ranges(clock.annotate(live(504, 4, 505 to "#EXT-X-CUE-OUT:DURATION=12"), whaleBase))
+        assertEquals(listOf("sofa-ad-505"), fresh.map { it.id })
+    }
+
+    @Test
     fun `a playlist with dates of its own puts its date ranges on them`() {
         val clock = AdClock(clock = dated)
         val own = live(100, 4, 102 to "#EXT-X-CUE-OUT:DURATION=30")

@@ -48,23 +48,54 @@ internal object AdBreaks {
      * [text] with a [AdRun.TAG] line for each of [runs], each followed by the same break as an
      * [AdDateRange] (see [AdDateRange.tag]). [dates] gives the epoch ms at which a media sequence number's segment
      * starts, null when unknown; a run whose first segment has no date gets no date range. The range has a duration
-     * when the segment after the run is dated, else the planned length the run carries, else neither.
+     * when the segment after the run is dated, else the planned length the run carries, else neither. Its ID is the
+     * run's first sequence, which is stable only when the caller's runs are; [AdClock] tracks breaks instead.
      */
     fun annotate(text: String, runs: List<AdRun>, dates: (Long) -> Long? = { null }): String {
-        if (runs.isEmpty()) return text
-        return text.trimEnd('\n', '\r') + "\n" + runs.joinToString("") { run ->
-            val start = dates(run.first)
-            val range = start?.let {
-                val end = dates(run.last + 1)
-                val id = "sofa-ad-${run.first}"
-                if (end != null) {
-                    AdDateRange.tag(id, isoMs(it), durationMs = (end - it).coerceAtLeast(0))
-                } else {
-                    AdDateRange.tag(id, isoMs(it), plannedDurationMs = run.endsAfterMs)
-                }
-            }
-            run.tag() + "\n" + (range?.plus("\n") ?: "")
+        val ranges = runs.mapNotNull { run ->
+            val start = dates(run.first) ?: return@mapNotNull null
+            val end = dates(run.last + 1)
+            Range(
+                "sofa-ad-${run.first}",
+                start,
+                run.first,
+                run.last,
+                durationMs = end?.let { (it - start).coerceAtLeast(0) },
+                plannedMs = if (end == null) run.endsAfterMs else null,
+            )
         }
+        return annotate(text, runs, ranges)
+    }
+
+    /**
+     * A break's [AdDateRange] as the timeline tracked it: one [id] and [startMs] for the break's whole life, the
+     * sequence numbers [first] to [last] it has covered, and its length once [durationMs] is known, else the
+     * [plannedMs] the stream gave.
+     */
+    class Range(
+        val id: String,
+        val startMs: Long,
+        val first: Long,
+        val last: Long,
+        val durationMs: Long? = null,
+        val plannedMs: Long? = null,
+    ) {
+        fun tag(): String = AdDateRange.tag(id, isoMs(startMs), durationMs, if (durationMs == null) plannedMs else null)
+    }
+
+    /**
+     * [text] with a [AdRun.TAG] line for each of [runs], each followed by the [ranges] that cover it, then the ranges
+     * no run in this playlist covers (a closed break kept for a few refreshes after its segments left the window).
+     */
+    fun annotate(text: String, runs: List<AdRun>, ranges: List<Range>): String {
+        if (runs.isEmpty() && ranges.isEmpty()) return text
+        val shown = HashSet<Range>()
+        val body = runs.joinToString("") { run ->
+            val covering = ranges.filter { it.first <= run.last && it.last >= run.first && shown.add(it) }
+            run.tag() + "\n" + covering.joinToString("") { it.tag() + "\n" }
+        }
+        val rest = ranges.filter { it !in shown }.joinToString("") { it.tag() + "\n" }
+        return text.trimEnd('\n', '\r') + "\n" + body + rest
     }
 
     private val ISO_MS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
@@ -162,8 +193,15 @@ internal object AdBreaks {
             }
         }
 
+        /** [reference] resolved against [base]; null when it does not resolve. */
+        private fun resolved(reference: String): URI? = try {
+            base.resolve(reference)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
         private fun segment(reference: String) {
-            val uri = resolved(base, reference)
+            val uri = resolved(reference)
             val at = date
             uri?.let(AdHosts::amagi)?.let { amagiAd = it }
             val stitchedAd = taggedAd || (uri != null && AdHosts.stitched(uri, amagiAd))
@@ -192,13 +230,6 @@ internal object AdBreaks {
             }
             return Parsed(segments, plannedEnd, cueOpen)
         }
-    }
-
-    /** [reference] resolved against [base]; null when it does not resolve. */
-    private fun resolved(base: URI, reference: String): URI? = try {
-        base.resolve(reference)
-    } catch (_: IllegalArgumentException) {
-        null
     }
 
     /**

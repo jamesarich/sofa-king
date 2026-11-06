@@ -24,13 +24,31 @@ fun parseBreakMark(line: String): BreakMark? {
     }
 }
 
-/** The ad marks of a live playlist's recent windows, kept by id so each refresh updates a break in place. */
+/**
+ * The ad marks of a live playlist's recent windows, kept by id so each refresh updates a break in place. A refresh
+ * carries every mark the playlist holds now, so a mark with no end (or only a planned one) that a refresh no longer
+ * carries has ended: it stops covering at the newest start seen, and a stale mark never covers forever.
+ */
 class BreakMarks(private val limit: Int = DEFAULT_LIMIT) {
     private val marks = LinkedHashMap<String, BreakMark>()
 
-    /** Adds the marks among a window's playlist [tags]. */
-    fun addLines(tags: List<String>) {
-        for (tag in tags) parseBreakMark(tag)?.let(::add)
+    /** A refresh whose playlist [tags] hold these marks (see [replaceOpen]). */
+    fun addLines(tags: List<String>) = replaceOpen(tags.mapNotNull(::parseBreakMark))
+
+    /**
+     * Takes the marks of one refresh, all those the playlist holds now: each replaces the mark with its id, and an
+     * open or planned mark of an earlier refresh that is not among them ends where the newest mark starts. A closed
+     * mark stays until it ages out.
+     */
+    fun replaceOpen(current: List<BreakMark>) {
+        val newestStart = (marks.values.asSequence() + current.asSequence()).maxOfOrNull { it.startMs }
+        val present = current.mapTo(HashSet()) { it.id }
+        for (mark in marks.values.toList()) {
+            if (mark.id in present || (mark.endMs != null && !mark.planned)) continue
+            val end = maxOf(mark.startMs, minOf(newestStart ?: mark.startMs, mark.endMs ?: Long.MAX_VALUE))
+            if (end <= mark.startMs) marks.remove(mark.id) else marks[mark.id] = mark.copy(endMs = end, planned = false)
+        }
+        current.forEach(::add)
     }
 
     /** Adds [mark], replacing the one with its id, and drops the oldest marks past the limit. */
@@ -42,8 +60,8 @@ class BreakMarks(private val limit: Int = DEFAULT_LIMIT) {
 
     /** The break covering [wallClockMs], with the time it has left, or null outside every mark. */
     fun at(wallClockMs: Long): AdBreakNow? {
-        val mark = marks.values.lastOrNull { wallClockMs >= it.startMs && (it.endMs == null || wallClockMs < it.endMs) }
-            ?: return null
+        val covering = marks.values.filter { wallClockMs >= it.startMs && (it.endMs == null || wallClockMs < it.endMs) }
+        val mark = covering.lastOrNull { it.endMs != null } ?: covering.lastOrNull() ?: return null
         return AdBreakNow(mark.endMs?.let { it - wallClockMs })
     }
 

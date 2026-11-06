@@ -51,6 +51,16 @@ test('a later playlist that learns the length updates the break in place', () =>
     assert.equal(tracker.update(START + 10_000).remainingMs, 30_000);
 });
 
+test('a range with no end that a later playlist no longer lists stops covering', () => {
+    const tracker = new BreakTracker(new WebBreakMarks());
+    tracker.setMode('SCREEN');
+    tracker.onRanges({ ad1: range('ad1') });
+    assert.equal(tracker.update(START + 60_000).covered, true);
+
+    tracker.onRanges({});
+    assert.deepEqual(tracker.update(START + 60_000), NO_BREAK);
+});
+
 test('playing the ads leaves the picture uncovered and the sound on', () => {
     const tracker = new BreakTracker(new WebBreakMarks());
     tracker.setMode('PLAY');

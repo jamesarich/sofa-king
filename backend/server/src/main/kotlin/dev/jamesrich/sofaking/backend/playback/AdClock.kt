@@ -100,7 +100,7 @@ class AdClock(
         } else {
             held
         }
-        return AdBreaks.annotate(dated, runs) { timeline.dateOf(it, read.segments) }
+        return AdBreaks.annotate(dated, runs, timeline.dateBreaks.track(runs, read.segments))
     }
 
     /**

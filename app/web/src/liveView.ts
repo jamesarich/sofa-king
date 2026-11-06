@@ -40,7 +40,7 @@ export function liveView(ctx: Context, channelId: string): View {
     const el = h('section', { class: 'player live' }, video, cover, pill, controls);
 
     const tracker = new BreakTracker({
-        addLine: (tag) => marks.addLine(tag),
+        replaceLines: (tags) => marks.replaceLines(tags),
         at: (ms) => marks.at(ms),
     });
     const marks = ctx.core.decisions.breakMarks();

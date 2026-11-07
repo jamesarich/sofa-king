@@ -523,12 +523,12 @@ master_5_5535913.ts
     }
 
     @Test
-    fun `the hold-back follows a window that keeps growing up to 36 seconds`() {
+    fun `the hold-back keeps its first value while a window keeps growing`() {
         val clock = AdClock()
         assertTrue(clock.plain(window(100, 7), whaleBase).contains("HOLD-BACK=24\n"))
-        // One target duration more room is not enough to move it.
         assertTrue(clock.plain(window(100, 8), whaleBase).contains("HOLD-BACK=24\n"))
-        assertTrue(clock.plain(window(100, 9), whaleBase).contains("HOLD-BACK=36\n"))
+        // The player's live target must not move while it watches, however much room the window gains.
+        assertTrue(clock.plain(window(100, 9), whaleBase).contains("HOLD-BACK=24\n"))
     }
 
     @Test

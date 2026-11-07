@@ -573,18 +573,15 @@ private struct PlayerController: UIViewControllerRepresentable {
         return controller
     }
 
-    /// Up and Down click the channel up or down the lineup and a long press of Select recalls the last one; a swipe up
-    /// or down does the same on the phone, up for the channel below as the picture follows the finger.
+    /// A long press of Select recalls the last channel on the Apple TV; a swipe up or down zaps on the phone, up for the
+    /// channel below as the picture follows the finger. Up and Down stay with AVKit on the Apple TV: a press recognizer
+    /// on the player's view takes them even while the transport bar is up, so a press meant for the bar zapped.
     private func addZapGestures(to controller: AVPlayerViewController, coordinator: Coordinator) {
         #if os(tvOS)
-        let up = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapUp))
-        up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
-        let down = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))
-        down.allowedPressTypes = [NSNumber(value: UIPress.PressType.downArrow.rawValue)]
         let last = UILongPressGestureRecognizer(target: coordinator, action: #selector(Coordinator.recallLast))
         last.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
         last.allowedTouchTypes = []
-        for gesture in [up, down, last] { controller.view.addGestureRecognizer(gesture) }
+        controller.view.addGestureRecognizer(last)
         #else
         let next = UISwipeGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))
         next.direction = .up

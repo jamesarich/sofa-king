@@ -97,7 +97,8 @@ struct PlayerView: View {
             .background(portrait ? Color.sofaPlum : .black)
         }
         #else
-        picture.ignoresSafeArea()
+        // AVKit takes Menu once the item plays; while it is still loading the press reaches here, so Menu always leaves.
+        picture.ignoresSafeArea().onExitCommand { dismiss() }
         #endif
     }
 

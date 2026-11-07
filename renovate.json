@@ -54,6 +54,14 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "The backend test job stays on Ubuntu 24.04: it runs the server image's FFmpeg 6.1 and the noble Comskip package, which Ubuntu dropped after 24.10, so 26.04 fails at the apt step (pull request #677). Changing the image's base means changing those lines by hand",
+      "matchDepNames": [
+        "ubuntu"
+      ],
+      "matchCurrentValue": "/^24\\.04/",
+      "enabled": false
+    },
+    {
       "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it needs no branch protection",
       "matchUpdateTypes": [
         "minor",

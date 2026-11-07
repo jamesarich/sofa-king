@@ -1,0 +1,58 @@
+# The break screen on the marked channel (#671): the fixture server's first channel carries a 30-second ad mark, a minute
+# apart under tv-monkey, so with Settings > Live TV > During ads on "Logo, muted" the screen has to come up over the
+# break and clear when it ends. Starts on any tab (a player left open is left first), tunes the channel by its link (the
+# fixture numbers its channels from 2), waits through at most one gap between breaks, and ends back on a tab with
+# During ads on "Show them" again.
+appId: dev.jamesrich.sofaking
+name: Break screen over a marked ad break
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Live TV"
+- scrollUntilVisible:
+    element: "During ads"
+- tapOn: "Logo, muted"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- openLink: "sofaking://live/2"
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+# tv-monkey serves the marked channel's breaks a minute apart, and the player sits about 15 s behind the newest segment,
+# so the next break covers the picture within 90 s of tuning in. The screen's label is "Commercial break" and its
+# countdown reads "Back in m:ss".
+- extendedWaitUntil:
+    visible: "Commercial break|Back in .*"
+    timeout: 100000
+# The break is 30 s long, so the screen has to be gone well within a minute.
+- extendedWaitUntil:
+    notVisible: "Commercial break|Back in .*"
+    timeout: 60000
+- assertVisible:
+    id: "player"
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Live TV"
+- scrollUntilVisible:
+    element: "During ads"
+- tapOn: "Show them"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000

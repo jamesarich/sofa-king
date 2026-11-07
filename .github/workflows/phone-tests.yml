@@ -125,3 +125,27 @@ jobs:
             app/androidApp/build/reports/androidTests/
             app/androidApp/build/outputs/androidTest-results/
           if-no-files-found: ignore
+
+  # A scheduled night that failed opens an issue, or comments on the open one; nothing closes it but a person.
+  report:
+    name: Report a failed night
+    needs: touch
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Nightly phone tests failed
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update the issue
+        run: |
+          number=$(gh issue list --state open --search "$TITLE in:title" --json number,title --jq 'map(select(.title == env.TITLE))[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" --body "The scheduled run failed: $RUN_URL"
+          fi

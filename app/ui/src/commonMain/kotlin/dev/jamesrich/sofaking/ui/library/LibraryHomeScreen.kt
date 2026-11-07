@@ -65,6 +65,7 @@ import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.MessageScreen
+import dev.jamesrich.sofaking.ui.SignedOutScreen
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
@@ -98,12 +99,16 @@ internal fun LibraryHomeScreen(
             hint = stringResource(Res.string.library_unavailable_hint),
         )
 
-        is LibraryHomeState.Failed -> MessageScreen(
-            message = stringResource(Res.string.library_load_failed),
-            hint = stringResource(Res.string.load_failed_hint),
-            detail = state.message,
-            onRetry = actions.onRetry,
-        )
+        is LibraryHomeState.Failed -> if (state.signedOut) {
+            SignedOutScreen()
+        } else {
+            MessageScreen(
+                message = stringResource(Res.string.library_load_failed),
+                hint = stringResource(Res.string.load_failed_hint),
+                detail = state.message,
+                onRetry = actions.onRetry,
+            )
+        }
 
         is LibraryHomeState.Ready -> {
             val home = state.home

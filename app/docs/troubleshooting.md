@@ -11,6 +11,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | The Server address field says to enter the server's address | Enter the host, with its port when it is not 9193, for example `192.168.1.10`, or the whole URL, for example `http://192.168.1.10:9193`. A path, credentials, queries and fragments are refused. |
 | On Apple TV, the keyboard closes by itself while you type | tvOS's keyboard sometimes loses track of which key it is on, and an arrow press then would stop the app; the app closes the keyboard instead. What you typed stays in the field; select the field to go on typing. |
 | Couldn't reach the Sofa King server | On Android 17, allow Nearby devices ([local network](security.md#local-network)). Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Try again, which has focus, or Settings → Server → Reload to try again; the app also tries again after 5, 10, 20 and 40 seconds, then every minute. |
+| This device is signed out | The server answered 401 or 403: it no longer accepts this device's token, for example after the device was removed in the admin portal. Focus is on the header's Settings button; press OK, then pair again with a new code. The Library and Recordings tabs say the same. |
 | `AUTH_REQUIRED` | The API token does not match the server's; [find it](getting-started.md#what-you-need). |
 | Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin; see [serve the web app](../../backend/docs/deploy.md#serve-the-web-app). Behind a proxy, enter the page's own address under Server in Settings, or leave the address empty and select Pair, then pair again. |
 | A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server; put both behind the same HTTPS proxy ([serve the web app](../../backend/docs/deploy.md#serve-the-web-app)). |
@@ -33,11 +34,14 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 
 ## Playback
 
-A failed stream shows a headline, a line saying the player reconnects automatically, and the code the player or the server reported.
+A failed stream shows a headline, a line saying what to do, and in small type the code the player or the server reported, for support.
 
 | Symptom | Check |
 | --- | --- |
 | Can't play this channel | The server could not open a playback session, the stream ended, or the failure has no closer headline; the code names why. Press OK to retry or pick another channel. |
+| The server didn't start this channel | The server did not answer when the channel was opened (`SESSION_UNAVAILABLE`), usually a dropped network or a server that is down. The player keeps trying; press OK to retry now. |
+| The server is busy | The server is playing as many channels as it can (`CAPACITY_EXHAUSTED`). Stop one on another device, then press OK. |
+| This channel is no longer on the server | The channel left the lineup (`CHANNEL_NOT_FOUND`). The app looks for it again by number and name; pick another channel if it does not come back. |
 | Can't reach this stream. Check the server and try again. | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; the web app shows Reconnecting beside the channel's name instead. The player reconnects with backoff; press OK to retry now. |
 | The server refused this stream. Try again, or try another one. | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
 | This stream's format isn't supported. Try another one. | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. |
@@ -47,7 +51,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | A stream stops and comes back | Failed and ended streams reconnect after 2, 4, 8 and 15 seconds, then every 30 seconds, while the player is open. On Android and iOS, a stream the server replaced, which its relay answers with 410, reconnects at once. OK retries immediately. |
 | The picture freezes but no error shows | A stream that stalls without closing is not reconnected automatically. Press OK, or change channel and back. |
 | A channel starts slowly with captions on | An earlier caption timing buffers the stream by that much. Lower the channel's timing or the default; a later timing needs no buffer. |
-| No working source for this channel right now | The server answered `SOURCE_UNAVAILABLE`: every source for the channel is down or quarantined. The server rechecks sources on its own; the card counts down to the next try, and OK tries at once. |
+| No working source for this channel right now | The server answered `SOURCE_UNAVAILABLE`: every source for the channel is down. The server rechecks sources on its own; the card counts down to the next try, and OK tries at once. |
 | The wrong language plays | Hold Info for the stream card and pick another audio track; the choice lasts for the channel. One track means no choice. |
 
 ## Library and recordings

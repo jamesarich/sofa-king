@@ -81,6 +81,7 @@ internal class LiveTuner(
     }
 
     private suspend fun tune(channel: Channel, nowPlaying: NowPlaying) {
+        player.markTune()
         while (true) {
             val stream = runCatchingCancellable {
                 sessions.tune(channel.guideId, PlaybackIntent.WATCH)

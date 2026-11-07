@@ -19,6 +19,11 @@ class HomeFocusTest {
     }
 
     @Test
+    fun `a signed out device starts on Settings`() {
+        assertEquals(HomeFocus.SETTINGS, homeFocusFor(LineupState.Failed("AUTH_REQUIRED: no", signedOut = true)))
+    }
+
+    @Test
     fun `loading failed and empty lineups leave focus alone`() {
         assertEquals(HomeFocus.NONE, homeFocusFor(LineupState.Loading))
         assertEquals(HomeFocus.NONE, homeFocusFor(LineupState.Failed("HTTP_500")))

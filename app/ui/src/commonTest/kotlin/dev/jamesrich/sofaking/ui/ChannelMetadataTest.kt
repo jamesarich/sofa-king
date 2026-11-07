@@ -20,6 +20,18 @@ class ChannelMetadataTest {
     )
 
     @Test
+    fun `a channel without a logo shows the first letters of its name`() {
+        assertEquals("BN", logoMonogram("Big News 4", "4"))
+        assertEquals("K", logoMonogram("kqed", "9"))
+        assertEquals("AE", logoMonogram("A-E Network", "12"))
+    }
+
+    @Test
+    fun `a channel whose name has no letters shows its number`() {
+        assertEquals("7.1", logoMonogram("  ", "7.1"))
+    }
+
+    @Test
     fun `the episode line puts the label before the episode title`() {
         assertEquals("S2 E5  The Pilot", program(episode = "S2 E5", subTitle = "The Pilot").episodeLine())
     }

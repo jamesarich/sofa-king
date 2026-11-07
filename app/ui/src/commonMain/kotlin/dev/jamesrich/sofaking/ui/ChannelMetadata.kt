@@ -14,8 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
@@ -59,15 +62,39 @@ internal fun Channel.noListingText(guideLoading: Boolean): String = stringResour
 internal const val DETAIL_SEPARATOR = "  ·  "
 
 /**
- * The channel's logo in a [width] by [height] slot that stays empty without one, so names line up.
- * Decorative: the name is beside it.
+ * The letters a channel without a logo shows on its tile: the first letter of each of the first two words of its
+ * [name] in capitals, else its [number] when the name has no letters or digits.
+ */
+internal fun logoMonogram(name: String, number: String): String {
+    val initials = name.split(' ', '-', '_').mapNotNull { word -> word.firstOrNull { it.isLetterOrDigit() } }
+    return if (initials.isEmpty()) number else initials.take(2).joinToString("").uppercase()
+}
+
+/** The share of a logo tile's height its letters take. */
+private const val LOGO_TEXT_SHARE = 0.4f
+
+/**
+ * The channel's logo in a [width] by [height] slot, so names line up; a channel without one shows [logoMonogram] on a
+ * tile of the same size. Decorative: the name is beside it.
  */
 @Composable
 internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modifier = Modifier) {
     val logo = channel.logo
     val slot = modifier.size(width = width, height = height)
     if (logo == null) {
-        Box(slot)
+        Box(
+            slot.clearAndSetSemantics {}
+                .background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                logoMonogram(channel.name, channel.number.formatNumber()),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                fontSize = (height.value * LOGO_TEXT_SHARE).sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
     } else {
         AsyncImage(
             rememberFadingRequest(logo),

@@ -113,7 +113,7 @@ private fun InfoHeader(channel: Channel, scope: String?, captionsOn: Boolean, ca
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
+            ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
             Text(
                 channel.label(),
                 style = MaterialTheme.typography.headlineSmall,

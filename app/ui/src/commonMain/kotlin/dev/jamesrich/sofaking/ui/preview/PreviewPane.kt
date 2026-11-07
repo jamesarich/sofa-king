@@ -307,6 +307,7 @@ private class PreviewTuner(
             // otherwise surface as a player error. This also resets the renderers, as the full screen does.
             player.stop()
         }
+        player.markTune()
         val stream = runCatchingCancellable { sessions.tune(guideId, PlaybackIntent.PREVIEW) }.getOrElse {
             onFailedChange(true)
             return

@@ -53,7 +53,9 @@ sealed interface LibraryHomeState {
     /** The server keeps no libraries, or is too old to serve them. */
     data object Unavailable : LibraryHomeState
     data class Ready(val home: MediaHome) : LibraryHomeState
-    data class Failed(val message: String) : LibraryHomeState
+
+    /** The load failed with [message]; [signedOut] when the server no longer accepts this device's token. */
+    data class Failed(val message: String, val signedOut: Boolean = false) : LibraryHomeState
 }
 
 /** One library's grid as far as it is loaded, only [genre] when set; [next] is null once every page is in. */

@@ -119,9 +119,24 @@ private fun TabDestination(
 
             Route.OnLater -> OnLaterDestination(shell, vm)
 
-            Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, music, tabBack, headerFocused)
+            Route.Library -> LibraryHomeDestination(
+                arrival,
+                shell,
+                libraryVm,
+                music,
+                tabBack,
+                headerFocused,
+                chrome.settingsFocus,
+            )
 
-            Route.Recordings -> RecordingsDestination(arrival, shell, recordingsVm, tabBack, headerFocused)
+            Route.Recordings -> RecordingsDestination(
+                arrival,
+                shell,
+                recordingsVm,
+                tabBack,
+                headerFocused,
+                chrome.settingsFocus,
+            )
 
             is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm, music)
 

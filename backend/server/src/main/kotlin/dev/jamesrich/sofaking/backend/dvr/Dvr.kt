@@ -82,6 +82,7 @@ class Dvr(
     private val events: ServerEvents? = null,
 ) {
     private val mutex = Mutex()
+    private val budget = CullBudget()
     private val trigger = Channel<String>(Channel.CONFLATED)
     private lateinit var scope: CoroutineScope
 
@@ -346,7 +347,8 @@ class Dvr(
     /**
      * Deletes the finished recordings the retention no longer keeps: a rule's oldest beyond its keep count, any older
      * than the keep days, then, while the disk has less free space than the floor, the oldest of the rest, watched
-     * ones first: at most [SPACE_CULL_MAX] per pass, and none after one that freed no space. Protected recordings
+     * ones first, until the floor plus the space the running and next recording need is free: at most [SPACE_CULL_MAX]
+     * per pass and [CullBudget.DAILY_MAX] per 24 hours, and none after one that freed no space. Protected recordings
      * and running ones are never deleted. Logs and publishes every deletion with its reason.
      */
     suspend fun cull(cause: String) = jobs.record(CULL_JOB) {
@@ -360,14 +362,28 @@ class Dvr(
             val gone = plan.mapTo(HashSet()) { it.first.id }
             val floor = keep.freeGib.toLong() * GIB
             val oldest = DvrPlanner.byCullOrder(all.filter { it.id !in gone })
-            // The oldest go one at a time until the disk has the floor free, or its free space cannot be read. A pass
-            // stops at SPACE_CULL_MAX deletions and as soon as one frees nothing, so a disk that is low for reasons
-            // outside the recordings never loses the whole history.
+            // The oldest go one at a time until the disk has the floor plus what the running and next recordings still
+            // write, or its free space cannot be read. A pass stops at SPACE_CULL_MAX deletions, at the daily budget
+            // and as soon as one frees nothing, so a disk that is low for reasons outside the recordings never loses
+            // the whole history.
+            val target = floor + CullBudget.need(all, now, SCHEDULE_EVERY)
             var free = files.free()
-            for (recording in oldest.take(SPACE_CULL_MAX)) {
+            var passes = 0
+            for (recording in oldest) {
                 val before = free
-                if (before == null || before >= floor) break
+                if (before == null || before >= target) break
+                if (passes >= SPACE_CULL_MAX) break
+                if (budget.left(now) == 0) {
+                    if (!budget.announced) {
+                        budget.announced = true
+                        log.warn("recording cleanup budget spent limit={} per 24 h", CullBudget.DAILY_MAX)
+                    }
+                    alerts.space(before, floor)
+                    break
+                }
                 store.cull(files, recording, "SPACE", events)
+                budget.spend(now)
+                passes++
                 gone += recording.id
                 // Free space that did not rise, or cannot be read, ends the pass at the top of the next turn.
                 free = files.free()?.takeIf { it > before }

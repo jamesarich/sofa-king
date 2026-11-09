@@ -54,6 +54,95 @@ final class RemoteTests: XCTestCase {
         leavePlayer()
     }
 
+    /// Down with the transport bar hidden tunes the next channel in the lineup as a new playback session.
+    @MainActor
+    func testDownChangesChannelWithTheBarHidden() throws {
+        try launchToList()
+        let tuned = try playSofaSports()
+        let order = server.channelIds()
+        let index = try XCTUnwrap(order.firstIndex(of: tuned), "Sofa Sports is not in the server's lineup")
+        waitForBarToHide()
+
+        let next = order[(index + 1) % order.count]
+        remote.press(.down)
+        eventually("Down to open a session for the next channel", timeout: 30) { server.watching().contains { $0["channelId"] as? String == next } }
+
+        leavePlayer()
+    }
+
+    /// Up with the transport bar showing moves focus in the bar and leaves the channel and its session as they were.
+    @MainActor
+    func testUpWithTheBarShowingKeepsTheSession() throws {
+        try launchToList()
+        let tuned = try playSofaSports()
+        let before = server.watching().compactMap { $0["id"] as? String }
+        XCTAssertEqual(before.count, 1, "Expected one watch session\n\(playerReport)")
+
+        // Select brings the bar up once it has hidden; its buttons stay in the accessibility tree meanwhile.
+        waitForBarToHide()
+        remote.press(.select)
+        reachInTransportBar(control("Channels"))
+        for _ in 0..<2 {
+            remote.press(.up)
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        remote.press(.down)
+        // A zap releases the session and opens another within a couple of seconds.
+        RunLoop.current.run(until: Date().addingTimeInterval(5))
+        let after = server.watching()
+        XCTAssertEqual(after.compactMap { $0["id"] as? String }, before, "Up with the bar showing changed the session\n\(playerReport)")
+        XCTAssertEqual(after.first?["channelId"] as? String, tuned)
+
+        leavePlayer()
+    }
+
+    /// Holding Select on a transport bar button leaves the channel and its session as they were: the long press that
+    /// recalls the last channel belongs to the player, not the bar.
+    @MainActor
+    func testHoldingSelectOnABarButtonKeepsTheSession() throws {
+        try launchToList()
+        let first = try playSofaSports()
+        // A second channel gives the recall a channel to return to.
+        waitForBarToHide()
+        remote.press(.down)
+        eventually("Down to tune the next channel", timeout: 30) { server.watching().contains { $0["channelId"] as? String != first } }
+        let before = server.watching().compactMap { $0["id"] as? String }
+        reachInTransportBar(control("Channels"))
+        remote.press(.select, forDuration: 1.5)
+        RunLoop.current.run(until: Date().addingTimeInterval(5))
+        XCTAssertEqual(server.watching().compactMap { $0["id"] as? String }, before, "Holding Select on a bar button changed the session\n\(playerReport)")
+
+        leavePlayer()
+    }
+
+    /// Menu pressed while the picture is still loading leaves the player and releases its session, which the system
+    /// player ignores until the stream plays.
+    @MainActor
+    func testMenuLeavesAPlayerThatIsStillLoading() throws {
+        try launchToList()
+        _ = try playSofaSports()
+        remote.press(.menu)
+        eventually("Menu to leave the loading player and release its session", timeout: 10) { server.watching().isEmpty }
+        XCTAssertTrue(guide.waitForExistence(timeout: 5), "The channel list is not back\n\(playerReport)")
+    }
+
+    /// Plays Sofa Sports from the list and returns its channel id once the server has opened its session.
+    @MainActor
+    private func playSofaSports() throws -> String {
+        focus(row("Sofa Sports"), by: Array(repeating: XCUIRemote.Button.down, count: 5) + Array(repeating: XCUIRemote.Button.up, count: 8))
+        remote.press(.select)
+        eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
+        return try XCTUnwrap(server.watching().first?["channelId"] as? String, "No watch session\n\(playerReport)")
+    }
+
+    /// Waits for the player to settle and its transport bar to go: the bar comes up with every new picture and the
+    /// system hides it after about five idle seconds, which nothing in the accessibility tree says.
+    @MainActor
+    private func waitForBarToHide() {
+        waitForPlayerToSettle()
+        RunLoop.current.run(until: Date().addingTimeInterval(9))
+    }
+
     /// Moving along the tab bar opens each tab, Down moves focus into it, and Up brings focus back to the tab bar.
     @MainActor
     func testTabs() throws {
@@ -269,19 +358,28 @@ final class RemoteTests: XCTestCase {
     @MainActor
     @discardableResult
     private func waitForPlayerToSettle(timeout: TimeInterval = 20) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
+        let started = Date()
+        let deadline = started.addingTimeInterval(timeout)
         var quietSince: Date?
         while Date() < deadline {
             if app.activityIndicators.count == 0 {
                 let since = quietSince ?? Date()
                 quietSince = since
-                if Date().timeIntervalSince(since) >= 2 { return true }
+                if Date().timeIntervalSince(since) >= 2 {
+                    let seconds = since.timeIntervalSince(started)
+                    let note = XCTAttachment(string: String(format: "The player settled %.1f s after the wait began", seconds))
+                    note.name = "settle-time"
+                    note.lifetime = .keepAlways
+                    add(note)
+                    print(String(format: "[remote] the player settled after %.1f s", seconds))
+                    return true
+                }
             } else {
                 quietSince = nil
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
-        print("[remote] the player was still loading after \(Int(timeout)) s")
+        XCTFail("The player was still loading after \(Int(timeout)) s\n\(screen)")
         return false
     }
 
@@ -440,6 +538,11 @@ struct FixtureServer {
             guard let started = (session["startedAt"] as? String).flatMap({ Self.seconds.date(from: String($0.prefix(19)) + "Z") }) else { return true }
             return started >= since.addingTimeInterval(-2)
         }
+    }
+
+    /// The lineup's channel ids in the server's order, which the app's channel list and zapping follow.
+    func channelIds() -> [String] {
+        (((get("api/v1/channels") as? [String: Any])?["channels"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String }
     }
 
     /// The sessions a channel opened full screen, rather than the guide's preview.

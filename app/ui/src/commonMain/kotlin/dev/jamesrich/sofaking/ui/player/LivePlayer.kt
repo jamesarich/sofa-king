@@ -218,8 +218,11 @@ interface LivePlayer :
     /** The caption lead the full screen sets per channel; engines without a text renderer hook leave it unused. */
     val captionSync: CaptionSync
 
-    /** Notes that a tune of a channel starts now, so an engine can log how long the first picture takes. */
-    fun markTune() {}
+    /**
+     * Notes that a tune of a channel starts now, so an engine can log how long the first picture takes; `false` forgets
+     * that tune because it failed or was canceled, so a later frame is not timed as its picture.
+     */
+    fun markTune(tuning: Boolean = true) {}
 
     /** The channel whose stream the player holds, or null with no item. */
     val currentChannelId: String?

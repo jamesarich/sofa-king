@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.coroutines.CoroutineContext
@@ -27,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -168,7 +170,53 @@ class LineupLoaderTest {
 
     @Test
     fun `a 403 from the server reads as signed out`() = runTest {
-        assertTrue((failedWith(403, "FORBIDDEN").last() as LineupState.Failed).signedOut)
+        assertTrue((failedWith(403, "HTTP_403").last() as LineupState.Failed).signedOut)
+    }
+
+    @Test
+    fun `a loopback-only 403 is not signed out`() = runTest {
+        val failed = failedWith(403, "LOOPBACK_ONLY").last() as LineupState.Failed
+
+        assertEquals(false, failed.signedOut)
+        assertTrue(failed.message.startsWith("LOOPBACK_ONLY"))
+    }
+
+    @Test
+    fun `a 200 after a 401 returns the lineup to Ready`() = runTest {
+        var rejecting = true
+        val http = FakeHttp(this) { request ->
+            when {
+                rejecting -> apiError(401, "AUTH_REQUIRED")
+
+                request.path == "/api/v1/channels" -> json(
+                    """{"revision":"r","channels":[{"id":"c1","displayNumber":"1","name":"Channel c1",""" +
+                        """"playbackEligible":true}]}""",
+                )
+
+                request.path == "/api/v1/guide/query" ->
+                    json("""{"revision":"r","from":"x","to":"y","channels":[]}""")
+
+                else -> apiError(404, "RESOURCE_NOT_FOUND")
+            }
+        }
+        val states = mutableListOf<LineupState>()
+        val decode = StandardTestDispatcher(testScheduler)
+        val loader =
+            LineupLoader(MemoryDataStore<CachedLineup?>(null), clock, decode, GuideDays(clock, backgroundScope))
+        val repository = SofaKingRepository(http.api(), decode) { now }
+        val server = Server("http://sofa.test", "t", http.api())
+        backgroundScope.launch {
+            flow { with(loader) { load(server to repository) {} } }.toList(states)
+        }
+        runCurrent()
+        assertTrue((states.last() as LineupState.Failed).signedOut)
+
+        rejecting = false
+        advanceTimeBy(6.seconds)
+        runCurrent()
+
+        assertTrue(states.last() is LineupState.Ready, "the retry brings the lineup back")
+        assertEquals(1, states.count { it is LineupState.Failed }, "the signed-out screen showed once")
     }
 
     @Test

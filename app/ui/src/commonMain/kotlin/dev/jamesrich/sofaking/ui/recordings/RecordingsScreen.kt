@@ -52,6 +52,7 @@ import dev.jamesrich.sofaking.resources.recordings_undo
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.LoadFailedScreen
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.SignedOutScreen
 import dev.jamesrich.sofaking.ui.TimeFormatter
@@ -103,10 +104,10 @@ fun RecordingsScreen(
         )
 
         is RecordingsState.Failed -> if (state.signedOut) {
-            SignedOutScreen()
+            SignedOutScreen(state.message, onRetry)
         } else {
-            MessageScreen(
-                stringResource(Res.string.load_failed),
+            LoadFailedScreen(
+                title = stringResource(Res.string.load_failed),
                 hint = stringResource(Res.string.load_failed_hint),
                 detail = state.message,
                 onRetry = onRetry,

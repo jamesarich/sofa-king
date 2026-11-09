@@ -68,6 +68,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.OverVideo
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -308,9 +309,15 @@ private class PreviewTuner(
             player.stop()
         }
         player.markTune()
-        val stream = runCatchingCancellable { sessions.tune(guideId, PlaybackIntent.PREVIEW) }.getOrElse {
-            onFailedChange(true)
-            return
+        val stream = try {
+            runCatchingCancellable { sessions.tune(guideId, PlaybackIntent.PREVIEW) }.getOrElse {
+                player.markTune(tuning = false)
+                onFailedChange(true)
+                return
+            }
+        } catch (e: CancellationException) {
+            player.markTune(tuning = false)
+            throw e
         }
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             player.setStream(stream)

@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.resources.no_channels_hint
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
+import dev.jamesrich.sofaking.ui.LoadFailedScreen
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.SignedOutScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
@@ -91,10 +92,10 @@ internal fun GuideDestination(
             hint = stringResource(Res.string.unconfigured_hint),
         )
 
-        s is LineupState.Failed && s.signedOut -> SignedOutScreen()
+        s is LineupState.Failed && s.signedOut -> SignedOutScreen(s.message, vm::refresh)
 
-        s is LineupState.Failed -> MessageScreen(
-            message = stringResource(Res.string.load_failed),
+        s is LineupState.Failed -> LoadFailedScreen(
+            title = stringResource(Res.string.load_failed),
             detail = s.message,
             hint = stringResource(Res.string.load_failed_hint),
             onRetry = vm::refresh,

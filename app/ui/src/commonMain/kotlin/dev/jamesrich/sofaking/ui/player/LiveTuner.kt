@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.label
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -83,12 +84,18 @@ internal class LiveTuner(
     private suspend fun tune(channel: Channel, nowPlaying: NowPlaying) {
         player.markTune()
         while (true) {
-            val stream = runCatchingCancellable {
-                sessions.tune(channel.guideId, PlaybackIntent.WATCH)
-            }.getOrElse { e ->
-                // The reconnect loop tunes again with backoff, as it does for a stream that failed.
-                state.fail(failureCode(e))
-                return
+            val stream = try {
+                runCatchingCancellable {
+                    sessions.tune(channel.guideId, PlaybackIntent.WATCH)
+                }.getOrElse { e ->
+                    // The reconnect loop tunes again with backoff, as it does for a stream that failed.
+                    player.markTune(tuning = false)
+                    state.fail(failureCode(e))
+                    return
+                }
+            } catch (e: CancellationException) {
+                player.markTune(tuning = false)
+                throw e
             }
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                 player.setStream(stream, nowPlaying)

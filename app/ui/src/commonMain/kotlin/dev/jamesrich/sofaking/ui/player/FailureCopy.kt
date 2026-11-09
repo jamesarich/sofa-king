@@ -1,10 +1,13 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.LOOPBACK_ONLY
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.cant_play
 import dev.jamesrich.sofaking.resources.cant_play_retry
 import dev.jamesrich.sofaking.resources.cant_reach_stream
+import dev.jamesrich.sofaking.resources.loopback_only
+import dev.jamesrich.sofaking.resources.loopback_only_hint
 import dev.jamesrich.sofaking.resources.no_working_source
 import dev.jamesrich.sofaking.resources.no_working_source_hint
 import dev.jamesrich.sofaking.resources.player_channel_gone
@@ -28,6 +31,16 @@ internal const val SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
 /** The [failureCode] of a failure that came with no server error code, such as a dropped network at session open. */
 internal const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 
+/**
+ * The failure code for a player error: [errorCodeName], or `HTTP_401` and `HTTP_403` when the media request itself was
+ * answered with that [httpStatus], so a token revoked mid-stream reads as signed out like one refused at session open.
+ */
+internal fun playerFailureCode(errorCodeName: String, httpStatus: Int?): String =
+    if (httpStatus == HTTP_UNAUTHORIZED || httpStatus == HTTP_FORBIDDEN) "HTTP_$httpStatus" else errorCodeName
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+
 /** What a failed playback says: what happened ([reason]) and what to do about it ([hint]). */
 internal class FailureCopy(val reason: StringResource, val hint: StringResource)
 
@@ -39,6 +52,8 @@ internal fun failureCopy(code: String, live: Boolean = true): FailureCopy {
     val known = when {
         code == Wire.ErrorCode.AUTH_REQUIRED || code == "HTTP_401" || code == "HTTP_403" ->
             FailureCopy(Res.string.player_signed_out, Res.string.player_signed_out_hint)
+
+        code == LOOPBACK_ONLY -> FailureCopy(Res.string.loopback_only, Res.string.loopback_only_hint)
 
         code == Wire.ErrorCode.CAPACITY_EXHAUSTED ->
             FailureCopy(Res.string.player_server_busy, Res.string.player_server_busy_hint)

@@ -1,11 +1,13 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Program
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class ChannelMetadataTest {
@@ -18,6 +20,19 @@ class ChannelMetadataTest {
         subTitle = subTitle,
         episode = episode,
     )
+
+    @Test
+    fun `a two-letter monogram takes half the guide tile's height`() {
+        assertEquals(16.dp, logoTextSize("BN", 48.dp, 32.dp))
+    }
+
+    @Test
+    fun `a long channel number shrinks to fit the tile but not below the floor`() {
+        val size = logoTextSize("1000.12", 48.dp, 32.dp)
+
+        assertTrue(size < 16.dp && size >= 10.dp, "was $size")
+        assertEquals(10.dp, logoTextSize("1000.12345", 48.dp, 32.dp))
+    }
 
     @Test
     fun `a channel without a logo shows the first letters of its name`() {

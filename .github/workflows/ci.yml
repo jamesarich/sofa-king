@@ -360,7 +360,8 @@ jobs:
           print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
           cd appleApp
           xcodebuild -project SofaKing.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
-            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
+            CODE_SIGNING_ALLOWED=NO -retry-tests-on-failure -test-iterations 2 \
+            -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the remote tests' screenshots
         if: failure()

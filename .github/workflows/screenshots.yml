@@ -317,9 +317,9 @@ jobs:
           path: build/docs-images/
           if-no-files-found: error
 
-  # Commits the changed images to bot/docs-screenshots and opens or updates the pull request for them. Never on a pull
-  # request, and only from main. Needs the repository setting "Allow GitHub Actions to create and approve pull
-  # requests"; without it the branch is still pushed and the log names the link that opens the pull request by hand.
+  # Commits the changed images to bot/docs-screenshots, opens or updates the pull request for them and squash-merges it
+  # when it changes only WebP files under docs/images. Never on a pull request, and only from main. Needs the
+  # repository setting "Allow GitHub Actions to create and approve pull requests"; without it the branch is still pushed and the log names the link that opens the pull request by hand.
   propose:
     name: Propose the images
     needs: images
@@ -366,11 +366,21 @@ jobs:
             echo
             cat build/changes.md
             echo
-            echo "Rendered by [this run]($RUN_URL). A new image is not drawn by any page yet; add it where it belongs before merging. Pushes made with the workflow token start no checks: close and reopen this pull request to run them."
+            echo "Rendered by [this run]($RUN_URL). The run merges this pull request itself when every changed file is a WebP under docs/images."
           } > build/body.md
           number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$number" ]; then
             gh pr edit "$number" --body-file build/body.md
           elif ! gh pr create --base main --head "$BRANCH" --title 'docs: refresh the screenshots' --body-file build/body.md; then
             echo "::warning::The branch is pushed but the workflow token cannot open pull requests. Open https://github.com/${GH_REPO}/compare/main...${BRANCH} by hand, or turn on 'Allow GitHub Actions to create and approve pull requests' in the repository's Actions settings."
+            exit 0
+          fi
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          # The push above started no checks, so auto-merge would never fire; the run merges its own pull request.
+          other=$(gh api "repos/${GH_REPO}/pulls/${number}/files" --paginate --jq '.[] | select((.filename | test("^docs/images/[^/]+\\.webp$") | not) or ((.previous_filename // "docs/images/x.webp") | test("^docs/images/[^/]+\\.webp$") | not)) | "- " + .filename')
+          if [ -n "$other" ]; then
+            printf '\nNot merged by the run: the pull request also changes files other than WebP images under docs/images:\n\n%s\n' "$other" >> build/body.md
+            gh pr edit "$number" --body-file build/body.md
+          else
+            gh pr merge "$number" --squash --delete-branch
           fi

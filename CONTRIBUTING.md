@@ -129,6 +129,7 @@ What runs on a change (a pull request or a push to `main` unless noted; manual r
 | `app/` code, not Markdown, `app/docs/`, `app/maestro/` or the `tv-monkey.py`, `desktop-monkey.py`, `screenshots.py` and `showcase.py` scripts | `ci.yml` |
 | `contract/`, not Markdown | `ci.yml`, `backend.yml` |
 | `backend/`, not Markdown or `backend/docs/` | `backend.yml` |
+| `backend/server/src/main/kotlin/dev/jamesrich/sofaking/backend/playback/` | `backend.yml`, `ci.yml` (the Apple TV remote tests run the server from the tree) |
 | The app's `core`, `ui` or `web` module or its build files | `ci.yml`, and `backend.yml` on a push to `main` only (not for `ui` alone) |
 | `gradle/`, `build-logic/`, `.editorconfig` | `ci.yml`, `backend.yml` |
 | A `*.gradle.kts` or `gradle.properties` file, `gradle/`, `build-logic/` | `dependency-submission.yml`, on a push to `main` only |

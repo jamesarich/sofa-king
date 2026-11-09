@@ -143,6 +143,7 @@ struct PlayerView: View {
         }
         .onDisappear {
             shown = false
+            model.pictureInPicture = false
             model.sleep = SleepTimer()
             stopCovering()
             replaced?.cancel()

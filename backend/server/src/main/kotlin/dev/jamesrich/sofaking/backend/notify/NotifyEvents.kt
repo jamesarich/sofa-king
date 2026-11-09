@@ -170,7 +170,7 @@ private fun operationNote(event: ServerEvent): Notification {
         NotifyEvent.RECORDING_CULLED ->
             Note(
                 "Recording deleted",
-                recordingName(data) + data.text("reason")?.let { " ($it)" }.orEmpty(),
+                culledMessage(data),
                 NotifyTone.WARNING,
                 "/admin/recordings",
             )
@@ -261,6 +261,15 @@ private fun attentionNotes(event: ServerEvent): List<Notification> {
         )
     }
     return raised + cleared
+}
+
+/** One deleted recording by name and reason, or a pass's count with its first titles. */
+private fun culledMessage(data: JsonObject): String {
+    val count = data.text("count")?.toIntOrNull() ?: 1
+    if (count <= 1) return recordingName(data) + data.text("reason")?.let { " ($it)" }.orEmpty()
+    val titles = (data["titles"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+    val more = count - titles.size
+    return "$count recordings deleted: " + titles.joinToString(", ") + if (more > 0) " and $more more" else ""
 }
 
 private fun recordingName(data: JsonObject): String {

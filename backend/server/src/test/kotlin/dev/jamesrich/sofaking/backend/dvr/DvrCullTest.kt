@@ -14,6 +14,10 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -110,6 +114,7 @@ class DvrCullTest {
                 clock.now = clock.now.plus(Duration.ofMinutes(30))
             }
             assertEquals(60 - CullBudget.DAILY_MAX, left().size)
+            yield()
             assertEquals(CullBudget.DAILY_MAX, events.count { it.type == NotifyEvent.RECORDING_CULLED })
         }
 
@@ -131,6 +136,7 @@ class DvrCullTest {
             dvr.cull("test")
             clock.now = clock.now.plus(Duration.ofMinutes(30))
         }
+        yield()
         val remaining = left().size
         assertEquals(30 - CullBudget.DAILY_MAX, remaining)
         assertEquals(1, events.count { it.type == "disk.low" })
@@ -151,6 +157,16 @@ class DvrCullTest {
         dvr.cull("test")
         assertEquals(12 - 6, left().size)
     }
+
+    @Test fun `a pass that deletes several recordings sends one culled event with the count and first titles`() =
+        rig(count = 25, free = { left -> Dvr.GIB + (25 - left) * Dvr.GIB / 1024 }) {
+            dvr.cull("test")
+            yield()
+            val culled = events.filter { it.type == NotifyEvent.RECORDING_CULLED }.single()
+            assertEquals(Dvr.SPACE_CULL_MAX, culled.data["count"]!!.jsonPrimitive.int)
+            assertEquals(3, culled.data["titles"]!!.jsonArray.size)
+            assertEquals("SPACE", culled.data["reason"]!!.jsonPrimitive.content)
+        }
 
     @Test fun `with no recording due cleanup stops at the floor alone`() = rig(
         count = 12,

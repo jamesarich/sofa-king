@@ -349,7 +349,8 @@ class Dvr(
      * than the keep days, then, while the disk has less free space than the floor, the oldest of the rest, watched
      * ones first, until the floor plus the space the running and next recording need is free: at most [SPACE_CULL_MAX]
      * per pass and [CullBudget.DAILY_MAX] per 24 hours, and none after one that freed no space. Protected recordings
-     * and running ones are never deleted. Logs and publishes every deletion with its reason.
+     * and running ones are never deleted. Logs every deletion with its reason and publishes one `recording.culled`
+     * event for the pass.
      */
     suspend fun cull(cause: String) = jobs.record(CULL_JOB) {
         val now = clock.instant()
@@ -358,7 +359,11 @@ class Dvr(
             val rules = store.recordingRules().associateBy { it.id }
             val all = store.recordings()
             val plan = DvrPlanner.cull(all, rules, keep, now)
-            plan.forEach { (recording, reason) -> store.cull(files, recording, reason, events) }
+            val removed = ArrayList<Pair<StoredRecording, String>>()
+            plan.forEach { (recording, reason) ->
+                store.cull(files, recording, reason)
+                removed += recording to reason
+            }
             val gone = plan.mapTo(HashSet()) { it.first.id }
             val floor = keep.freeGib.toLong() * GIB
             val oldest = DvrPlanner.byCullOrder(all.filter { it.id !in gone })
@@ -368,26 +373,17 @@ class Dvr(
             // the whole history.
             val target = floor + CullBudget.need(all, now, SCHEDULE_EVERY)
             var free = files.free()
-            var passes = 0
-            for (recording in oldest) {
+            for (recording in oldest.take(SPACE_CULL_MAX)) {
                 val before = free
-                if (before == null || before >= target) break
-                if (passes >= SPACE_CULL_MAX) break
-                if (budget.left(now) == 0) {
-                    if (!budget.announced) {
-                        budget.announced = true
-                        log.warn("recording cleanup budget spent limit={} per 24 h", CullBudget.DAILY_MAX)
-                    }
-                    alerts.space(before, floor)
-                    break
-                }
-                store.cull(files, recording, "SPACE", events)
+                if (before == null || before >= target || !budget.allows(now, before, floor, alerts)) break
+                store.cull(files, recording, "SPACE")
+                removed += recording to "SPACE"
                 budget.spend(now)
-                passes++
                 gone += recording.id
                 // Free space that did not rise, or cannot be read, ends the pass at the top of the next turn.
                 free = files.free()?.takeIf { it > before }
             }
+            events.recordingsCulled(removed)
             gone.size
         }
         JobOutcome(true, "$deleted deleted").also {
@@ -511,15 +507,9 @@ private suspend fun GuideService.programAt(entry: LineupEntryRecord, start: Inst
 }
 
 /** Deletes [recording] and its files for [reason], and logs why. */
-private suspend fun BackendStore.cull(
-    files: RecordingFiles,
-    recording: StoredRecording,
-    reason: String,
-    events: ServerEvents?,
-) {
+private suspend fun BackendStore.cull(files: RecordingFiles, recording: StoredRecording, reason: String) {
     withContext(Dispatchers.IO) { recording.path?.let { files.remove(it) } }
     deleteRecording(recording.id)
-    events.recordingCulled(recording, reason)
     log.info("recording culled id={} title=\"{}\" reason={}", recording.id, recording.title, reason)
 }
 
@@ -530,3 +520,14 @@ private fun instant(text: String, field: String): Instant = try {
 }
 
 private fun notFound() = ApiFailure(HttpStatusCode.NotFound, "RECORDING_NOT_FOUND", "Unknown recording")
+
+/** Whether the daily budget allows another space deletion; when it does not, says so once and raises `disk.low`. */
+private fun CullBudget.allows(now: Instant, free: Long, floor: Long, alerts: DvrAlerts): Boolean {
+    if (left(now) > 0) return true
+    if (!announced) {
+        announced = true
+        log.warn("recording cleanup budget spent limit={} per 24 h", CullBudget.DAILY_MAX)
+    }
+    alerts.space(free, floor)
+    return false
+}

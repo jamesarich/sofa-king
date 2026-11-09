@@ -30,6 +30,8 @@ A job that hit its `timeout-minutes` shows as canceled and keeps no log; read it
 
 Compare with the same job on `main` (`event=push&branch=main`). A failure that is red on `main` too, or in the list below, is not the pull request's. Re-run a known flake once (`POST .../actions/runs/<run>/rerun-failed-jobs`); a second failure in the same test is a break until shown otherwise.
 
+A pull request that changes only the server's `playback` package runs `ci.yml` too, because the Apple TV remote tests start the server from the tree: a red `Test (Apple TV)` there can be the server change, so read the failing test before calling it a flake.
+
 Known flakes (re-run once, then investigate):
 
 - `Test (Apple)`, iOS `TouchTests`: a walk that stops ("The app stopped", "Lost connection to the application") is a crash until the app's stdout in the `.xcresult` says otherwise (grep `Uncaught Kotlin exception`). `xcodebuild: error: Unable to find a device matching` before any test ran is CoreSimulator not listing the booted iPhone; the step retries it. `testPlayChannel` "Timed out waiting for Sofa Sports to open full screen" with the guide still on screen is the app's main thread held on a loaded runner; the wait is a minute and the Gradle daemons stop before the tests. A tap on a `combinedClickable` that reaches the app late still reads as a long press, which `play()` closes and retaps.

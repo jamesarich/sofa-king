@@ -363,7 +363,17 @@ sudo ./sofa-king-update.sh install
 
 `install` writes `sofa-king-update.service`, `sofa-king-update.timer` and `sofa-king-update.path` to `/etc/systemd/system` for that directory and that copy of the script, then enables and starts the timer and the path unit. `sudo ./sofa-king-update.sh install /srv/sofa-king` installs for another Compose directory. The script stays where it is, so keep it there; the paths may not hold a space, `%` or a backslash. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. The path unit starts the same service when the portal's Update now writes `config/update-requested`, so an update asked for in the portal starts within seconds; the script removes the file as it starts.
 
-Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`; `:latest` for [releases only](#the-published-image)), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`, `SOFA_UPDATE_URL` (where the server answers the recording and playback checks, `http://127.0.0.1:` and `SOFA_PORT`, 9193 by default) and `SOFA_UPDATE_LOCK_FILE` (`/run/lock/sofa-king-update.lock`). An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
+Other settings come from the environment:
+
+- `SOFA_UPDATE_IMAGE`: the image to pull, `ghcr.io/jamesarich/sofa-king:main`; `:latest` for [releases only](#the-published-image).
+- `SOFA_UPDATE_CONFIG_DIR`: the folder with the status and request files, `config` under the Compose directory; set it when running `install` too.
+- `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`).
+- `SOFA_UPDATE_KEEP_BACKUPS`: how many backups each folder keeps, 5.
+- `SOFA_UPDATE_HEALTH_SECONDS` (180), `SOFA_UPDATE_PULL_SECONDS` (900, the longest a pull may take) and `SOFA_UPDATE_SMOKE_SECONDS` (20, the longest the playback check waits on one channel).
+- `SOFA_UPDATE_URL`: where the server answers the recording and playback checks, `http://127.0.0.1:` and `SOFA_PORT`, 9193 by default.
+- `SOFA_UPDATE_LOCK_FILE`: `/run/lock/sofa-king-update.lock`.
+
+An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
 
 The server also checks the registry and writes `config/update-requested` for a newer revision, so the path unit installs it within minutes and the 15-minute timer is the fallback; [update](admin.md#update) describes the check.
 

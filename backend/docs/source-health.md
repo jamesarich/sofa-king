@@ -88,6 +88,8 @@ A live HLS source that stops adding segments has stalled: its media playlist sho
 - An app or M3U player session gets `410 STREAM_CHANGED` on that playlist fetch, re-reads the session and plays the new source, as after Switch.
 - A remuxed stream (Plex, HDHomeRun and `format=ts` players) moves inside the same response: FFmpeg stops on the stalled source and starts on the next, and the player sees one break in the stream rather than its end.
 
+An MPEG-TS source that accepts the connection and never sends a byte counts as stalled once the relay's [30-second grace](architecture.md#live-mpeg-ts-relay) runs out. The session moves to the next selectable source and the player's next request gets `410 STREAM_CHANGED`. A recording of the channel carries on from the next source in the same session.
+
 A session never goes back to a source it failed over from, so when none is left it stays on the one it plays. The server logs each move as `playback failover` with the reason and both providers.
 
 `SOFA_QUALITY_FLOORS=true` adds two floors for remuxed streams: a picture that stays black for 30 seconds and a rate under 64 kbit/s for 30 seconds, from the start of the stream on, each move the stream the same way. FFmpeg checks the picture on the video's keyframes beside the copy, which stays untouched. A source with no video plays without the check.

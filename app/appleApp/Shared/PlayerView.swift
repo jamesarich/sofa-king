@@ -492,9 +492,10 @@ struct PlayerView: View {
     }
 
     /// The preview's item when it plays `url` already and has not failed, so it carries on without reloading. A failed
-    /// item never plays again, so a reconnect builds a new one.
+    /// item never plays again, and one that failed to play to its end or stalled still reports ready, so a reconnect
+    /// builds a new one.
     static func reusableItem(_ item: AVPlayerItem?, for url: URL) -> AVPlayerItem? {
-        guard let item, item.status != .failed, (item.asset as? AVURLAsset)?.url == url else { return nil }
+        guard let item, item.status != .failed, item.error == nil, (item.asset as? AVURLAsset)?.url == url else { return nil }
         return item
     }
 

@@ -12,7 +12,25 @@ permissions:
   contents: read
 
 jobs:
+  # A tag on a side branch would publish :latest and a release for unreviewed code.
+  on-main:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check the tagged commit is on main
+        run: |
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME is not on main; tag a commit that main contains."
+            exit 1
+          }
+
   packages:
+    needs: on-main
     # snapshot.yml's publish job, skipped here, still needs every permission it asks for granted.
     permissions:
       contents: write

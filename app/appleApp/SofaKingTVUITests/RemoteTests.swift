@@ -410,14 +410,17 @@ final class RemoteTests: XCTestCase {
     }
 
     /// Shows the player's transport bar and moves focus to `element` in it: Up from the scrubber, then along the row.
+    /// No press is sent until a bar item has focus, since a press made before focus lands in the bar is dropped.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
         waitForPlayerToSettle()
         // Up and Down change channel while the bar is hidden, and its buttons stay in the accessibility tree, so a
         // click brings the bar up first unless a button already has focus.
-        if app.cells.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
+        // The bar comes up with focus on the player itself, so only Up moves it into the bar; waiting here for an
+        // item to take focus would let the bar go idle and hide again.
+        if !barItemHasFocus {
             remote.press(.select)
-            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            waitForFocusToSettle()
         }
         let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
         for move in moves {
@@ -426,11 +429,42 @@ final class RemoteTests: XCTestCase {
                 remote.press(.select)
                 _ = element.waitForExistence(timeout: 3)
             }
-            if settled(element.exists && element.hasFocus) { return }
+            // Focus found mid-travel counts only if it is still there after a moment, with no press left in flight.
+            if settled(element.exists && element.hasFocus) && settled(element.exists && element.hasFocus) { return }
+            // Sideways moves need an item to have focus; Up is what gives one focus, and a hidden bar turns it into a zap.
+            if move == .up { waitForFocusToSettle() } else { _ = waitForBarItemFocus(timeout: 3) }
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
+    }
+
+    /// Whether a transport bar item, a cell to accessibility, has focus.
+    @MainActor
+    private var barItemHasFocus: Bool {
+        app.cells.matching(NSPredicate(format: "hasFocus == true")).count > 0
+    }
+
+    /// Waits, up to `timeout`, for a transport bar item to report focus.
+    @MainActor
+    private func waitForBarItemFocus(timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !barItemHasFocus {
+            if Date() > deadline { return false }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        return true
+    }
+
+    /// Waits, up to `timeout`, until some element has focus, named or not: a press sent while focus is still moving
+    /// is lost.
+    @MainActor
+    private func waitForFocusToSettle(timeout: TimeInterval = 3) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !focused.exists {
+            if Date() > deadline { return }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
     }
 
     /// Presses `direction` until `element` has focus.
@@ -439,11 +473,14 @@ final class RemoteTests: XCTestCase {
         focus(element, by: Array(repeating: direction, count: presses))
     }
 
-    /// Makes `moves` in turn until `element` has focus.
+    /// Makes `moves` in turn until `element` has focus. The element must exist first, since a list fills in after the
+    /// launch, and focus must have settled before each press.
     @MainActor
     private func focus(_ element: XCUIElement, by moves: [XCUIRemote.Button]) {
+        _ = element.waitForExistence(timeout: 20)
         for move in moves {
             if settled(element.exists && element.hasFocus) { return }
+            waitForFocusToSettle()
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Remote presses never focused \(element.description)\n\(screen)")
@@ -455,6 +492,7 @@ final class RemoteTests: XCTestCase {
         for move in moves {
             if settled(element.exists && element.hasFocus) { return true }
             if !element.exists { return false }
+            waitForFocusToSettle()
             remote.press(move)
         }
         return element.exists && element.hasFocus

@@ -56,7 +56,72 @@ class JobsTest {
         assertNull(job.nextDueAt, "a job with no interval is never due")
     }
 
-    @Test fun `a job whose runs start failing publishes job failed once, until it succeeds again`() = runTest {
+    private class Remembered(val ids: MutableSet<String> = mutableSetOf()) : JobAlerts {
+        override suspend fun alerting() = ids.toSet()
+
+        override suspend fun remember(id: String, alerting: Boolean) {
+            if (alerting) ids += id else ids -= id
+        }
+    }
+
+    private suspend fun Jobs.fail(times: Int, id: String = "guide:a") =
+        repeat(times) { record(id) { JobOutcome(false, "IMPORT_FAILED (IOException)") } }
+
+    private fun published(events: ServerEvents, scope: kotlinx.coroutines.CoroutineScope) =
+        mutableListOf<ServerEvent>().also { seen ->
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { events.events.collect { seen += it } }
+        }
+
+    @Test fun `a restart does not publish job failed again for a job that is still failing`() = runTest {
+        val clock = MutableClock()
+        val remembered = Remembered()
+        val events = ServerEvents(clock)
+        val first = Jobs(clock).also {
+            it.events = events
+            it.alerts = remembered
+        }
+        val seen = published(events, backgroundScope)
+        first.fail(3)
+        runCurrent()
+        assertEquals(1, seen.size)
+        assertEquals(setOf("guide:a"), remembered.ids)
+        val restarted = Jobs(clock).also {
+            it.events = events
+            it.alerts = remembered
+        }
+        restarted.fail(5)
+        runCurrent()
+        assertEquals(1, seen.size, "the restarted process knows the job already alerted")
+        restarted.record("guide:a") { JobOutcome(true) }
+        assertEquals(emptySet(), remembered.ids, "a success clears it")
+        restarted.fail(3)
+        runCurrent()
+        assertEquals(2, seen.size)
+    }
+
+    @Test fun `a canceled run is neither a failure nor an outcome`() = runTest {
+        val clock = MutableClock()
+        val events = ServerEvents(clock)
+        val jobs = Jobs(clock).also { it.events = events }
+        val seen = published(events, backgroundScope)
+        jobs.record("guide:a") { JobOutcome(true, "2 channels") }
+        repeat(5) {
+            assertFailsWith<kotlinx.coroutines.CancellationException> {
+                jobs.record("guide:a") { throw kotlinx.coroutines.CancellationException("shutdown") }
+            }
+        }
+        runCurrent()
+        val job = jobs.snapshot().single()
+        assertEquals(true, job.lastOk)
+        assertEquals("2 channels", job.lastNote)
+        assertFalse(job.running)
+        assertEquals(0, seen.size)
+        jobs.fail(2)
+        runCurrent()
+        assertEquals(0, seen.size, "canceled runs do not count toward the three")
+    }
+
+    @Test fun `three failed runs in a row publish job failed once, until the job succeeds again`() = runTest {
         val clock = MutableClock()
         val events = ServerEvents(clock)
         val jobs = Jobs(clock).also { it.events = events }
@@ -65,10 +130,15 @@ class JobsTest {
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { events.events.collect { seen += it } }
         jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
         jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
+        runCurrent()
+        assertEquals(0, seen.size, "two failures are not an alert")
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
         assertFailsWith<IllegalStateException> { jobs.record("guide:a") { error("boom") } }
         jobs.record("guide:a") { JobOutcome(true, "2 channels") }
         runCurrent()
-        assertEquals(1, seen.size, "one for the streak, none for the runs after its first")
+        assertEquals(1, seen.size, "one for the streak, none for the runs after its third")
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
+        jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
         jobs.record("guide:a") { JobOutcome(false, "IMPORT_FAILED (IOException)") }
         runCurrent()
         assertEquals(listOf(NotifyEvent.JOB_FAILED, NotifyEvent.JOB_FAILED), seen.map { it.type })

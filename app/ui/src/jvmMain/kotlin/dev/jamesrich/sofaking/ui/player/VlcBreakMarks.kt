@@ -22,8 +22,9 @@ private const val MIN_REFRESH_MS = 2_000L
 /**
  * The ad breaks of a live HLS stream for libVLC, which exposes no playlist: the media playlist is read through the
  * stream's URL (following one variant) every target duration, off the main thread, and its `EXT-X-DATERANGE` marks are
- * placed on the playlist's clock. libVLC plays [liveDelayMs] behind the newest segment, so the picture's time is the
- * live edge less that delay, moving on in real time between reads.
+ * placed on the playlist's clock. The picture plays [lead] behind the newest segment, the server's own figure (see
+ * `PlaybackSession.liveLeadMs`) or [liveDelayMs] when it gives none, so the picture's time is the live edge less that
+ * delay, moving on in real time between reads.
  */
 internal class VlcBreakMarks(
     private val liveDelayMs: Long,
@@ -35,6 +36,9 @@ internal class VlcBreakMarks(
     private var marks = BreakMarks()
     private var edge: Pair<Long, TimeMark>? = null
     private var reading: Job? = null
+
+    /** How far behind the newest segment the server says the picture plays; null falls back to [liveDelayMs]. */
+    @Volatile var lead: Long? = null
 
     /** Reads the marks of the live playlist at [url]; null, or anything but a playlist, stops. */
     fun follow(url: String?) {
@@ -49,7 +53,7 @@ internal class VlcBreakMarks(
     /** The break the picture is in, or null outside one or before a playlist with a clock has been read. */
     fun adBreak(): AdBreakNow? = synchronized(lock) {
         val (liveEdgeMs, read) = edge ?: return null
-        marks.at(liveEdgeMs + read.elapsedNow().inWholeMilliseconds - liveDelayMs)
+        marks.at(liveEdgeMs + read.elapsedNow().inWholeMilliseconds - (lead ?: liveDelayMs))
     }
 
     fun release() {

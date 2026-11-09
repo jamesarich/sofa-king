@@ -89,7 +89,10 @@ data class UpstreamPolicy(
     }
 }
 
-private val LookupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+/** Few threads, so a resolver that hangs during a DNS outage cannot take the shared IO pool with it. */
+private val LookupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(LOOKUP_THREADS))
+
+private const val LOOKUP_THREADS = 4
 
 private fun isLiteral(host: String): Boolean = host.all { it.isDigit() || it == '.' } || host.contains(':')
 

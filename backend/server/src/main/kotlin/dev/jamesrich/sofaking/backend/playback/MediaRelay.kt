@@ -256,16 +256,7 @@ class MediaRelay(
             } catch (e: UpstreamProtocolException) {
                 protocolMismatch(id, epoch, job, e.protocol)
             } catch (_: Exception) {
-                // The session let this request go before the stream started (released, retuned, or replaced by the
-                // player's next request); that cancels the wait, and is not the upstream's failure.
-                if (!job.isActive) throw withContext(NonCancellable) { sessions.media.letGo(id) }
-                resource.stats.stalls.incrementAndGet()
-                throw ApiFailure(
-                    HttpStatusCode.BadGateway,
-                    "UPSTREAM_UNAVAILABLE",
-                    "This channel isn't available right now",
-                    true,
-                )
+                throw sessions.media.startFailure(id, epoch, job, resource, reader)
             }
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
@@ -587,4 +578,35 @@ private class Tapping(head: ByteArray, sync: Int, keepBytes: Boolean) {
     }
 
     fun finish(): TappedSegment = TappedSegment(reader.finish(), kept?.toByteArray())
+}
+
+/**
+ * What a shared request answers when its stream never started. A source that accepted the connection and sent
+ * nothing moves the session on, so the player's next request gets the 410 that sends it to the next source.
+ */
+private suspend fun SessionMedia.startFailure(
+    id: String,
+    epoch: Int,
+    job: Job,
+    resource: MediaResource,
+    reader: TsFanout.Reader,
+): ApiFailure {
+    // The session let this request go before the stream started (released, retuned, or replaced by the
+    // player's next request); that cancels the wait, and is not the upstream's failure.
+    if (!job.isActive) return withContext(NonCancellable) { letGo(id) }
+    resource.stats.stalls.incrementAndGet()
+    if (reader.stalled && failover(id, epoch, job, RemuxWatch.STALL) != null) {
+        return ApiFailure(
+            HttpStatusCode.Gone,
+            Wire.ErrorCode.STREAM_CHANGED,
+            "The source stalled; fetch the current session descriptor",
+            true,
+        )
+    }
+    return ApiFailure(
+        HttpStatusCode.BadGateway,
+        "UPSTREAM_UNAVAILABLE",
+        "This channel isn't available right now",
+        true,
+    )
 }

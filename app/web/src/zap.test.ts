@@ -16,7 +16,7 @@ import {
     type Timers,
 } from './zap';
 import { StatusLine } from './status';
-import { inputKeepsKey } from './focus';
+import { fieldKey, inputKeepsKey } from './focus';
 
 /** Timers the test advances by hand. */
 class FakeTimers implements Timers {
@@ -203,4 +203,25 @@ test('Up and Down leave a text field, and a number or range field keeps its arro
     assert.equal(inputKeepsKey('ArrowDown', 'range'), true);
     assert.equal(inputKeepsKey('Backspace', 'text'), true);
     assert.equal(inputKeepsKey('a', 'text'), true);
+});
+
+test('Escape leaves a text field and Up and Down step out of it, except while an IME composes', () => {
+    assert.equal(fieldKey('Escape', 'text', false), 'blur');
+    assert.equal(fieldKey('ArrowDown', 'search', false), 'move');
+    assert.equal(fieldKey('ArrowUp', 'text', true), 'stay');
+    assert.equal(fieldKey('Escape', 'text', true), 'stay');
+    assert.equal(fieldKey('a', 'text', false), 'stay');
+});
+
+test('a second show replaces the hide the first one left pending', () => {
+    const timers = new FakeTimers();
+    const states: boolean[] = [];
+    const fade = new Fade((shown) => states.push(shown), 1_500, timers);
+    fade.show();
+    timers.advance(1_000);
+    fade.show(3_000);
+    timers.advance(1_500);
+    assert.deepEqual(states, [true, true]);
+    timers.advance(1_500);
+    assert.deepEqual(states, [true, true, false]);
 });

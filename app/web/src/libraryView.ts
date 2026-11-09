@@ -2,7 +2,9 @@ import type { WebGrid, WebHome, WebItem } from '@sofaking/core';
 import { h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
 import { length } from './format';
+import { homeStatus, isSignedOut } from './messages';
 import { href } from './router';
+import { signedOutNotice } from './signedOut';
 import { Watches, type Context, type View } from './view';
 
 /** A card for [item], which opens its page. */
@@ -29,8 +31,12 @@ export function libraryView(ctx: Context): View {
     let focused = false;
     const draw = (home: WebHome) => {
         keepFocus(el, () => {
+            if (isSignedOut(home)) {
+                replaceChildren(el, signedOutNotice(true));
+                return;
+            }
             if (home.state !== 'ready') {
-                replaceChildren(el, h('p', { class: 'status', text: homeMessage(home) }));
+                replaceChildren(el, h('p', { class: 'status', text: homeStatus(home) }));
                 return;
             }
             replaceChildren(
@@ -56,26 +62,13 @@ export function libraryView(ctx: Context): View {
                 ),
             );
         });
-        if (!focused && home.state === 'ready') {
+        if (!focused && (home.state === 'ready' || isSignedOut(home))) {
             focused = true;
             focusFirst(el);
         }
     };
     watches.add(ctx.core.library.watchHome(draw));
     return { el, dispose: () => watches.cancel() };
-}
-
-function homeMessage(home: WebHome): string {
-    switch (home.state) {
-        case 'unconfigured':
-            return 'No server yet. Open Settings to pair with one.';
-        case 'unavailable':
-            return 'This server keeps no libraries.';
-        case 'failed':
-            return `The library did not load: ${home.message}`;
-        default:
-            return 'Loading the library';
-    }
 }
 
 const SORTS: Array<[string, string]> = [

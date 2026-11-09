@@ -328,28 +328,30 @@ docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king:main --format '{{j
 
 Compare the commit in the provenance with the `org.opencontainers.image.revision` label of the image you run.
 
-Each published image is also signed with [Sigstore](https://www.sigstore.dev/)'s keyless signing and carries a GitHub build attestation, both made by `backend.yml` on `main` or a `v*` tag. Check either before you run an image:
+Each published image is also signed with [Sigstore](https://www.sigstore.dev/)'s keyless signing and carries a GitHub build attestation (SLSA provenance), both made by `backend.yml` on `main` or a `v*` tag. Both verify with cosign 2.5 or later, and neither needs a GitHub login:
 
 ```sh
+identity='^https://github.com/jamesarich/sofa-king/\.github/workflows/backend\.yml@refs/(heads/main|tags/v.*)$'
+issuer=https://token.actions.githubusercontent.com
 cosign verify ghcr.io/jamesarich/sofa-king:main \
-  --certificate-identity-regexp '^https://github.com/jamesarich/sofa-king/\.github/workflows/backend\.yml@refs/(heads/main|tags/v.*)$' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/jamesarich/sofa-king:main --repo jamesarich/sofa-king
+  --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer"
+cosign verify-attestation ghcr.io/jamesarich/sofa-king:main --type slsaprovenance1 --new-bundle-format \
+  --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer"
 ```
 
-An image that this repository's workflow did not build fails both. The [updater](#update-automatically) runs both before it installs an image.
+An image that this repository's workflow did not build fails both. `gh attestation verify oci://ghcr.io/jamesarich/sofa-king:main --repo jamesarich/sofa-king` checks the attestation too, for a host with a logged-in `gh`. The [updater](#update-automatically) runs both cosign checks before it installs an image.
 
 ## Update automatically
 
 `deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:
 
-1. Verifies the image, then checks for recordings. `cosign verify` and `gh attestation verify` must pass for the pulled digest, as [the published image](#the-published-image) shows, when `cosign` and a logged-in `gh` are on the host's path; a missing tool is logged and skipped, and an image that fails a check is not installed and is reported as `verify-failed`. Images from a repository other than `jamesarich/sofa-king` are not verified. The update then waits, reported as `skipped`, while a recording is running or one starts within the health wait (three minutes), since the swap ends a recording. The check reads the API token from `secrets.json` in the config folder, so a host with `SOFA_API_TOKEN` set in the environment, or without Python 3, does not wait.
+1. Verifies the image, then checks for recordings. `cosign verify` and `cosign verify-attestation` must pass for the pulled digest, as [the published image](#the-published-image) shows. A host without `cosign` runs them through a cosign image the script pins by digest, which Docker pulls, so a default Docker host needs no extra tool. An image that fails a check is not installed and is reported as `verify-failed`. Only a host with no `cosign` whose Docker cannot pull the pinned image skips the checks: the update goes ahead, the log says why, and the run is reported as `verify-skipped`. Images from a repository other than `jamesarich/sofa-king` are not verified. The update then waits, reported as `skipped`, while a recording is running or one starts within the health wait (three minutes), since the swap ends a recording. The check finds the API token in the container's `SOFA_API_TOKEN`, else in the file its `SOFA_API_TOKEN_FILE` names, else in `secrets.json` in the data directory. A host with none of these, or without Python 3, does not wait, and an update that goes ahead that way is reported as `gate-skipped`. A pull that takes longer than 15 minutes (`SOFA_UPDATE_PULL_SECONDS`) is stopped and reported as `failed`.
 2. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. Each folder keeps the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
 3. Tags the running image `sofa-king-backend:previous` and points the image `compose.yaml` runs at the new one.
-4. Recreates the container and waits up to three minutes for it to report healthy. It then opens one preview session on the first channel that can play, fetches the session's playlist and releases the session, all within 30 seconds. A host with no playable channel, a full set of playback slots or no readable API token skips this check.
+4. Recreates the container and waits up to three minutes for it to report healthy. It then opens a preview session on a channel that can play, fetches the session's playlist and releases the session, trying up to three playable channels for up to 20 seconds each, so one dead source does not fail a good image. A host with no playable channel or a full set of playback slots skips this check. One with no readable API token, or where none of the channels gives media, skips it too and is reported as `gate-skipped`.
 5. If the container is not healthy or the playback check fails, stops it, restores the backup and the previous image (so whatever the new image wrote to the database during its health window, such as recordings started or finished and watch state, is discarded), and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published. A skipped image never stays behind the tag Compose runs, so a later `docker compose up -d` starts the image that was running.
 
-Every run, including one that finds nothing new, writes `update-status.json` to the config folder: when it checked, the image, the running and candidate revisions, the outcome (`up-to-date`, `updated`, `rolled-back`, `skipped`, `verify-failed` or `failed`) and one line saying why. The admin portal's [About page](admin.md#update) shows it, so the portal says when the host last checked and what it did. The file is owned by the config folder's owner and holds no secret.
+Every run, including one that finds nothing new, writes `update-status.json` to the config folder: when it checked, the image, the running and candidate revisions, the outcome (`up-to-date`, `updated`, `verify-skipped` (updated, but the image could not be verified), `gate-skipped` (updated, but the recording or playback check could not run), `rolled-back`, `skipped`, `verify-failed` or `failed`) and one line saying why. The admin portal's [About page](admin.md#update) shows it, so the portal says when the host last checked and what it did. The file is owned by the config folder's owner and holds no secret.
 
 It needs Python 3 on the host for the fallback backup and to read the server's answers in the recording and playback checks, and `curl` for those checks. To install it, download it into the Compose directory and run its `install` there as root:
 

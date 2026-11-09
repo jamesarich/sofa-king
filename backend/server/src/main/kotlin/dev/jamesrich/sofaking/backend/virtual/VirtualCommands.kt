@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.virtual
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.library.MediaInfo
 import dev.jamesrich.sofaking.backend.library.VideoEncoder
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_LOCAL_PROTOCOL_WHITELIST
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import java.nio.file.Path
@@ -55,12 +56,13 @@ internal fun pieceCommand(
         addAll(paced + listOf("-f", "lavfi", "-i", "color=c=black:s=$SIZE:r=${VideoEncoder.CHANNEL_FPS}"))
     } else if (input.still) {
         addAll(
-            listOf("-loop", "1", "-framerate", "${VideoEncoder.CHANNEL_FPS}") + paced + listOf("-i", file.toString()),
+            listOf("-loop", "1", "-framerate", "${VideoEncoder.CHANNEL_FPS}") + paced +
+                FFMPEG_LOCAL_PROTOCOL_WHITELIST + listOf("-i", file.toString()),
         )
     } else {
         addAll(paced)
         if (input.offsetMs > 0) addAll(listOf("-ss", seconds(input.offsetMs)))
-        addAll(listOf("-i", file.toString()))
+        addAll(FFMPEG_LOCAL_PROTOCOL_WHITELIST + listOf("-i", file.toString()))
     }
     val audio = source != null || (file != null && !input.still && input.media?.audio?.isNotEmpty() != false)
     if (!audio) addAll(listOf("-f", "lavfi", "-i", "anullsrc=r=$SAMPLE_RATE:cl=stereo"))

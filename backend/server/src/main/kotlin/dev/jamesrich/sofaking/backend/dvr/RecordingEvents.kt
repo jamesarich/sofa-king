@@ -7,8 +7,10 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.recordingRules
 import dev.jamesrich.sofaking.backend.store.recordings
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.util.Locale
 
 /** Publishes [recording]'s new state as a `recording.state` event, when there is anywhere to publish it. */
@@ -16,16 +18,24 @@ internal fun ServerEvents?.recordingChanged(recording: StoredRecording) {
     this?.publish(EventType.RECORDING_STATE, recording.eventData())
 }
 
-/** Publishes `recording.culled` for [recording], deleted for [reason] (`KEEP`, `AGE` or `SPACE`), with its fields. */
-internal fun ServerEvents?.recordingCulled(recording: StoredRecording, reason: String) {
+/**
+ * Publishes one `recording.culled` for a cleanup pass that deleted [removed]: the first recording's fields and its
+ * reason, the `count` deleted and the `titles` of the first [CULLED_TITLES], so a long history never sends a push each.
+ */
+internal fun ServerEvents?.recordingsCulled(removed: List<Pair<StoredRecording, String>>) {
+    val (first, reason) = removed.firstOrNull() ?: return
     this?.publish(
         NotifyEvent.RECORDING_CULLED,
         buildJsonObject {
-            recording.eventData().forEach { (key, value) -> put(key, value) }
+            first.eventData().forEach { (key, value) -> put(key, value) }
             put("reason", reason)
+            put("count", removed.size)
+            putJsonArray("titles") { removed.take(CULLED_TITLES).forEach { add(it.first.title) } }
         },
     )
 }
+
+private const val CULLED_TITLES = 3
 
 /** Publishes `recording.preempted`: a recording on [forChannelId] took the slot of a session watching [channelId]. */
 internal fun ServerEvents?.recordingPreempted(

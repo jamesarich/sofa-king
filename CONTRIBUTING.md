@@ -53,7 +53,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 The squash-merge title is the release note: the `snapshot` release lists every `feat`, `fix` and `perf` title since the previous snapshot, rendered by [git-cliff](https://git-cliff.org) with `.github/cliff.toml`, so write the summary for someone using the app or the server. The app's update check shows the same lines, without the scope and the pull request, as What's new. Other types stay out of the notes. A breaking change (`feat!:`, or a `BREAKING CHANGE:` footer) goes under Upgrade notes whatever its type; say there what someone updating has to do.
 
-A release is a `v*` tag on `main` whose version matches `sofaking` in the version catalog: bump the catalog in a pull request, merge it, then push the tag (`git tag -a v0.2.0 -m "Highlights"`). The tag's message heads the release notes. A Flyway migration bumps at least the minor version, since a host cannot move back past it, and gets an upgrade note.
+A release is a `v*` tag on `main` whose version matches `sofaking` in the version catalog: bump the catalog in a pull request, merge it, then push the tag (`git tag -a v0.2.0 -m "Highlights"`). The tag must be annotated, because its message heads the release notes and a lightweight tag fails the release. The tagged commit must be on `main`, and `release.yml` fails otherwise. A Flyway migration bumps at least the minor version, since a host cannot move back past it, and gets an upgrade note.
 
 ## Pull requests
 

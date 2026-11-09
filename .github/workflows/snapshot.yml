@@ -32,8 +32,9 @@ on:
         required: false
   workflow_dispatch:
 
+# A tag build has its own group, so a main push's snapshot run cannot cancel it while pending.
 concurrency:
-  group: snapshot
+  group: ${{ github.ref_type == 'tag' && format('release-{0}', github.ref) || 'snapshot' }}
   cancel-in-progress: false
 
 permissions:

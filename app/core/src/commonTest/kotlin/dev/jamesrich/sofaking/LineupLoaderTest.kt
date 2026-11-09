@@ -168,7 +168,15 @@ class LineupLoaderTest {
 
     @Test
     fun `a 403 from the server reads as signed out`() = runTest {
-        assertTrue((failedWith(403, "FORBIDDEN").last() as LineupState.Failed).signedOut)
+        assertTrue((failedWith(403, "HTTP_403").last() as LineupState.Failed).signedOut)
+    }
+
+    @Test
+    fun `a loopback-only 403 is not signed out`() = runTest {
+        val failed = failedWith(403, "LOOPBACK_ONLY").last() as LineupState.Failed
+
+        assertEquals(false, failed.signedOut)
+        assertTrue(failed.message.startsWith("LOOPBACK_ONLY"))
     }
 
     @Test

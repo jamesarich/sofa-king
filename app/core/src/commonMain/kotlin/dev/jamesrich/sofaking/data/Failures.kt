@@ -13,9 +13,18 @@ internal fun Throwable.describe(): String = when (this) {
     else -> message ?: toString()
 }
 
-/** True when the server answered 401 or 403: it no longer accepts this device's token, so pairing again is the fix. */
+/** The code of a 403 from a server that has no API token and answers only its own machine. */
+const val LOOPBACK_ONLY = "LOOPBACK_ONLY"
+
+/**
+ * True when the server answered 401, or 403 with any code but [LOOPBACK_ONLY]: it no longer accepts this device's
+ * token, so pairing again is the fix. A token-less server's [LOOPBACK_ONLY] answer is not fixed by pairing.
+ */
 internal fun Throwable.rejectsToken(): Boolean = this is SofaKingException &&
-    (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
+    (statusCode == HttpStatusCode.Unauthorized || (statusCode == HttpStatusCode.Forbidden && code != LOOPBACK_ONLY))
+
+/** True when a failure [message] from [describe] is the server's [LOOPBACK_ONLY] answer. */
+fun isLoopbackOnly(message: String): Boolean = message.startsWith("$LOOPBACK_ONLY:")
 
 /**
  * The state a screen shows after its load failed: [loaded], the loaded state already on screen, stays; with nothing

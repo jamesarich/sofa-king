@@ -15,7 +15,21 @@ class FailuresTest {
 
     @Test
     fun `a forbidden answer counts as signed out`() {
-        assertEquals("FORBIDDEN: no/true", failedLoad("home", SofaKingException(403, "FORBIDDEN", "no"), null, build))
+        assertEquals("HTTP_403: no/true", failedLoad("home", SofaKingException(403, "HTTP_403", "no"), null, build))
+    }
+
+    @Test
+    fun `a loopback-only answer is not signed out and keeps the loaded state`() {
+        val loopback = SofaKingException(403, LOOPBACK_ONLY, "no")
+
+        assertEquals("loaded", failedLoad("home", loopback, "loaded", build))
+        assertEquals("LOOPBACK_ONLY: no/false", failedLoad("home", loopback, null, build))
+    }
+
+    @Test
+    fun `only a loopback-only failure message reads as loopback-only`() {
+        assertEquals(true, isLoopbackOnly("LOOPBACK_ONLY: no"))
+        assertEquals(false, isLoopbackOnly("AUTH_REQUIRED: no"))
     }
 
     @Test

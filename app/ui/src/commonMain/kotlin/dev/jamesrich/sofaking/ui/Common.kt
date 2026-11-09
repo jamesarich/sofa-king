@@ -28,9 +28,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.isLoopbackOnly
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.banner_logo
 import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.loopback_only
+import dev.jamesrich.sofaking.resources.loopback_only_hint
 import dev.jamesrich.sofaking.resources.retry
 import dev.jamesrich.sofaking.resources.signed_out
 import dev.jamesrich.sofaking.resources.signed_out_hint
@@ -61,6 +64,7 @@ fun MessageScreen(
     hint: String? = null,
     onRetry: (() -> Unit)? = null,
     loading: Boolean = false,
+    focusRetry: Boolean = true,
 ) {
     Box(modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
         // A phone in landscape is too short for the logo, the reason and Retry together, so the message scrolls.
@@ -96,7 +100,7 @@ fun MessageScreen(
             if (onRetry != null) {
                 // A failed load has no other focus target, so Retry takes focus when the screen shows.
                 val retryFocus = remember { FocusRequester() }
-                LaunchedEffect(Unit) { requestFocusWhenAttached(retryFocus) }
+                if (focusRetry) LaunchedEffect(Unit) { requestFocusWhenAttached(retryFocus) }
                 Spacer(Modifier.height(4.dp))
                 SofaButton(main = true, onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
                     Text(stringResource(Res.string.retry))
@@ -106,10 +110,37 @@ fun MessageScreen(
     }
 }
 
-/** What a tab shows when the server turned this device's token away; the header's Settings button holds focus. */
+/**
+ * What a tab shows when the server turned this device's token away; the header's Settings button holds focus, so Retry
+ * does not take it. [detail] is the server's reason.
+ */
 @Composable
-fun SignedOutScreen() {
-    MessageScreen(stringResource(Res.string.signed_out), hint = stringResource(Res.string.signed_out_hint))
+fun SignedOutScreen(detail: String? = null, onRetry: (() -> Unit)? = null) {
+    MessageScreen(
+        stringResource(Res.string.signed_out),
+        detail = detail,
+        hint = stringResource(Res.string.signed_out_hint),
+        onRetry = onRetry,
+        focusRetry = false,
+    )
+}
+
+/**
+ * What a tab shows when its load failed for a reason pairing does not fix: [title] and [hint] for an unreachable
+ * server, or the explanation for a server without an API token that answers only its own machine.
+ */
+@Composable
+fun LoadFailedScreen(title: String, detail: String, hint: String, onRetry: () -> Unit) {
+    if (isLoopbackOnly(detail)) {
+        MessageScreen(
+            stringResource(Res.string.loopback_only),
+            detail = detail,
+            hint = stringResource(Res.string.loopback_only_hint),
+            onRetry = onRetry,
+        )
+    } else {
+        MessageScreen(title, detail = detail, hint = hint, onRetry = onRetry)
+    }
 }
 
 /** "<number>  <name>", as every list and overlay shows a channel. */

@@ -64,8 +64,7 @@ final class RemoteTests: XCTestCase {
         waitForBarToHide()
 
         let next = order[(index + 1) % order.count]
-        remote.press(.down)
-        eventually("Down to open a session for the next channel", timeout: 30) { server.watching().contains { $0["channelId"] as? String == next } }
+        XCTAssertTrue(pressDownUntilSession(for: next), "Down never opened a session for the next channel\n\(playerReport)")
 
         leavePlayer()
     }
@@ -78,9 +77,7 @@ final class RemoteTests: XCTestCase {
         let before = server.watching().compactMap { $0["id"] as? String }
         XCTAssertEqual(before.count, 1, "Expected one watch session\n\(playerReport)")
 
-        // Select brings the bar up once it has hidden; its buttons stay in the accessibility tree meanwhile.
         waitForBarToHide()
-        remote.press(.select)
         reachInTransportBar(control("Channels"))
         for _ in 0..<2 {
             remote.press(.up)
@@ -104,8 +101,9 @@ final class RemoteTests: XCTestCase {
         let first = try playSofaSports()
         // A second channel gives the recall a channel to return to.
         waitForBarToHide()
-        remote.press(.down)
-        eventually("Down to tune the next channel", timeout: 30) { server.watching().contains { $0["channelId"] as? String != first } }
+        let order = server.channelIds()
+        let next = order[((order.firstIndex(of: first) ?? 0) + 1) % order.count]
+        XCTAssertTrue(pressDownUntilSession(for: next), "Down never opened a session for the next channel\n\(playerReport)")
         let before = server.watching().compactMap { $0["id"] as? String }
         reachInTransportBar(control("Channels"))
         remote.press(.select, forDuration: 1.5)
@@ -124,6 +122,22 @@ final class RemoteTests: XCTestCase {
         remote.press(.menu)
         eventually("Menu to leave the loading player and release its session", timeout: 10) { server.watching().isEmpty }
         XCTAssertTrue(guide.waitForExistence(timeout: 5), "The channel list is not back\n\(playerReport)")
+    }
+
+    /// Presses Down until the server has a watch session for `channel`: a press that finds the bar still up moves
+    /// focus in the bar instead, so the next try waits for the bar to go again.
+    @MainActor
+    private func pressDownUntilSession(for channel: String) -> Bool {
+        for attempt in 0..<3 {
+            if attempt > 0 { waitForBarToHide() }
+            remote.press(.down)
+            let deadline = Date().addingTimeInterval(8)
+            while Date() < deadline {
+                if server.watching().contains(where: { $0["channelId"] as? String == channel }) { return true }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            }
+        }
+        return false
     }
 
     /// Plays Sofa Sports from the list and returns its channel id once the server has opened its session.
@@ -399,6 +413,12 @@ final class RemoteTests: XCTestCase {
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
         waitForPlayerToSettle()
+        // Up and Down change channel while the bar is hidden, and its buttons stay in the accessibility tree, so a
+        // click brings the bar up first unless a button already has focus.
+        if app.cells.matching(NSPredicate(format: "hasFocus == true")).count == 0 {
+            remote.press(.select)
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
         let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
         for move in moves {
             if !element.exists {

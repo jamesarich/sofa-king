@@ -28,10 +28,12 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.nio.file.Files
 import java.util.Collections
 import kotlin.test.Test
@@ -200,6 +202,25 @@ class NotifierTest {
         assertEquals("Big Buck Bunny (2008), and 11 more", library.message)
         assertTrue(notificationsOf(event(EventType.SESSION_STARTED, buildJsonObject {})).isEmpty())
         assertEquals("1.5 GiB free, under the 10 GiB floor", disk().message)
+    }
+
+    @Test fun `a cleanup pass that deleted several recordings is one notification with the count and first titles`() {
+        val pass = notificationsOf(
+            event(
+                NotifyEvent.RECORDING_CULLED,
+                buildJsonObject {
+                    put("title", "A")
+                    put("reason", "AGE")
+                    put("count", 12)
+                    putJsonArray("titles") {
+                        add("A")
+                        add("B")
+                        add("C")
+                    }
+                },
+            ),
+        ).single()
+        assertEquals("12 recordings deleted: A, B, C and 9 more", pass.message)
     }
 
     @Test fun `the events beyond a recording's state become notifications naming what happened`() {

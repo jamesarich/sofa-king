@@ -32,6 +32,10 @@ final class PictureInPictureTracker: NSObject, AVPlayerViewControllerDelegate {
         model.pictureInPicture = false
     }
 
+    func playerViewController(_ controller: AVPlayerViewController, failedToStartPictureInPictureWithError error: Error) {
+        model.pictureInPicture = false
+    }
+
     func playerViewControllerRestoreUserInterfaceForPictureInPictureStop(
         _ controller: AVPlayerViewController,
         completionHandler: @escaping (Bool) -> Void

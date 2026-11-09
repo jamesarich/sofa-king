@@ -2,7 +2,9 @@ import type { WebChannel, WebLineup, WebSettingsState } from '@sofaking/core';
 import { h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
 import { chipsFor, clock, elapsed, filterChannels, nowNext, type GuidePrefs } from './guide';
+import { guideStatus, isSignedOut } from './messages';
 import { href } from './router';
+import { signedOutNotice } from './signedOut';
 import { Watches, type Context, type View } from './view';
 
 const NO_PREFS: WebSettingsState | null = null;
@@ -18,7 +20,9 @@ export function guideView(ctx: Context): View {
     });
     const list = h('div', { class: 'channels' });
     const status = h('p', { class: 'status', attrs: { role: 'status' } });
-    el.append(h('div', { class: 'bar' }, chips, search), status, list);
+    const signedOut = signedOutNotice(true);
+    signedOut.hidden = true;
+    el.append(h('div', { class: 'bar' }, chips, search), status, signedOut, list);
 
     let lineup: WebLineup | null = null;
     let prefs = NO_PREFS;
@@ -48,9 +52,15 @@ export function guideView(ctx: Context): View {
             );
             const shown = filterChannels(channels, active, settings, search.value);
             replaceChildren(list, ...shown.map((channel) => row(ctx, channel, settings.favorites.includes(channel.id))));
-            status.textContent = statusText(lineup, shown.length, search.value);
+            const out = isSignedOut(lineup);
+            signedOut.hidden = !out;
+            status.textContent = out ? '' : guideStatus(lineup, shown.length, search.value);
             status.hidden = status.textContent === '';
         });
+        if (!focused && isSignedOut(lineup)) {
+            focused = true;
+            focusFirst(signedOut);
+        }
         if (!focused && lineup?.state === 'ready' && list.firstElementChild) {
             focused = true;
             focusFirst(list);
@@ -76,14 +86,6 @@ export function guideView(ctx: Context): View {
             watches.cancel();
         },
     };
-}
-
-function statusText(lineup: WebLineup | null, shown: number, search: string): string {
-    if (!lineup || lineup.state === 'loading') return 'Loading the guide';
-    if (lineup.state === 'unconfigured') return 'No server yet. Open Settings to pair with one.';
-    if (lineup.state === 'failed') return `The guide did not load: ${lineup.message}`;
-    if (shown === 0) return search ? 'No channel or program matches.' : 'No channels here.';
-    return lineup.guideLoading ? 'Loading programs' : '';
 }
 
 function row(ctx: Context, channel: WebChannel, favorite: boolean): HTMLElement {

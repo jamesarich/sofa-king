@@ -16,7 +16,7 @@ import {
     type Timers,
 } from './zap';
 import { StatusLine } from './status';
-import { inputKeepsKey } from './focus';
+import { fieldKey, inputKeepsKey } from './focus';
 
 /** Timers the test advances by hand. */
 class FakeTimers implements Timers {
@@ -203,4 +203,12 @@ test('Up and Down leave a text field, and a number or range field keeps its arro
     assert.equal(inputKeepsKey('ArrowDown', 'range'), true);
     assert.equal(inputKeepsKey('Backspace', 'text'), true);
     assert.equal(inputKeepsKey('a', 'text'), true);
+});
+
+test('Escape leaves a text field and Up and Down step out of it, except while an IME composes', () => {
+    assert.equal(fieldKey('Escape', 'text', false), 'blur');
+    assert.equal(fieldKey('ArrowDown', 'search', false), 'move');
+    assert.equal(fieldKey('ArrowUp', 'text', true), 'stay');
+    assert.equal(fieldKey('Escape', 'text', true), 'stay');
+    assert.equal(fieldKey('a', 'text', false), 'stay');
 });

@@ -135,7 +135,7 @@ class Recorder internal constructor(
         markers: PlaylistMarkers,
         rate: WriteRate,
     ): String? {
-        val session = sessions.external.open(channelId, CLIENT, shareable = false, preempt = preempts())
+        val session = sessions.external.open(channelId, CLIENT, shareable = false, preempt = preempts(), hold = true)
         // Taken while the session is up: most reads end because it went, and the table then no longer answers for it.
         val counter = sessions.media.bytesOf(session.id)
         try {

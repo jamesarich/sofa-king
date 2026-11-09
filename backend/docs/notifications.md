@@ -34,7 +34,7 @@ The same targets are in the [admin API](api.md#notifications) under `/api/v1/adm
 | `disk.low` | The recordings disk drops under the free space [cleanup](recordings.md#cleanup) keeps, including when the daily cleanup budget is spent; once, until it is back over |
 | `update.available` | A newer server image is published ([update](admin.md#update)); once per build |
 | `library.added` | A library scan adds files, with up to ten of their names |
-| `job.failed` | A background job on the Jobs page, such as a guide import, a library scan or the database backup, fails after succeeding or never having run; once per run of failures, not for each one |
+| `job.failed` | A background job on the Jobs page, such as a guide import, a library scan or the database backup, fails after three failures in a row; once per run of failures, not for each one, and not again after a restart while it keeps failing |
 | `backup.stale` | No database backup, of any kind, is newer than three days when the daily backup has just run; once, until a newer one exists |
 | `attention.raised` | An item appears on the home page's attention list, or gets worse |
 | `attention.cleared` | An item leaves the attention list |

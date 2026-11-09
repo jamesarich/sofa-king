@@ -68,6 +68,12 @@ internal class LiveSession(
     val switchedFrom = HashSet<String>()
     val busy: Boolean get() = requests.any { it.isActive }
 
+    /** Set from a recording's or tap's open until its read attaches, so no open takes the slot in between. */
+    @Volatile var held = false
+
+    /** The last time the viewer did anything: a renewal or a media request. Preemption takes the least recent. */
+    @Volatile var lastActive: Instant = startedAt
+
     /** Token to URL for every mapped resource; playlists are pinned, segments and keys share a 4,096-entry LRU. */
     val resources = ResourceMap()
     val requests = mutableSetOf<Job>()
@@ -218,7 +224,7 @@ class SessionManager(
     val media = SessionMedia(table, catalog, store, clock, sources)
 
     /** The sessions of players that send no API calls. */
-    val external = ExternalSessions(table, clock, sources)
+    val external = ExternalSessions(table, clock, sources, catalog)
 
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
     var capacity: Int
@@ -298,11 +304,7 @@ class SessionManager(
                 )
             }
             return@withLock sessions[id]?.descriptor(clock.instant())
-                ?: throw ApiFailure(
-                    HttpStatusCode.Gone,
-                    Wire.ErrorCode.SESSION_EXPIRED,
-                    "Session was released or expired",
-                )
+                ?: throw table.gone(id)
         }
         // Chosen first, so a channel that cannot play never costs another viewer their slot.
         val offering = sources.select(request.channelId)
@@ -386,6 +388,7 @@ class SessionManager(
         }
         update.intent?.let { session.intent = it }
         val now = clock.instant()
+        session.lastActive = now
         session.expires = now.plus(lease(session.intent))
         session.descriptor(now)
     }

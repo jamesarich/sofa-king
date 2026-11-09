@@ -273,7 +273,7 @@ A session lives on a lease that each renewal extends:
 | `watch` | 90 s | The app renews every 15 s with an empty `PATCH` |
 | `preview` | 45 s | Same |
 
-When `SOFA_MAX_SESSIONS` sessions are active, a new open makes room first. The server picks the source before it frees a slot, so a channel that cannot play never costs another viewer theirs. An evicted session's media requests end, and later calls on it answer `410 SESSION_EXPIRED`.
+When `SOFA_MAX_SESSIONS` sessions are active, a new open makes room first. The server picks the source before it frees a slot, so a channel that cannot play never costs another viewer theirs. An evicted session's media requests end, and later calls on it answer `410 SESSION_EXPIRED`, or `410 SESSION_PREEMPTED` when a recording took the slot.
 
 ```mermaid
 flowchart TD
@@ -327,6 +327,7 @@ A session serves at most 12 media requests at once. The answers a client handles
 | --- | --- | --- |
 | `410 STREAM_CHANGED` | The epoch changed: a media URL from an older epoch, a source that failed to resolve (the session moves to the next selectable source), or a stall failover | Fetch the session and open the new descriptor's URL |
 | `410 SESSION_EXPIRED` | The session ended: released, lease ran out, evicted for capacity, or lost in a restart | Open a new session with a new idempotency key |
+| `410 SESSION_PREEMPTED` | A recording took the slot of this watching session; the message names the recording's channel | Say so, then open a new session with a new idempotency key, which finds the pool full until a slot frees |
 | `429 CAPACITY_EXHAUSTED` | No slot is free or can be freed, or the session already has 12 media requests in flight | Retry shortly |
 | `503 SOURCE_UNAVAILABLE` | A media request for a session whose source is no longer selectable; the session's other media requests end | Fetch the session, which moves it to the next source |
 | `502 UPSTREAM_UNAVAILABLE` | The source fails to resolve and the channel has no other selectable source | Report the failure and tune again later |
@@ -818,7 +819,7 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" "http://SERVER_HOST:919
 | `disk.low` | The recordings disk dropped under the cleanup floor: `freeBytes`, `floorBytes`, `freeGib` and `floorGib`; once until it is back over |
 | `update.available` | A newer image is published: `revision`, `version`, `runningRevision` and `runningVersion`; once per build |
 | `library.added` | A scan added files: `libraryId`, `library`, `added` (how many) and `titles` (up to ten) |
-| `job.failed` | A background job failed after a run that succeeded, or its first run failed: `id`, `label` and `note`; once until the job succeeds again |
+| `job.failed` | A background job failed three runs in a row: `id`, `label` and `note` of the third; once until the job succeeds again, and not again after a restart while it keeps failing |
 | `backup.stale` | No database backup is newer than three days after the daily backup ran: `lastBackupAt` (null with none) and `days`; once until a newer backup exists |
 | `attention.changed` | The home page's attention items that appeared or changed tone (`raised`) and went (`cleared`), each with `key`, `tone`, `title`, `detail` and `href`; read once a minute |
 
@@ -920,7 +921,7 @@ Errors contain `code`, `message` and `retryable`:
 | 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `CLIENT_MISMATCH` (a token paired to one client writing the preferences of another), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
 | 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `TOKEN_NOT_FOUND`, `PROGRAM_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `HISTORY_NOT_AVAILABLE`, `RECORDINGS_NOT_AVAILABLE`, `NOTIFICATIONS_NOT_AVAILABLE` (the server runs without that feature), `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
 | 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAM_ENDED`, `SCHEDULE_FULL` (100 one-off recordings already wait), `VIEWER_LIMIT` (200 viewers are kept), `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
-| 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
+| 410 | `SESSION_EXPIRED`, `SESSION_PREEMPTED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
 | 413 | `REQUEST_TOO_LARGE`, answered before the token is checked, for every `POST` and `PUT` |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
 | 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |

@@ -2,6 +2,9 @@ package dev.jamesrich.sofaking.backend.jobs
 
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.notify.NotifyEvent
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Clock
@@ -77,16 +80,35 @@ class Jobs(private val clock: Clock) {
         @Volatile var lastNote: String? = null
 
         @Volatile var progress: JobProgress? = null
+
+        /** Runs that failed in a row; a success or a restart starts it again. */
+        @Volatile var failures = 0
+
+        /** Whether `job.failed` went out for the current streak, as the [JobAlerts] remembered or this process sent. */
+        @Volatile var alerted = false
+
+        @Volatile var seeded = false
     }
 
     private val entries = ConcurrentHashMap<String, Entry>()
     private val sequence = AtomicInteger()
 
     /**
-     * Where `job.failed` is published, once as a job's runs start failing and not again until one succeeds; none
-     * until the runtime sets it.
+     * Where `job.failed` is published, once after [FAILURES_BEFORE_ALERT] failed runs in a row and not again until
+     * one succeeds; none until the runtime sets it.
      */
     @Volatile var events: ServerEvents? = null
+
+    /** Remembers which jobs are alerting across restarts; without it a restart forgets. */
+    @Volatile var alerts: JobAlerts? = null
+
+    private suspend fun remembered(alerts: JobAlerts): Set<String> =
+        runCatchingCancellable { alerts.alerting() }.getOrDefault(emptySet())
+
+    companion object {
+        /** Failed runs in a row before `job.failed` is published. */
+        const val FAILURES_BEFORE_ALERT = 3
+    }
 
     private fun entry(id: String): Entry = entries.computeIfAbsent(id) { Entry(id, sequence.getAndIncrement()) }
 
@@ -101,28 +123,49 @@ class Jobs(private val clock: Clock) {
 
     /**
      * Runs [block] as one run of [id], recording its start, end and outcome; an exception records a
-     * failed run by class and is rethrown.
+     * failed run by class and is rethrown. A run that is canceled is no outcome: the job keeps its last one.
      */
     suspend fun record(id: String, block: suspend () -> JobOutcome) {
         val entry = entry(id)
         val started = clock.instant()
         entry.runningSince = started
         entry.progress = null
-        val outcome = runCatching { block() }
-            .onFailure { finish(entry, started, JobOutcome(false, it.javaClass.simpleName)) }
-            .getOrThrow()
+        val outcome = try {
+            runCatchingCancellable { block() }
+                .onFailure { finish(entry, started, JobOutcome(false, it.javaClass.simpleName)) }
+                .getOrThrow()
+        } finally {
+            entry.runningSince = null
+            entry.progress = null
+        }
         finish(entry, started, outcome)
     }
 
-    private fun finish(entry: Entry, started: Instant, outcome: JobOutcome) {
-        val startsFailing = !outcome.ok && entry.lastOk != false
+    private suspend fun finish(entry: Entry, started: Instant, outcome: JobOutcome) {
         entry.lastStartedAt = started
         entry.lastEndedAt = clock.instant()
         entry.lastOk = outcome.ok
         entry.lastNote = outcome.note
         entry.runningSince = null
         entry.progress = null
+        val alerts = alerts
+        if (!entry.seeded) {
+            entry.alerted = alerts != null && entry.id in withContext(NonCancellable) { remembered(alerts) }
+            entry.seeded = true
+        }
+        if (outcome.ok) {
+            entry.failures = 0
+            if (entry.alerted) {
+                entry.alerted = false
+                alerts?.let { withContext(NonCancellable) { runCatchingCancellable { it.remember(entry.id, false) } } }
+            }
+            return
+        }
+        entry.failures++
+        val startsFailing = entry.failures >= FAILURES_BEFORE_ALERT && !entry.alerted
         if (startsFailing) {
+            entry.alerted = true
+            alerts?.let { withContext(NonCancellable) { runCatchingCancellable { it.remember(entry.id, true) } } }
             events?.publish(
                 NotifyEvent.JOB_FAILED,
                 buildJsonObject {

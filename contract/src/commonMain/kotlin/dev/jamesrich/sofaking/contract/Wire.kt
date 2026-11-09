@@ -47,6 +47,9 @@ object Wire {
         const val AUTH_REQUIRED = "AUTH_REQUIRED"
         const val CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND"
         const val SESSION_EXPIRED = "SESSION_EXPIRED"
+
+        /** The session ended because a recording took its slot; the message names the recording. */
+        const val SESSION_PREEMPTED = "SESSION_PREEMPTED"
         const val STREAM_CHANGED = "STREAM_CHANGED"
         const val RESYNC_REQUIRED = "RESYNC_REQUIRED"
         const val CAPACITY_EXHAUSTED = "CAPACITY_EXHAUSTED"

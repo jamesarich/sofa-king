@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.resources.cant_play
 import dev.jamesrich.sofaking.resources.player_no_answer
 import dev.jamesrich.sofaking.resources.player_server_busy
 import dev.jamesrich.sofaking.resources.player_signed_out
+import dev.jamesrich.sofaking.resources.player_slot_taken
 import dev.jamesrich.sofaking.resources.vod_cant_play
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,6 +14,11 @@ class FailureCopyTest {
     @Test
     fun `a full server says it is busy`() {
         assertEquals(Res.string.player_server_busy.key, failureCopy("CAPACITY_EXHAUSTED").reason.key)
+    }
+
+    @Test
+    fun `a session a recording took says so instead of expired`() {
+        assertEquals(Res.string.player_slot_taken.key, failureCopy("SESSION_PREEMPTED").reason.key)
     }
 
     @Test

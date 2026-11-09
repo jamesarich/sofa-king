@@ -29,7 +29,7 @@ const FLASH_MS = 1_500;
 export function liveView(ctx: Context, channelId: string): View {
     watched.watching(channelId);
     const watches = new Watches();
-    const video = h('video', { attrs: { playsinline: true, autoplay: true, 'aria-label': 'Live picture' } });
+    const video = h('video', { attrs: { playsinline: true, autoplay: true, tabindex: -1, 'aria-label': 'Live picture' } });
     video.volume = sound.volume;
     const title = h('span', { class: 'title' });
     const statusEl = h('p', { class: 'player-status', attrs: { role: 'status' } });
@@ -159,7 +159,6 @@ export function liveView(ctx: Context, channelId: string): View {
         captions.textContent = next.captionsEnabled ? 'Captions on' : 'Captions off';
     }));
     void playback.start(channelId);
-    video.focus();
     setKeyHandler((event) => {
         const onPicture = event.target === video || event.target === document.body;
         const key = liveKey(event.key, onPicture);
@@ -210,6 +209,7 @@ export function liveView(ctx: Context, channelId: string): View {
 
     return {
         el,
+        focus: () => video.focus(),
         dispose() {
             setKeyHandler(null);
             window.removeEventListener('pagehide', onPageHide);

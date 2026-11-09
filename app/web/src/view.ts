@@ -4,6 +4,8 @@ import type { Route } from './router';
 /** What a page draws into and how it lets go: it cancels its watches and stops what it plays. */
 export interface View {
     el: HTMLElement;
+    /** Takes focus once the page is attached, when its first control is not where it belongs (the live picture). */
+    focus?(): void;
     dispose(): void;
 }
 

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.cant_play
+import dev.jamesrich.sofaking.resources.loopback_only
 import dev.jamesrich.sofaking.resources.player_no_answer
 import dev.jamesrich.sofaking.resources.player_server_busy
 import dev.jamesrich.sofaking.resources.player_signed_out
@@ -25,6 +26,22 @@ class FailureCopyTest {
     fun `a rejected token says the device is signed out`() {
         assertEquals(Res.string.player_signed_out.key, failureCopy("AUTH_REQUIRED").reason.key)
         assertEquals(Res.string.player_signed_out.key, failureCopy("HTTP_401").reason.key)
+    }
+
+    @Test
+    fun `a token-less server that answers only its own machine is not signed out`() {
+        assertEquals(Res.string.loopback_only.key, failureCopy("LOOPBACK_ONLY").reason.key)
+        assertEquals(Res.string.player_signed_out.key, failureCopy("HTTP_403").reason.key)
+    }
+
+    @Test
+    fun `a media request answered 401 or 403 says the device is signed out`() {
+        val bad = "ERROR_CODE_IO_BAD_HTTP_STATUS"
+
+        assertEquals(Res.string.player_signed_out.key, failureCopy(playerFailureCode(bad, 401)).reason.key)
+        assertEquals(Res.string.player_signed_out.key, failureCopy(playerFailureCode(bad, 403)).reason.key)
+        assertEquals(bad, playerFailureCode(bad, 404))
+        assertEquals(bad, playerFailureCode(bad, null))
     }
 
     @Test

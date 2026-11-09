@@ -14,11 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
@@ -70,8 +71,21 @@ internal fun logoMonogram(name: String, number: String): String {
     return if (initials.isEmpty()) number else initials.take(2).joinToString("").uppercase()
 }
 
-/** The share of a logo tile's height its letters take. */
-private const val LOGO_TEXT_SHARE = 0.4f
+/** The share of a logo tile's height its letters take, so a two-letter monogram reads as the guide's body text does. */
+private const val LOGO_TEXT_SHARE = 0.5f
+
+/** The widest a bold glyph runs, as a share of its size, and the smallest a long fallback shrinks to. */
+private const val GLYPH_WIDTH_SHARE = 0.6f
+private val MIN_LOGO_TEXT = 10.dp
+
+/**
+ * The size of [text] on a [width] by [height] tile: a share of the height, shrunk until a long channel number fits the
+ * width, never below [MIN_LOGO_TEXT].
+ */
+internal fun logoTextSize(text: String, width: Dp, height: Dp): Dp {
+    val fitting = width * 0.9f / (GLYPH_WIDTH_SHARE * text.length.coerceAtLeast(1))
+    return minOf(height * LOGO_TEXT_SHARE, fitting).coerceAtLeast(MIN_LOGO_TEXT)
+}
 
 /**
  * The channel's logo in a [width] by [height] slot, so names line up; a channel without one shows [logoMonogram] on a
@@ -87,12 +101,17 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
                 .background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
+            val monogram = logoMonogram(channel.name, channel.number.formatNumber())
+            // Anchored to dp, so the system font scale does not push the letters out of a tile that does not scale.
+            val size = with(LocalDensity.current) { logoTextSize(monogram, width, height).toSp() }
             Text(
-                logoMonogram(channel.name, channel.number.formatNumber()),
+                monogram,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                fontSize = (height.value * LOGO_TEXT_SHARE).sp,
+                fontSize = size,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     } else {

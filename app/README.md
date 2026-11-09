@@ -44,7 +44,7 @@ The [documentation index](docs/README.md) lists every page. [CONTRIBUTING.md](..
 
 ## Limitations
 
-- The web app is a smaller client: no program grid or preview, recordings, multiview, channel keys, volume or parental controls ([web](docs/usage.md#web)). It does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
+- The web app is a smaller client: no program grid or preview, recordings, multiview or parental controls ([web](docs/usage.md#web)). It does not discover the server; enter its address by hand. Android, Android TV, desktops, iPhone, iPad and Apple TV list the servers on their network.
 - iOS, Apple TV and the web play MPEG-TS channels as the HLS the server packages, so their first picture takes a few seconds longer; Android and desktops play MPEG-TS directly. Library files and recordings play on every platform, since the server converts what a player cannot take.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - Only music plays in the background ([music](docs/usage.md#music)). On an Android phone or tablet a video player shrinks into picture-in-picture when the app leaves the screen; elsewhere video stops, and a library item or recording resumes where it stopped.

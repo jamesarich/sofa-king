@@ -6,6 +6,8 @@
     <string name="load_failed_hint">Check the server address in Settings, and that this device is on the same network as the server.</string>
     <string name="signed_out">This device is signed out</string>
     <string name="signed_out_hint">The server no longer accepts this device. Open Settings and pair it again with a code from the server's admin portal.</string>
+    <string name="loopback_only">This server accepts connections only from its own machine until it has an API token</string>
+    <string name="loopback_only_hint">Set an API token in the admin portal under Settings › Advanced, then pair this device again.</string>
     <string name="unconfigured">Connect to your Sofa King server</string>
     <string name="unconfigured_hint">Open Settings, choose or enter your server's address, then enter the pairing code from its admin portal and select Pair.</string>
     <string name="retry">Try again</string>

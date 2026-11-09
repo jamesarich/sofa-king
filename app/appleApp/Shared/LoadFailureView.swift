@@ -2,9 +2,14 @@ import SwiftUI
 
 /// Whether a failed load's message says the server turned the device's token away. Core hands a failure over as the
 /// server's error code and text (`AUTH_REQUIRED: Bearer token required`), or `HTTP_401` and `HTTP_403` when the answer
-/// had no error body; `LOOPBACK_ONLY` is a 403 for a server with no token that this device does not share a machine with.
+/// had no error body. `LOOPBACK_ONLY` is a 403 for a server with no token that this device does not share a machine
+/// with; pairing again cannot fix it, so it is not a rejected token.
 func isTokenRejected(_ message: String) -> Bool {
-    ["AUTH_REQUIRED", "LOOPBACK_ONLY", "HTTP_401", "HTTP_403"].contains { message.hasPrefix($0) }
+    ["AUTH_REQUIRED", "HTTP_401", "HTTP_403"].contains { message.hasPrefix($0) }
+}
+
+func isLoopbackOnly(_ message: String) -> Bool {
+    message.hasPrefix("LOOPBACK_ONLY")
 }
 
 /// What a page shows when its load failed: the headline and the message with Retry, or, when the server turned the
@@ -25,6 +30,13 @@ struct LoadFailureView: View {
                     .multilineTextAlignment(.center)
                 NavigationLink(strings.tabSettings) { SettingsGate() }
                 Button(strings.retry, action: retry)
+            } else if isLoopbackOnly(message) {
+                Text("This server accepts connections only from its own machine until it has an API token").font(.title2)
+                Text(message).foregroundStyle(.secondary)
+                Text("Set an API token in the admin portal under Settings › Advanced, then pair this device again.")
+                    .multilineTextAlignment(.center)
+                Button(strings.retry, action: retry)
+                if settingsLink { NavigationLink(strings.tabSettings) { SettingsGate() } }
             } else {
                 Text(headline).font(.title2)
                 Text(message).foregroundStyle(.secondary)

@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.resources.load_failed_hint
 import dev.jamesrich.sofaking.resources.loading
 import dev.jamesrich.sofaking.resources.unconfigured
 import dev.jamesrich.sofaking.resources.unconfigured_hint
+import dev.jamesrich.sofaking.ui.LoadFailedScreen
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.SignedOutScreen
@@ -100,10 +101,10 @@ internal fun LibraryHomeScreen(
         )
 
         is LibraryHomeState.Failed -> if (state.signedOut) {
-            SignedOutScreen()
+            SignedOutScreen(state.message, actions.onRetry)
         } else {
-            MessageScreen(
-                message = stringResource(Res.string.library_load_failed),
+            LoadFailedScreen(
+                title = stringResource(Res.string.library_load_failed),
                 hint = stringResource(Res.string.load_failed_hint),
                 detail = state.message,
                 onRetry = actions.onRetry,

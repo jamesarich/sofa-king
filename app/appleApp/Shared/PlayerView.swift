@@ -23,6 +23,8 @@ struct PlayerView: View {
     @State private var itemObservers: [AnyCancellable] = []
     @State private var breakMarks: BreakMarkCollector?
     @State private var reconnect: Task<Void, Never>?
+    /// The tune a channel switch started; leaving or switching again cancels it so a session it opens is released.
+    @State private var tuning: Task<Void, Never>?
     @State private var attempts = 0
     /// False once the player has left: a tune or reconnect still running then must not play or open anything.
     @State private var shown = false
@@ -148,6 +150,7 @@ struct PlayerView: View {
             stopCovering()
             replaced?.cancel()
             reconnect?.cancel()
+            tuning?.cancel()
             itemObservers.removeAll()
             player.replaceCurrentItem(with: nil)
             model.core.stopWatching()
@@ -437,7 +440,8 @@ struct PlayerView: View {
         attempts = 0
         failure = nil
         channel = next
-        Task { await tune() }
+        tuning?.cancel()
+        tuning = Task { await tune() }
     }
 
     /// Tunes the channel `step` places on in the lineup, wrapping at either end; Up is -1 and Down is 1, as in the guide.

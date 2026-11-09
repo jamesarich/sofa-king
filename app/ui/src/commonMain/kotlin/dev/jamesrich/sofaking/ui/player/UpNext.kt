@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,16 +55,7 @@ internal fun BoxScope.UpNextCard(
     onCancel: () -> Unit,
     stillWatching: Boolean = false,
 ) {
-    Column(
-        Modifier
-            .align(Alignment.BottomEnd)
-            .screenPadding()
-            .width(420.dp)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
-            .padding(16.dp)
-            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    CornerCard(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
         Text(
             stringResource(if (stillWatching) Res.string.vod_still_watching else Res.string.vod_up_next),
             style = MaterialTheme.typography.labelLarge,
@@ -106,6 +98,22 @@ internal fun BoxScope.UpNextCard(
         )
         UpNextActions(pointerDriven, stillWatching, onPlay, onCancel)
     }
+}
+
+/** The card in the bottom corner that Up next and the sleep warning share; [modifier] adds its semantics. */
+@Composable
+internal fun BoxScope.CornerCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .align(Alignment.BottomEnd)
+            .screenPadding()
+            .width(420.dp)
+            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .padding(16.dp)
+            .then(modifier),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
 }
 
 /** Play now and Cancel for a pointer; for the remote, a line naming the keys. Asking [stillWatching], keep or stop. */

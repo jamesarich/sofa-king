@@ -132,7 +132,7 @@ fun PlayerScreen(
     state.channels = ring
     state.lineupChannels = lineup.channels
     val now by rememberMinuteNow()
-    val parts = rememberLiveParts(state, player, sessions, breaks.mode.covers)
+    val parts = rememberLiveParts(state, player, sessions, breaks.mode.covers, sleep)
     val load: (Channel) -> Unit = { channel -> parts.tuner.load(channel, nowPlayingFor(lineup, channel, now)) }
     SleepExit(sleep, onExit)
     // A failure inside a break keeps the screen up under its card: a browser can fail at the seam between two ads, and
@@ -206,6 +206,7 @@ private fun LiveSurface(
     BackHandler {
         when {
             breakTakes(Key.Back) -> parts.cover.dismissed = true
+            parts.sleepWarning.back() -> Unit
             state.back(controls) -> onExit()
         }
     }
@@ -294,6 +295,8 @@ private fun Modifier.liveKeys(
         if (event.type == KeyEventType.KeyUp) parts.cover.dismissed = true
         return@onPreviewKeyEvent true
     }
+    val panelTakesOk = state.buttonsFocused || state.miniGuideOpen || state.streamCardOpen
+    if (parts.sleepWarning.onKey(event.key, event.type, panelTakesOk)) return@onPreviewKeyEvent true
     state.onKeyEvent(event.key, event.type, controls, event.isLongPress, event.repeatCountOrNull, hasAudioChoice)
 }
 
@@ -403,6 +406,7 @@ private fun BoxScope.LiveOverlays(
     )
     state.failure?.let { FailureCard(it.code) { state.retryIn } }
     ChannelNumberBadge(state.numbers)
+    SleepWarningCard(parts.sleepWarning, pointerDriven)
     StreamCardPanel(state, parts.player, sessions, audioTracks)
     ChannelListPanel(state, lineup, channel, scope, choices.favorites, choices.order, choices.recent, now)
     InfoBarPanel(

@@ -42,6 +42,7 @@ internal class VodParts(
     val toasts: VodToasts,
     val ending: VodEnding,
     val focus: PlayerFocus,
+    val sleepWarning: SleepWarning = SleepWarning(SleepTimer()),
 ) {
     val state: VodPlayerState get() = vod.state
 
@@ -55,8 +56,11 @@ internal fun rememberVodParts(
     sessions: PlaybackSessions,
     itemId: String,
     tracks: VodTracks,
+    sleep: SleepTimer,
 ): VodParts {
     val vod = rememberVodSession(player, sessions, itemId)
+    // The Up next card has its own OK and Back, so the warning waits behind it.
+    val sleepWarning = rememberSleepWarning(sleep) { vod.state.next != null }
     return remember(vod) {
         val toasts = VodToasts()
         VodParts(
@@ -65,6 +69,7 @@ internal fun rememberVodParts(
             toasts = toasts,
             ending = VodEnding(),
             focus = PlayerFocus(),
+            sleepWarning = sleepWarning,
         )
     }
 }

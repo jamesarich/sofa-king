@@ -124,7 +124,7 @@ fun VodPlayerScreen(
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     val stream = held?.takeIf { it.itemId == itemId }
-    val parts = rememberVodParts(player, sessions, itemId, tracks)
+    val parts = rememberVodParts(player, sessions, itemId, tracks, sleep)
     val state = parts.state
     SideEffect { state.steps = seekSteps }
     VodSessionEffects(parts.vod, title, open, stream)
@@ -160,7 +160,7 @@ fun VodPlayerScreen(
     val captions = VodCaptions(captionsOn, onToggleCaptions, captionStyle, subtitleLook)
     val controls = vodControls(parts, tracks, captions, zoom, onZoom, onPlayNext, onExit, onBackToLive)
     VodFocusEffects(state, parts.focus, buttons, LocalLastInput.current.kind == InputKind.POINTER)
-    BackHandler { if (state.back(controls)) onExit() }
+    BackHandler { if (!parts.sleepWarning.back() && state.back(controls)) onExit() }
     VodSurface(parts, controls, title, zoom, captions, hasButtons = buttons.isNotEmpty(), tracks.pickable, modifier) {
         val barVisible = (state.overlayVisible || state.failure != null) && state.next == null
         VodPills(parts, waiting = stream == null, backShown = barVisible, onExit = onExit)
@@ -254,16 +254,20 @@ private fun VodSurface(
             .semantics { contentDescription = title.title }
             .pictureButton(stringResource(Res.string.a11y_show_controls), onPress = state::tap)
             .onPreviewKeyEvent { event ->
-                !event.blocksLetterShortcut() && state.onKeyEvent(
-                    event.key,
-                    event.type,
-                    controls,
-                    !status.playWhenReady,
-                    hasButtons = hasButtons,
-                    tracksPickable = tracksPickable,
-                    repeatCount = event.repeatCountOrNull,
-                    nowMs = scrubClock(),
-                )
+                val panelTakesOk = state.buttonsFocused || state.tracksOpen
+                !event.blocksLetterShortcut() && (
+                    parts.sleepWarning.onKey(event.key, event.type, panelTakesOk) ||
+                        state.onKeyEvent(
+                            event.key,
+                            event.type,
+                            controls,
+                            !status.playWhenReady,
+                            hasButtons = hasButtons,
+                            tracksPickable = tracksPickable,
+                            repeatCount = event.repeatCountOrNull,
+                            nowMs = scrubClock(),
+                        )
+                    )
             }
             .vodTouches(parts, LocalWindowFullScreen.current, LocalLastInput.current, rememberHaptics()),
     ) {
@@ -383,6 +387,7 @@ private fun BoxScope.VodCards(
 ) {
     val state = parts.state
     state.failure?.let { FailureCard(it, live = false) }
+    SleepWarningCard(parts.sleepWarning, LocalLastInput.current.kind == InputKind.POINTER)
     state.next?.let {
         UpNextCard(
             it,

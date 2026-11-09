@@ -2,7 +2,8 @@ name: Publish release
 
 # Makes the packages the calling run uploaded as `dist-*` artifacts the `vX.Y.Z` release of the pushed tag. The assets
 # carry the version instead of `snapshot` (sofa-king-0.1.0.apk, sofa-king-0.1.0-linux-amd64.deb and so on). The notes
-# are the tag annotation's message, when there is one, above git-cliff's changes since the previous `v*` tag.
+# are the tag annotation's message above git-cliff's changes since the previous `v*` tag; the first release has the
+# annotation alone. A lightweight tag fails the run.
 on:
   workflow_call:
     inputs:
@@ -50,10 +51,16 @@ jobs:
           tag=${GITHUB_REF#refs/tags/}
           # The checkout can leave an annotated tag lightweight; fetch it again for its message.
           git fetch --force --tags --quiet "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          if [ "$(git cat-file -t "$tag")" != tag ]; then
+            echo "::error::$tag is a lightweight tag; create it annotated with git tag -a."
+            exit 1
+          fi
           previous=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
           echo "range=${previous:+$previous..}$tag" >> "$GITHUB_OUTPUT"
           git tag -l --format='%(contents)' "$tag" | sed '/-----BEGIN PGP SIGNATURE-----/,$d' > "$RUNNER_TEMP/highlights.md"
       - name: Write the changes
+        if: steps.range.outputs.previous != ''
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4
         with:
           config: .github/cliff.toml
@@ -68,7 +75,7 @@ jobs:
           {
             if [ -s "$RUNNER_TEMP/highlights.md" ]; then cat "$RUNNER_TEMP/highlights.md"; echo; fi
             printf '## %s\n' "$VERSION"
-            cat "$RUNNER_TEMP/changes.md"
+            if [ -f "$RUNNER_TEMP/changes.md" ]; then cat "$RUNNER_TEMP/changes.md"; fi
           } > "$RUNNER_TEMP/notes.md"
       - name: Create the release
         env:

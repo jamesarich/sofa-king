@@ -1,6 +1,6 @@
 name: CI
 
-# The app's code and build, and the contract it shares with the server; Markdown alone does not run it.
+# The app's code and build, the contract it shares with the server and the server's playback code; Markdown alone does not run it.
 on:
   pull_request:
     paths:
@@ -15,6 +15,8 @@ on:
       - "!app/scripts/showcase.py"
       - "contract/**"
       - "!contract/**/*.md"
+      # The Apple TV remote tests run the server's playback code from the tree.
+      - "backend/server/src/main/kotlin/dev/jamesrich/sofaking/backend/playback/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -37,6 +39,8 @@ on:
       - "!app/scripts/showcase.py"
       - "contract/**"
       - "!contract/**/*.md"
+      # The Apple TV remote tests run the server's playback code from the tree.
+      - "backend/server/src/main/kotlin/dev/jamesrich/sofaking/backend/playback/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"

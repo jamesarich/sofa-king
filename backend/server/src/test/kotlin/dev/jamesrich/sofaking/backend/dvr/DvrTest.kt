@@ -516,8 +516,9 @@ class DvrTest {
     @Test fun `a disk whose free space never rises loses at most one pass of recordings and says so`() =
         spaceCull(count = 25, watched = 3, free = { Dvr.GIB }) { dvr, left, events ->
             dvr.cull("test")
+            kotlinx.coroutines.yield()
             val culled = events.filter { it.type == NotifyEvent.RECORDING_CULLED }
-            assertTrue(25 - left().size <= Dvr.SPACE_CULL_MAX, "${left().size} of 25 recordings are left")
+            assertEquals(24, left().size, "a deletion that frees nothing ends the pass")
             assertEquals(25 - left().size, culled.size, "one event for each deleted recording")
             assertEquals("SPACE", culled.first().data["reason"]!!.jsonPrimitive.content)
         }

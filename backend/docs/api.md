@@ -814,7 +814,7 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" "http://SERVER_HOST:919
 | `recording.state` | A recording that started, finished, failed, was missed or was canceled: `id`, `title`, `episodeTitle`, `channelId`, `channelName`, `state`, `reason` and `bytes` |
 | `recording.conflict` | A scheduled or running recording that newly has no free slot, with the fields of `recording.state` |
 | `recording.preempted` | A recording took the slot of an app session that was watching: `channelId` and `channelName` of the channel it was watching, `forChannelId` and `forChannelName` of the recording's |
-| `recording.culled` | Cleanup deleted a finished recording, with the fields of `recording.state` and `reason` set to `KEEP`, `AGE` or `SPACE` |
+| `recording.culled` | One cleanup pass deleted finished recordings: the fields of `recording.state` for the first and its `reason` (`KEEP`, `AGE` or `SPACE`), the `count` deleted and the `titles` of the first three |
 | `source.quarantined`, `source.recovered` | A source set aside by its probes, or back to healthy: `offeringId`, `providerId`, `channelId` and `channelName` |
 | `disk.low` | The recordings disk dropped under the cleanup floor: `freeBytes`, `floorBytes`, `freeGib` and `floorGib`; once until it is back over |
 | `update.available` | A newer image is published: `revision`, `version`, `runningRevision` and `runningVersion`; once per build |

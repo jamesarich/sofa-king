@@ -183,6 +183,7 @@ struct VodPlayerView: View {
         }
         .onDisappear {
             shown = false
+            model.pictureInPicture = false
             replaced?.cancel()
             detailWatch?.cancel()
             itemObservers.removeAll()

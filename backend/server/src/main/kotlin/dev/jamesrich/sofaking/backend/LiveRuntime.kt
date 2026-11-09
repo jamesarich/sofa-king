@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.backend.multiview.MultiviewSessions
 import dev.jamesrich.sofaking.backend.notify.NotificationTargetsService
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
+import dev.jamesrich.sofaking.backend.playback.FanoutConfig
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SessionHistory
@@ -188,6 +189,7 @@ class LiveRuntime(
             plexDebounceMillis: Long = 120_000,
             restart: () -> Unit = SetupService::exitForRestart,
             setup: ((ServerConfig, () -> Unit) -> SetupService)? = null,
+            fanout: FanoutConfig = FanoutConfig(),
         ): LiveRuntime {
             val started = clock.instant()
             val assembly =
@@ -195,7 +197,7 @@ class LiveRuntime(
                     store,
                     config,
                     clock,
-                    RuntimeOptions(policyDebounceMillis, probes, plexDebounceMillis, restart, setup),
+                    RuntimeOptions(policyDebounceMillis, probes, plexDebounceMillis, restart, setup, fanout),
                 )
             // Whatever fails before the runtime is whole stops its background work and closes its client.
             var created = false

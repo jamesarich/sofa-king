@@ -8,7 +8,7 @@ import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
-import dev.jamesrich.sofaking.backend.playback.graceMillisForTest
+import dev.jamesrich.sofaking.backend.playback.FanoutConfig
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PlaybackSession
@@ -60,8 +60,13 @@ class TsStallFailoverTest {
         val config =
             ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, hdhr = hdhr)
         val store = openStore(dir)
-        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
-        graceMillisForTest = GRACE_MS
+        val runtime = LiveRuntime.create(
+            store,
+            config,
+            MutableClock(),
+            probes = false,
+            fanout = FanoutConfig(graceMillis = GRACE_MS),
+        )
         var server: RealServer? = null
         try {
             for (feed in runtime.feeds.configs) runtime.feeds.refresh(feed)
@@ -93,7 +98,6 @@ class TsStallFailoverTest {
                 assertTrue(stale.bodyAsText().contains("STREAM_CHANGED"))
             }
         } finally {
-            graceMillisForTest = null
             server?.close()
             runtime.close()
             store.close()

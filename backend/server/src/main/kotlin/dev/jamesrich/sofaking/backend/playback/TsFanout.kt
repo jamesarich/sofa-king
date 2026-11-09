@@ -52,9 +52,6 @@ internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.
     it[3] = 0x10
 }
 
-/** Overrides every fan-out's grace period, in milliseconds; a test sets it to reach a stall without waiting. */
-@Volatile internal var graceMillisForTest: Long? = null
-
 /** How much of the upstream body one read takes. */
 private const val READ_SIZE = 32 * 1024
 
@@ -228,7 +225,7 @@ internal class TsFanout(
         }
         var backoff = FIRST_BACKOFF_MS
         while (readersPresent()) {
-            val remaining = lastDataAt + (graceMillisForTest ?: config.graceMillis) - now()
+            val remaining = lastDataAt + config.graceMillis - now()
             if (remaining <= 0) {
                 log.warn(
                     "relay upstream gave up offering={} graceMillis={} reconnects={}",
@@ -268,7 +265,7 @@ internal class TsFanout(
         val watchdog = launch(CoroutineName("ts-watchdog")) {
             while (true) {
                 delay(config.keepaliveMillis)
-                if (now() - lastDataAt > (graceMillisForTest ?: config.graceMillis)) throw SilentUpstreamException()
+                if (now() - lastDataAt > config.graceMillis) throw SilentUpstreamException()
             }
         }
         try {

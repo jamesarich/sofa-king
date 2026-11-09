@@ -137,7 +137,7 @@ On a server that records, a DVR tab sits beside Live and Library. It lists what 
 | Row says | Meaning |
 | --- | --- |
 | Protected | Cleanup skips it when the recordings disk runs short. Protect or Unprotect toggles it (Apple TV: hold the touch surface on a finished recording) |
-| Won't record: other recordings fill the server's slots then (red) | Scheduled, but more recordings overlap it than the server has playback slots. The program's details in the guide say the same under Cancel recording; Apple TV's details show the line beside Record |
+| Won't record: the server will already be playing or recording as many channels as it can (red) | Scheduled, but more recordings overlap it than the server has playback slots. The program's details in the guide say the same under Cancel recording; Apple TV's details show the line beside Record |
 
 Play opens a recording full screen. One started before shows Resume and From start, and one in progress plays as it grows. Commercial breaks the server found show on the seek bar, and [Skip commercials](#skip-breaks-intros-and-credits) handles them. Stopping within the last tenth marks a recording watched.
 

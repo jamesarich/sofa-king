@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pulls the published image and swaps it in when it differs from the running one. The image's signature and build
-# attestation are checked first, and nothing is swapped while a recording runs or is about to start. The database is
+# attestation are checked first with cosign, the host's or a pinned copy run through docker, and nothing is swapped while a recording runs or is about to start. The database is
 # backed up; when the new container is not healthy in time or cannot open a playback session, the backup and the
 # previous image are put back and that image is not tried again. Every run writes what it did to update-status.json in the config folder, which the admin portal's
 # About page shows, and starts by removing the update-requested file the portal writes, which the path unit watches.
@@ -137,11 +137,28 @@ bounded() {
   if command -v timeout >/dev/null 2>&1; then timeout "$seconds" "$@"; else "$@"; fi
 }
 
-# Invariant: an image is swapped in only if this repository's backend.yml signed it and attested its build, for each
-# check the host can run. A missing tool, or gh without a login, is a skip; a check that runs and fails is not.
+# The cosign release that checks the image when the host has no cosign of its own, pinned by digest so the check does
+# not trust a moving tag. To bump it, take the newest tag from https://github.com/sigstore/cosign/releases, read its
+# digest with `docker buildx imagetools inspect ghcr.io/sigstore/cosign/cosign:<tag> --format '{{.Manifest.Digest}}'`,
+# set both here, and run the two checks in verify_image by hand against the current ghcr.io/jamesarich/sofa-king:main.
+cosign_image=ghcr.io/sigstore/cosign/cosign:v3.1.4@sha256:0f06154836d2de34f887a5c273506d52ca43edaa1d9e53e6510fa78a48f69c2d
+
+# Runs cosign from the host's path, else from the pinned image.
+run_cosign() {
+  if command -v cosign >/dev/null 2>&1; then
+    bounded 120 cosign "$@"
+  else
+    bounded 120 docker run --rm "$cosign_image" "$@"
+  fi
+}
+
+# Invariant: an image is swapped in only if this repository's backend.yml signed it and attested its build, both
+# checked with cosign. The one skip is a host with no cosign whose docker cannot pull the pinned image; it sets
+# verify_note, which the run's report carries. A check that runs and fails is not a skip.
 # Sets verify_error and returns 1 on a failure.
 verify_image() {
-  local ref
+  local ref identity
+  verify_note=""
   case "$image" in
     ghcr.io/"$verify_repo":* | ghcr.io/"$verify_repo"@*) ;;
     *) log "not verifying $image: only ghcr.io/$verify_repo is signed"; return 0 ;;
@@ -149,27 +166,24 @@ verify_image() {
   # The digest this pull resolved, so a tag that moves during the checks is not verified instead.
   ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image" 2>/dev/null || true)
   ref=${ref:-$image}
-  if command -v cosign >/dev/null 2>&1; then
-    if ! bounded 120 cosign verify "$ref" \
-      --certificate-identity-regexp "^https://github.com/$verify_repo/\\.github/workflows/backend\\.yml@refs/(heads/main|tags/v.*)\$" \
-      --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
-      verify_error="the signature on $ref did not verify"
-      return 1
-    fi
-    log "signature on $ref verified"
-  else
-    log "cosign is not installed; not checking the signature"
+  if ! command -v cosign >/dev/null 2>&1 && ! bounded 300 docker pull --quiet "$cosign_image" >/dev/null 2>&1; then
+    verify_note="cosign is not installed and docker could not pull $cosign_image, so $ref was not verified"
+    log "$verify_note"
+    return 0
   fi
-  if ! command -v gh >/dev/null 2>&1; then
-    log "gh is not installed; not checking the build attestation"
-  elif ! gh auth status >/dev/null 2>&1; then
-    log "gh is not logged in; not checking the build attestation"
-  elif bounded 120 gh attestation verify "oci://$ref" --repo "$verify_repo" >/dev/null 2>&1; then
-    log "build attestation on $ref verified"
-  else
+  identity="^https://github.com/$verify_repo/\\.github/workflows/backend\\.yml@refs/(heads/main|tags/v.*)\$"
+  if ! run_cosign verify "$ref" --certificate-identity-regexp "$identity" \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
+    verify_error="the signature on $ref did not verify"
+    return 1
+  fi
+  log "signature on $ref verified"
+  if ! run_cosign verify-attestation "$ref" --type slsaprovenance1 --new-bundle-format \
+    --certificate-identity-regexp "$identity" --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null 2>&1; then
     verify_error="the build attestation on $ref did not verify"
     return 1
   fi
+  log "build attestation on $ref verified"
 }
 
 # Calls the running server for the gates below: api METHOD PATH OUT [JSON]. Prints the HTTP status, 000 when the
@@ -372,7 +386,11 @@ if compose up -d --no-build --force-recreate && healthy; then
     # The update is done; a prune that fails, as one does while another runs, only leaves old images for the next.
     docker image prune --force >/dev/null || log "could not prune old images"
     log "running $to"
-    report updated "updated $from to $to"
+    if [ -n "$verify_note" ]; then
+      report verify-skipped "updated $from to $to; $verify_note"
+    else
+      report updated "updated $from to $to"
+    fi
     exit 0
   fi
   failure="failed its playback check: $smoke_error"

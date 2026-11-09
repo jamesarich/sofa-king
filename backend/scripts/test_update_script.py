@@ -18,7 +18,14 @@ SCRIPT = Path(__file__).resolve().parent.parent / 'deploy' / 'sofa-king-update.s
 FAKE_DOCKER = r'''#!/usr/bin/env bash
 echo "$*" >> "$CALLS"
 case "$1 $2" in
-  "pull "*) exit 0 ;;
+  "pull "*)
+    case "$*" in *sigstore/cosign*) [ -z "$FAIL_COSIGN_PULL" ] || exit 1 ;; esac
+    exit 0 ;;
+  "run --rm")
+    case "$3" in
+      *sigstore/cosign*) echo "cosign-image $*" >> "$CALLS"; case "$4" in "$FAIL_COSIGN_SUBCOMMAND") exit 1 ;; esac ;;
+    esac
+    exit 0 ;;
   "image inspect")
     case "$*" in
       *RepoDigests*) echo "ghcr.io/jamesarich/sofa-king@sha256:abc" ;;
@@ -110,6 +117,7 @@ class UpdateGateTests(unittest.TestCase):
         self.shim('docker', FAKE_DOCKER)
         self.shim('flock', 'exit 0')
         self.server = None
+        self.extra_env = {}
 
     def tearDown(self):
         if self.server:
@@ -137,6 +145,7 @@ class UpdateGateTests(unittest.TestCase):
             'SOFA_UPDATE_LOCAL_TAG': 'sofa-king-backend:local',
             'SOFA_UPDATE_HEALTH_SECONDS': '30',
             'SOFA_UPDATE_URL': f'http://127.0.0.1:{self.server.server_port}' if self.server else 'http://127.0.0.1:9',
+            **self.extra_env,
         }
         result = subprocess.run([str(SCRIPT)], env=env, capture_output=True, text=True, timeout=120)
         status = json.loads((self.config / 'update-status.json').read_text())
@@ -158,8 +167,7 @@ class UpdateGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
 
     def test_failed_attestation_aborts_the_update(self):
-        self.shim('cosign', 'exit 0')
-        self.shim('gh', 'if [ "$1" = auth ]; then exit 0; fi; exit 1')
+        self.shim('cosign', 'if [ "$1" = verify-attestation ]; then exit 1; fi; exit 0')
         result, status = self.run_updater()
         self.assertEqual(status['outcome'], 'verify-failed')
         self.assertIn('attestation', status['message'])
@@ -173,11 +181,40 @@ class UpdateGateTests(unittest.TestCase):
         self.assertIn('jamesarich/sofa-king/\\.github/workflows/backend\\.yml', call)
         self.assertIn('https://token.actions.githubusercontent.com', call)
 
-    def test_missing_verification_tools_are_skipped_and_the_update_goes_on(self):
+    def pinned_calls(self):
+        return [line for line in self.calls.read_text().splitlines() if line.startswith('cosign-image ')]
+
+    def test_host_without_cosign_verifies_signature_and_attestation_through_the_pinned_image(self):
         self.serve()
         result, status = self.run_updater()
         self.assertEqual(status['outcome'], 'updated')
-        self.assertIn('cosign is not installed', result.stdout)
+        signature, attestation = self.pinned_calls()
+        for call in (signature, attestation):
+            self.assertIn('ghcr.io/sigstore/cosign/cosign:v', call)
+            self.assertRegex(call, r'@sha256:[0-9a-f]{64} ')
+            self.assertIn('ghcr.io/jamesarich/sofa-king@sha256:abc', call)
+            self.assertIn('jamesarich/sofa-king/\\.github/workflows/backend\\.yml', call)
+            self.assertIn('https://token.actions.githubusercontent.com', call)
+        self.assertIn(' verify ', signature)
+        self.assertIn(' verify-attestation ', attestation)
+        self.assertIn('build attestation', result.stdout)
+        self.assertTrue(self.swapped())
+
+    def test_pinned_image_that_rejects_the_signature_aborts_the_update(self):
+        self.extra_env['FAIL_COSIGN_SUBCOMMAND'] = 'verify'
+        _, status = self.run_updater()
+        self.assertEqual(status['outcome'], 'verify-failed')
+        self.assertIn('signature', status['message'])
+        self.assertFalse(self.swapped())
+
+    def test_cosign_image_that_cannot_be_pulled_skips_verification_and_says_so(self):
+        self.serve()
+        self.extra_env['FAIL_COSIGN_PULL'] = '1'
+        result, status = self.run_updater()
+        self.assertEqual(status['outcome'], 'verify-skipped')
+        self.assertIn('could not pull', status['message'])
+        self.assertIn('was not verified', result.stdout)
+        self.assertEqual(self.pinned_calls(), [])
         self.assertTrue(self.swapped())
 
     def test_running_recording_defers_the_update(self):

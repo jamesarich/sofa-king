@@ -49,9 +49,9 @@ import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
+import dev.jamesrich.sofaking.ui.rememberAmbientTint
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.screenPadding
-import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
@@ -73,7 +73,7 @@ internal fun InfoOverlay(
         modifier
             .widthIn(max = 720.dp)
             .fillMaxWidth()
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .background(infoBarBrush(rememberAmbientTint(channel.logo)), MaterialTheme.shapes.small)
             .padding(BAR_CARD_PADDING)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {

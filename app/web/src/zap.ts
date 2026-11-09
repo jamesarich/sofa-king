@@ -106,13 +106,14 @@ export class Fade {
         private readonly timers: Timers = realTimers,
     ) {}
 
-    show(): void {
+    /** Shows for [ms] (the default if none), replacing whatever hide was pending. */
+    show(ms: number = this.ms): void {
         this.cancel();
         this.setShown(true);
         this.handle = this.timers.set(() => {
             this.handle = null;
             this.setShown(false);
-        }, this.ms);
+        }, ms);
     }
 
     cancel(): void {

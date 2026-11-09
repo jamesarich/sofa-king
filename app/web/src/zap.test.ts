@@ -212,3 +212,16 @@ test('Escape leaves a text field and Up and Down step out of it, except while an
     assert.equal(fieldKey('Escape', 'text', true), 'stay');
     assert.equal(fieldKey('a', 'text', false), 'stay');
 });
+
+test('a second show replaces the hide the first one left pending', () => {
+    const timers = new FakeTimers();
+    const states: boolean[] = [];
+    const fade = new Fade((shown) => states.push(shown), 1_500, timers);
+    fade.show();
+    timers.advance(1_000);
+    fade.show(3_000);
+    timers.advance(1_500);
+    assert.deepEqual(states, [true, true]);
+    timers.advance(1_500);
+    assert.deepEqual(states, [true, true, false]);
+});

@@ -107,6 +107,16 @@ export function inputKeepsKey(key: string, type: string): boolean {
     return !TEXT_INPUTS.has(type);
 }
 
+/** What a key does in a one-line text field: [stay] with the field, [blur] to leave it, [move] to the control above or below. */
+export type FieldKey = 'stay' | 'blur' | 'move';
+
+/** Escape leaves the field; Up and Down leave it unless an IME composition owns them. */
+export function fieldKey(key: string, type: string, composing: boolean): FieldKey {
+    if (composing) return 'stay';
+    if (key === 'Escape') return 'blur';
+    return inputKeepsKey(key, type) ? 'stay' : 'move';
+}
+
 export function installKeys(root: HTMLElement, back: () => void): void {
     document.addEventListener('keydown', (event) => {
         if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -116,11 +126,10 @@ export function installKeys(root: HTMLElement, back: () => void): void {
         }
         if (typing(event.target)) {
             const field = event.target as HTMLInputElement | HTMLTextAreaElement;
-            const leaves = event.key === 'Escape' || !inputKeepsKey(event.key, field.type);
-            if (!leaves) return;
-            // Escape and Up/Down step out of the field to the control nearest below or above it, as the TV ladder does.
-            const direction: Direction = event.key === 'ArrowUp' ? 'up' : 'down';
-            if (!moveFocus(root, direction)) field.blur();
+            const action = fieldKey(event.key, field.type, event.isComposing || event.keyCode === 229);
+            if (action === 'stay') return;
+            // Up and Down step out of the field to the control nearest above or below it, as the TV ladder does.
+            if (action === 'blur' || !moveFocus(root, event.key === 'ArrowUp' ? 'up' : 'down')) field.blur();
             event.preventDefault();
             return;
         }

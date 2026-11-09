@@ -100,7 +100,10 @@ function show(): void {
     // Keys go to the focused control; a page that does not focus one itself gets its first.
     requestAnimationFrame(() => {
         const active = document.activeElement;
-        if (!active || active === document.body || !view?.el.contains(active)) focusFirst(view?.el ?? main);
+        if (!active || active === document.body || !view?.el.contains(active)) {
+            if (view?.focus) view.focus();
+            else focusFirst(view?.el ?? main);
+        }
         if (document.activeElement === document.body) focusables(root)[0]?.focus();
     });
 }

@@ -1,6 +1,8 @@
 import type { WebSettingsState } from '@sofaking/core';
 import { button, h } from './dom';
+import { isSignedOut } from './messages';
 import { pairingMessage } from './pairing';
+import { signedOutNotice } from './signedOut';
 import { Watches, type Context, type View } from './view';
 
 const BREAK_CHOICES: Array<[string, string]> = [
@@ -26,6 +28,8 @@ export function settingsView(ctx: Context): View {
     const breaks = h('select', { attrs: { id: 'breaks' } }, ...BREAK_CHOICES.map(([value, label]) => h('option', { text: label, attrs: { value } })));
     const captions = h('input', { attrs: { type: 'checkbox', id: 'captions' } });
     const tokenNote = h('span', { class: 'hint' });
+    const signedOut = signedOutNotice(false);
+    signedOut.hidden = true;
     let current: WebSettingsState | null = null;
     let filled = false;
 
@@ -57,10 +61,17 @@ export function settingsView(ctx: Context): View {
         captions.checked = settings.captionsEnabled;
     }));
 
+    watches.add(ctx.core.guide.watchLineup((lineup) => {
+        const out = isSignedOut(lineup);
+        if (out && signedOut.hidden) code.focus();
+        signedOut.hidden = !out;
+    }));
+
     const el = h(
         'section',
         { class: 'settings' },
         h('h1', { text: 'Settings' }),
+        signedOut,
         h(
             'fieldset',
             {},

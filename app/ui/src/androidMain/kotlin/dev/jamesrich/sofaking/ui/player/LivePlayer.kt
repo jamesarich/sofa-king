@@ -98,9 +98,7 @@ internal class ExoLivePlayer(
         override fun onCues(cueGroup: CueGroup) = tracks.onCues(cueGroup)
 
         override fun onRenderedFirstFrame() {
-            if (tunedAtMs == 0L) return
-            log.i { "first picture ${uptimeMs() - tunedAtMs} ms" }
-            tunedAtMs = 0L
+            tuneMark.take()?.let { log.i { "first picture $it ms" } }
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -123,12 +121,9 @@ internal class ExoLivePlayer(
         exo.addListener(listener)
     }
 
-    /** When the tune in flight began, or 0 once its first picture rendered (or with none in flight). */
-    private var tunedAtMs = 0L
+    private val tuneMark = TuneMark(::uptimeMs)
 
-    override fun markTune() {
-        tunedAtMs = uptimeMs()
-    }
+    override fun markTune(tuning: Boolean) = if (tuning) tuneMark.start() else tuneMark.clear()
 
     override val currentChannelId: String?
         get() = exo.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }

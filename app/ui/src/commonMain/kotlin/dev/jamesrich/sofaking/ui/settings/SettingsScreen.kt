@@ -235,8 +235,7 @@ fun SettingsScreen(
                     // seldom changes.
                     if (unconfigured) serverSection()
                     pageRows(settings, offer, focus::page, actions.onOpenPage)
-                    // A TV is always dark, so it has nothing to choose.
-                    if (!tv) appearanceRow(settings, actions)
+                    appearanceRow(settings, actions, tv)
                     if (!unconfigured) serverSection()
                     // Offered once there is a server, since that is where a crash report goes, and only where the
                     // app keeps crashes.

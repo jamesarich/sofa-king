@@ -32,6 +32,13 @@ class ThemeChoiceTest {
     }
 
     @Test
+    fun `prevue is dark whatever the system says`() {
+        for (systemDark in listOf(true, false)) {
+            assertTrue(useDarkTheme(Appearance.PREVUE, television = false, systemDark = systemDark))
+        }
+    }
+
+    @Test
     fun `a new device follows the system`() {
         assertEquals(Appearance.SYSTEM, AppSettings().appearance)
     }

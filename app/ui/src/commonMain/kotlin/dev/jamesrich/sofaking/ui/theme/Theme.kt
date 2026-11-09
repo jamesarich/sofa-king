@@ -96,13 +96,57 @@ private val SofaKingLightColors: ColorScheme = lightColorScheme(
     scrim = SofaScrim,
 )
 
+/** The Prevue look's roles: blue grid, yellow text, gray column; Color.kt has the contrast of each pair. */
+internal val SofaKingPrevueColors: ColorScheme = darkColorScheme(
+    primary = PrevueYellow,
+    onPrimary = PrevueBlue,
+    primaryContainer = PrevueAiring,
+    onPrimaryContainer = PrevueYellowSoft,
+    inversePrimary = PrevueBlueHigh,
+    secondary = PrevueCyan,
+    onSecondary = PrevueBlue,
+    secondaryContainer = PrevueCyanDeep,
+    onSecondaryContainer = PrevueCyanSoft,
+    tertiary = PrevueCyan,
+    onTertiary = PrevueBlue,
+    tertiaryContainer = PrevueCyanDeep,
+    onTertiaryContainer = PrevueCyanSoft,
+    background = PrevueBlue,
+    onBackground = PrevueYellow,
+    surface = PrevueBlue,
+    onSurface = PrevueYellow,
+    surfaceVariant = PrevueBlueLow,
+    onSurfaceVariant = PrevueSilver,
+    surfaceTint = PrevueYellow,
+    surfaceDim = PrevueBlue,
+    surfaceBright = PrevueBlueHigh,
+    surfaceContainerLowest = PrevueBlue,
+    surfaceContainerLow = PrevueBlueLow,
+    surfaceContainer = PrevueBlueRaised,
+    surfaceContainerHigh = PrevueBlueRaised,
+    surfaceContainerHighest = PrevueGray,
+    inverseSurface = PrevueYellow,
+    inverseOnSurface = PrevueBlue,
+    error = SofaError,
+    onError = PrevueBlue,
+    errorContainer = PrevueErrorDeep,
+    onErrorContainer = SofaErrorSoft,
+    outline = PrevueOutline,
+    outlineVariant = PrevueOutline,
+    scrim = SofaScrim,
+)
+
+/** The dark scheme that goes with the surrounding one, so [OverVideo] keeps the chosen look. */
+private fun darkSchemeBeside(surrounding: ColorScheme): ColorScheme =
+    if (surrounding.background == PrevueBlue) SofaKingPrevueColors else SofaKingDarkColors
+
 /**
- * Whether the app draws dark: a TV always does, otherwise [appearance] decides, with SYSTEM following the platform's
- * dark mode ([systemDark]).
+ * Whether the app draws dark: a TV always does, and so do DARK and PREVUE; otherwise [appearance] decides, with SYSTEM
+ * following the platform's dark mode ([systemDark]).
  */
 internal fun useDarkTheme(appearance: Appearance, television: Boolean, systemDark: Boolean): Boolean = when {
     television -> true
-    appearance == Appearance.DARK -> true
+    appearance == Appearance.DARK || appearance == Appearance.PREVUE -> true
     appearance == Appearance.LIGHT -> false
     else -> systemDark
 }
@@ -120,7 +164,11 @@ fun rememberDarkTheme(appearance: Appearance): Boolean =
 fun SofaKingTheme(appearance: Appearance = Appearance.DARK, content: @Composable () -> Unit) {
     val dark = rememberDarkTheme(appearance)
     MaterialExpressiveTheme(
-        colorScheme = if (dark) SofaKingDarkColors else SofaKingLightColors,
+        colorScheme = when {
+            !dark -> SofaKingLightColors
+            appearance == Appearance.PREVUE -> SofaKingPrevueColors
+            else -> SofaKingDarkColors
+        },
         motionScheme = MotionScheme.expressive(),
         content = content,
     )
@@ -134,7 +182,7 @@ fun SofaKingTheme(appearance: Appearance = Appearance.DARK, content: @Composable
 @Composable
 fun OverVideo(dark: Boolean = true, content: @Composable () -> Unit) {
     MaterialExpressiveTheme(
-        colorScheme = if (dark) SofaKingDarkColors else MaterialTheme.colorScheme,
+        colorScheme = if (dark) darkSchemeBeside(MaterialTheme.colorScheme) else MaterialTheme.colorScheme,
         motionScheme = MotionScheme.expressive(),
     ) {
         val ink = if (dark) MaterialTheme.colorScheme.onSurface else LocalContentColor.current

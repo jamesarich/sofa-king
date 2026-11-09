@@ -173,6 +173,7 @@ fun PlayerScreen(
                 parts.notice.recordFor(program, recording.marks, recording.onRecord, recording.onWatchFromStart)
             },
             sleep = sleep,
+            breakScreen = breakScreen,
             zoom = zoom,
             onExit = onExit,
             onMultiview = onMultiview,
@@ -375,6 +376,7 @@ private fun BoxScope.LiveOverlays(
     choices: ChannelChoices,
     record: (Program?) -> LiveRecord?,
     sleep: SleepTimer,
+    breakScreen: Boolean,
     zoom: VideoZoom,
     onExit: () -> Unit,
     onMultiview: ((Channel) -> Unit)?,
@@ -395,6 +397,7 @@ private fun BoxScope.LiveOverlays(
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val paused = !status.playWhenReady
     val program = lineup.nowAndNext(channel, now).first
+    LiveZapDip(state, channel, breakScreen) { status.isPlaying }
     StatusPills(
         state,
         buffering = status.state == PlaybackState.BUFFERING,
@@ -406,6 +409,7 @@ private fun BoxScope.LiveOverlays(
     )
     state.failure?.let { FailureCard(it.code) { state.retryIn } }
     ChannelNumberBadge(state.numbers)
+    LiveZapNumber(state, channel)
     SleepWarningCard(parts.sleepWarning, pointerDriven)
     StreamCardPanel(state, parts.player, sessions, audioTracks)
     ChannelListPanel(state, lineup, channel, scope, choices.favorites, choices.order, choices.recent, now)

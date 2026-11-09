@@ -3,4 +3,5 @@
     <string name="settings_appearance_system">System</string>
     <string name="settings_appearance_dark">Dark</string>
     <string name="settings_appearance_light">Light</string>
+    <string name="settings_appearance_prevue">Prevue</string>
 </resources>

@@ -327,6 +327,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     env:
@@ -383,4 +384,6 @@ jobs:
             gh pr edit "$number" --body-file build/body.md
           else
             gh pr merge "$number" --squash --delete-branch
+            # A merge made with the workflow token triggers no workflow, so the site's publish is dispatched.
+            gh workflow run docs.yml --ref main
           fi

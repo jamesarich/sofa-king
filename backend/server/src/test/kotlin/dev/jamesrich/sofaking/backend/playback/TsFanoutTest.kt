@@ -99,6 +99,32 @@ class TsFanoutTest {
         assertTrue(reader.stalled, "a source silent past the grace is reported as stalled")
     }
 
+    @Test fun `a source that stays open and sends nothing at all fails its readers as stalled`() = runTest {
+        val streams = SharedStreams(backgroundScope, FanoutConfig(graceMillis = 10_000)) { testScheduler.currentTime }
+        val body = ByteChannel()
+        val reader = streams.join("source") { consume -> consume(body) }
+        assertFailsWith<SilentUpstreamException> { reader.awaitStarted() }
+        assertTrue(testScheduler.currentTime >= 10_000, "the grace was waited out: ${testScheduler.currentTime}")
+        assertTrue(reader.stalled, "a source silent from the start is reported as stalled")
+        assertEquals(0, streams.active())
+    }
+
+    @Test fun `a source that goes silent but stays open ends its readers as stalled after the grace`() = runTest {
+        val streams = SharedStreams(backgroundScope, FanoutConfig(graceMillis = 10_000)) { testScheduler.currentTime }
+        val body = ByteChannel()
+        val reader = streams.join("source") { consume -> consume(body) }
+        body.writeFully(p[0] + p[1] + p[2])
+        body.flush()
+        assertContentEquals(p[0] + p[1] + p[2], reader.chunks.receive())
+        val silentAt = testScheduler.currentTime
+        assertFailsWith<ClosedReceiveChannelException> {
+            while (true) assertContentEquals(TS_NULL_PACKET, reader.chunks.receive())
+        }
+        assertTrue(testScheduler.currentTime - silentAt >= 10_000)
+        assertTrue(reader.stalled)
+        assertEquals(0, streams.active())
+    }
+
     @Test fun `a reader that leaves while the source is live is not reported as stalled`() = runTest {
         val streams = SharedStreams(backgroundScope, FanoutConfig(graceMillis = 10_000)) { testScheduler.currentTime }
         val body = ByteChannel()

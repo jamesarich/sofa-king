@@ -192,6 +192,7 @@ internal class PackagedStreams(
         begun.exceptionOrNull()?.let { e ->
             // A body in the other protocol moves the session to it, and the player re-reads the descriptor.
             if (e is UpstreamProtocolException) sessions.protocolObserved(pack.id, pack.epoch, e.protocol, pack.job)
+            if (reader.stalled) sessions.failover(pack.id, pack.epoch, pack.job, RemuxWatch.STALL)
             throw unavailable()
         }
         Files.createDirectories(pack.dir)

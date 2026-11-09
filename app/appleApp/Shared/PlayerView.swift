@@ -23,6 +23,8 @@ struct PlayerView: View {
     @State private var itemObservers: [AnyCancellable] = []
     @State private var breakMarks: BreakMarkCollector?
     @State private var reconnect: Task<Void, Never>?
+    /// The tune a channel switch started; leaving or switching again cancels it so a session it opens is released.
+    @State private var tuning: Task<Void, Never>?
     @State private var attempts = 0
     /// False once the player has left: a tune or reconnect still running then must not play or open anything.
     @State private var shown = false
@@ -143,10 +145,12 @@ struct PlayerView: View {
         }
         .onDisappear {
             shown = false
+            model.pictureInPicture = false
             model.sleep = SleepTimer()
             stopCovering()
             replaced?.cancel()
             reconnect?.cancel()
+            tuning?.cancel()
             itemObservers.removeAll()
             player.replaceCurrentItem(with: nil)
             model.core.stopWatching()
@@ -436,7 +440,8 @@ struct PlayerView: View {
         attempts = 0
         failure = nil
         channel = next
-        Task { await tune() }
+        tuning?.cancel()
+        tuning = Task { await tune() }
     }
 
     /// Tunes the channel `step` places on in the lineup, wrapping at either end; Up is -1 and Down is 1, as in the guide.
@@ -491,9 +496,10 @@ struct PlayerView: View {
     }
 
     /// The preview's item when it plays `url` already and has not failed, so it carries on without reloading. A failed
-    /// item never plays again, so a reconnect builds a new one.
+    /// item never plays again, and one that failed to play to its end or stalled still reports ready, so a reconnect
+    /// builds a new one.
     static func reusableItem(_ item: AVPlayerItem?, for url: URL) -> AVPlayerItem? {
-        guard let item, item.status != .failed, (item.asset as? AVURLAsset)?.url == url else { return nil }
+        guard let item, item.status != .failed, item.error == nil, (item.asset as? AVURLAsset)?.url == url else { return nil }
         return item
     }
 
@@ -527,7 +533,8 @@ private struct PlayerController: UIViewControllerRepresentable {
     let recall: () -> Void
     @Environment(AppModel.self) private var model
 
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate, AVPlayerViewControllerDelegate {
+        weak var controller: AVPlayerViewController?
         let hosting = UIHostingController<BreakScreen?>(rootView: nil)
         var zap: (Int) -> Void = { _ in }
         var recall: () -> Void = {}
@@ -543,6 +550,32 @@ private struct PlayerController: UIViewControllerRepresentable {
         @objc func recallLast(_ gesture: UIGestureRecognizer) {
             if gesture.state == .began { recall() }
         }
+
+        #if os(tvOS)
+        /// Whether the system's transport bar is up or on its way up; it takes the arrows while it is.
+        private var barShowing = false
+
+        func playerViewController(
+            _ controller: AVPlayerViewController,
+            willTransitionToVisibilityOfTransportBar visible: Bool,
+            with coordinator: any AVPlayerViewControllerAnimationCoordinator
+        ) {
+            barShowing = visible
+        }
+
+        /// AVKit's own tap recognizer takes the same presses and would otherwise keep ours from firing.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
+        }
+
+        /// Up, Down and a long Select act on the channel only while the transport bar is down and focus is on the player
+        /// itself: with the bar or the info panel up, the press belongs to their controls and cells.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
+            guard !barShowing else { return false }
+            let focused = controller.flatMap { UIFocusSystem.focusSystem(for: $0.view)?.focusedItem }
+            return !(focused is UIControl || focused is UICollectionViewCell || focused is UITableViewCell)
+        }
+        #endif
     }
 
     func makeCoordinator() -> Coordinator {
@@ -574,14 +607,25 @@ private struct PlayerController: UIViewControllerRepresentable {
         return controller
     }
 
-    /// A long press of Select recalls the last channel on the Apple TV; a swipe up or down zaps on the phone, up for the
-    /// channel below as the picture follows the finger. Up and Down stay with AVKit on the Apple TV: a press recognizer
-    /// on the player's view takes them even while the transport bar is up, so a press meant for the bar zapped.
+    /// On the Apple TV Up and Down click through the lineup while the bar is down, and a long press of Select recalls the
+    /// last channel; a swipe up or down zaps on the phone, up for the channel below as the picture follows the finger.
     private func addZapGestures(to controller: AVPlayerViewController, coordinator: Coordinator) {
         #if os(tvOS)
+        coordinator.controller = controller
+        controller.delegate = coordinator
+        let up = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapUp))
+        up.allowedPressTypes = [NSNumber(value: UIPress.PressType.upArrow.rawValue)]
+        let down = UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))
+        down.allowedPressTypes = [NSNumber(value: UIPress.PressType.downArrow.rawValue)]
+        for gesture in [up, down] {
+            gesture.allowedTouchTypes = []
+            gesture.delegate = coordinator
+            controller.view.addGestureRecognizer(gesture)
+        }
         let last = UILongPressGestureRecognizer(target: coordinator, action: #selector(Coordinator.recallLast))
         last.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
         last.allowedTouchTypes = []
+        last.delegate = coordinator
         controller.view.addGestureRecognizer(last)
         #else
         let next = UISwipeGestureRecognizer(target: coordinator, action: #selector(Coordinator.zapDown))

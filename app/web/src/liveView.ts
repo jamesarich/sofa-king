@@ -29,7 +29,7 @@ const FLASH_MS = 1_500;
 export function liveView(ctx: Context, channelId: string): View {
     watched.watching(channelId);
     const watches = new Watches();
-    const video = h('video', { attrs: { playsinline: true, autoplay: true, 'aria-label': 'Live picture' } });
+    const video = h('video', { attrs: { playsinline: true, autoplay: true, tabindex: -1, 'aria-label': 'Live picture' } });
     video.volume = sound.volume;
     const title = h('span', { class: 'title' });
     const statusEl = h('p', { class: 'player-status', attrs: { role: 'status' } });
@@ -76,8 +76,8 @@ export function liveView(ctx: Context, channelId: string): View {
     let wasCovered = false;
 
     const bannerFade = new Fade((shown) => banner.classList.toggle('shown', shown), BANNER_MS);
+    // One fade for the toast, so a volume flash and a missed number replace each other's hide timer.
     const toastFade = new Fade((shown) => toast.classList.toggle('shown', shown), FLASH_MS);
-    const missFade = new Fade((shown) => toast.classList.toggle('shown', shown), NUMBER_MISS_MS);
 
     const showBanner = (of: WebChannel) => {
         const now = Date.now();
@@ -111,7 +111,6 @@ export function liveView(ctx: Context, channelId: string): View {
     const digits = new DigitEntry(
         (typed) => {
             if (typed === '') return;
-            missFade.cancel();
             toastFade.cancel();
             toast.textContent = typed;
             toast.classList.add('shown');
@@ -124,7 +123,7 @@ export function liveView(ctx: Context, channelId: string): View {
                 else tuneTo(found.id);
             } else {
                 toast.textContent = `No channel ${typed}`;
-                missFade.show();
+                toastFade.show(NUMBER_MISS_MS);
             }
         },
     );
@@ -160,7 +159,6 @@ export function liveView(ctx: Context, channelId: string): View {
         captions.textContent = next.captionsEnabled ? 'Captions on' : 'Captions off';
     }));
     void playback.start(channelId);
-    video.focus();
     setKeyHandler((event) => {
         const onPicture = event.target === video || event.target === document.body;
         const key = liveKey(event.key, onPicture);
@@ -211,6 +209,7 @@ export function liveView(ctx: Context, channelId: string): View {
 
     return {
         el,
+        focus: () => video.focus(),
         dispose() {
             setKeyHandler(null);
             window.removeEventListener('pagehide', onPageHide);
@@ -218,7 +217,6 @@ export function liveView(ctx: Context, channelId: string): View {
             digits.cancel();
             bannerFade.cancel();
             toastFade.cancel();
-            missFade.cancel();
             watches.cancel();
             playback.dispose();
         },

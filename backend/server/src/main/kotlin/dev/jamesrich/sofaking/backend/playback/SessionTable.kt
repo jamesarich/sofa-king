@@ -9,6 +9,8 @@ import java.time.Clock
 
 internal val learnedLog = LoggerFactory.getLogger(AdClock::class.java)
 
+private const val REMEMBERED_PREEMPTED = 256
+
 /** The open sessions, which [mutex] guards, and what ends them. */
 internal class SessionTable(private val clock: Clock, capacity: Int) {
     val mutex = Mutex()
@@ -32,12 +34,21 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
         history?.started(session.start())
     }
 
+    /** The sessions a recording took the slot of, with what their next request answers; the oldest are forgotten. */
+    private val preempted = object : LinkedHashMap<String, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>) = size > REMEMBERED_PREEMPTED
+    }
+
     /** The open session [id], once the expired ones are gone. */
     fun active(id: String): LiveSession {
         reap()
-        return sessions[id]
-            ?: throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+        return sessions[id] ?: throw gone(id)
     }
+
+    /** What a request for the ended session [id] answers: that a recording took its slot, or that it expired. */
+    fun gone(id: String): ApiFailure = preempted[id]?.let {
+        ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_PREEMPTED, it)
+    } ?: ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
 
     /** A player's in-flight request holds its external session; the idle lease only starts once that request ends. */
     fun reap() {
@@ -52,17 +63,23 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
      * the request is refused. A playing HLS player is idle between segments too, so the stalest one (least recent
      * media request, the earliest expiry) goes, never the one still fetching.
      *
-     * A request made for a recording passes [preemptFor], the recording's channel: with nothing else to give, the
-     * stalest app session that is watching yields its slot too, and [onPreempted] hears of it. Recordings, taps and
-     * other players outside the app are never taken.
+     * A request made for a recording passes [preemptFor], the recording's channel, and [recording], its name: with
+     * nothing else to give, the least recently active app session that is watching yields its slot too (one with a
+     * media request in flight counts as active now), [onPreempted] hears of it, and the session's next request
+     * answers `SESSION_PREEMPTED`. Recordings, taps and other players outside the app are never taken.
      */
-    fun makeRoom(preemptFor: String? = null) {
+    fun makeRoom(preemptFor: String? = null, recording: String? = null) {
         if (sessions.size < capacity) return
+        val now = clock.instant()
         val victim = sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
-            ?: sessions.values.filter { it.external && !it.busy }.minByOrNull { it.expires }
-            ?: preemptFor?.let { recording ->
-                sessions.values.filter { !it.external && it.intent == Wire.Intent.WATCH }.minByOrNull { it.expires }
-                    ?.also { onPreempted(it.request.channelId, recording) }
+            ?: sessions.values.filter { it.external && !it.busy && !it.held }.minByOrNull { it.expires }
+            ?: preemptFor?.let { channel ->
+                sessions.values.filter { !it.external && it.intent == Wire.Intent.WATCH }
+                    .minByOrNull { if (it.busy) now else it.lastActive }
+                    ?.also {
+                        preempted[it.id] = "A recording of ${recording ?: "another channel"} took this channel's slot"
+                        onPreempted(it.request.channelId, channel)
+                    }
             }
             ?: throw ApiFailure(
                 HttpStatusCode.TooManyRequests,

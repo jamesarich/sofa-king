@@ -3,11 +3,14 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.contract.AdDateRange
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.SofaKingException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -55,6 +58,32 @@ class SofaKingWebTest {
         assertEquals("failed", failed.state)
         assertEquals("no route", failed.message)
         assertEquals(0, failed.channels.size)
+    }
+
+    @Test
+    fun `a lineup the server turned away crosses as signed out`() {
+        assertTrue(lineupToWeb(LineupState.Failed("401", signedOut = true)).signedOut)
+        assertFalse(lineupToWeb(LineupState.Failed("no route")).signedOut)
+        assertFalse(lineupToWeb(LineupState.Loading).signedOut)
+    }
+
+    @Test
+    fun `a library home the server turned away crosses as signed out`() {
+        val toShelf: (MediaShelf) -> WebShelf = { error("no shelves in a failure") }
+        val signedOut = homeToWeb(LibraryHomeState.Failed("401", signedOut = true), toShelf)
+        assertEquals("failed", signedOut.state)
+        assertTrue(signedOut.signedOut)
+        assertFalse(homeToWeb(LibraryHomeState.Failed("no route"), toShelf).signedOut)
+        assertFalse(homeToWeb(LibraryHomeState.Loading, toShelf).signedOut)
+    }
+
+    @Test
+    fun `an open the server refused with a 4xx is terminal and a server error is retried`() {
+        assertNotNull(terminalOpenFailureOf(SofaKingException(404, "not_found", "gone")))
+        assertTrue(terminalOpenFailureOf(SofaKingException(401, "unauthorized", "no"))!!.contains("signed out"))
+        assertNull(terminalOpenFailureOf(SofaKingException(429, "rate_limited", "slow down")))
+        assertNull(terminalOpenFailureOf(SofaKingException(503, "unavailable", "busy")))
+        assertNull(terminalOpenFailureOf(IllegalStateException("network")))
     }
 
     @Test

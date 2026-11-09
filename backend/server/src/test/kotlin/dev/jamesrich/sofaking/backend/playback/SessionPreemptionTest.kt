@@ -37,7 +37,7 @@ class SessionPreemptionTest {
             val recording = sessions.external.open(channel, "DVR", shareable = false, preempt = true)
             assertEquals(4, sessions.count())
             assertEquals(
-                Wire.ErrorCode.SESSION_EXPIRED,
+                Wire.ErrorCode.SESSION_PREEMPTED,
                 assertFailsWith<ApiFailure> { sessions.get(watching[1].id) }.code,
             )
             for (kept in listOf(watching[0], watching[2], watching[3])) assertEquals(kept.id, sessions.get(kept.id).id)
@@ -73,6 +73,69 @@ class SessionPreemptionTest {
                 }.code,
             )
             assertEquals(setOf(first.id, second.id), sessions.snapshot().map { it.id }.toSet())
+            sessions.close()
+        }
+
+    @Test fun `two recordings opened in the same tick on a full pool both keep their slots`() =
+        withChannel("sofa-preempt-window-") { catalog, store, clock, channel ->
+            val sessions = SessionManager(catalog, store, clock, 2)
+            sessions.open(OpenPlayback(channel, "watch", "viewer"))
+            val first = sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
+            val second = sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
+            sessions.media.attach(first.id, Job())
+            sessions.media.attach(second.id, Job())
+            assertEquals(setOf(first.id, second.id), sessions.snapshot().map { it.id }.toSet())
+            sessions.close()
+        }
+
+    @Test fun `a preview beside a watcher gives up its slot first and nobody is told a recording took it`() =
+        withChannel("sofa-preempt-preview-") { catalog, store, clock, channel ->
+            val sessions = SessionManager(catalog, store, clock, 2)
+            val heard = mutableListOf<Pair<String, String>>()
+            sessions.onPreempted = { watching, recording -> heard += watching to recording }
+            val watcher = sessions.open(OpenPlayback(channel, "watch", "w"))
+            clock.now = clock.now.plusSeconds(1)
+            val preview = sessions.open(OpenPlayback(channel, "preview", "p"))
+            sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
+            assertEquals(watcher.id, sessions.get(watcher.id).id)
+            assertEquals(
+                Wire.ErrorCode.SESSION_EXPIRED,
+                assertFailsWith<ApiFailure> { sessions.get(preview.id) }.code,
+            )
+            assertTrue(heard.isEmpty())
+            sessions.close()
+        }
+
+    @Test fun `an idle watcher goes before one that is fetching media, whatever their renewal order`() =
+        withChannel("sofa-preempt-idle-") { catalog, store, clock, channel ->
+            val sessions = SessionManager(catalog, store, clock, 2)
+            val first = sessions.open(OpenPlayback(channel, "watch", "w1"))
+            clock.now = clock.now.plusSeconds(1)
+            val second = sessions.open(OpenPlayback(channel, "watch", "w2"))
+            clock.now = clock.now.plusSeconds(5)
+            val fetch = Job()
+            sessions.media.acquire(first.id, 1, first.descriptor.url.substringAfterLast('/'), fetch)
+            fetch.complete()
+            sessions.media.finished(first.id, fetch)
+            clock.now = clock.now.plusSeconds(1)
+            sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
+            assertEquals(first.id, sessions.get(first.id).id)
+            assertEquals(
+                Wire.ErrorCode.SESSION_PREEMPTED,
+                assertFailsWith<ApiFailure> { sessions.get(second.id) }.code,
+            )
+            sessions.close()
+        }
+
+    @Test fun `the preempted viewer's next request names the recording that took the slot`() =
+        withChannel("sofa-preempt-code-") { catalog, store, clock, channel ->
+            val sessions = SessionManager(catalog, store, clock, 1)
+            val watcher = sessions.open(OpenPlayback(channel, "watch", "w"))
+            sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
+            val failure = assertFailsWith<ApiFailure> { sessions.update(watcher.id, UpdatePlayback()) }
+            assertEquals(Wire.ErrorCode.SESSION_PREEMPTED, failure.code)
+            assertTrue(failure.message!!.contains(catalog.catalog().channels.single().name), failure.message)
+            assertEquals(Wire.ErrorCode.SESSION_PREEMPTED, sessions.media.letGo(watcher.id).code)
             sessions.close()
         }
 

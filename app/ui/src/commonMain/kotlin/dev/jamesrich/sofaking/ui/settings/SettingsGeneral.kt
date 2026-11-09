@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.resources.settings_ads_dodged
 import dev.jamesrich.sofaking.resources.settings_appearance
 import dev.jamesrich.sofaking.resources.settings_appearance_dark
 import dev.jamesrich.sofaking.resources.settings_appearance_light
+import dev.jamesrich.sofaking.resources.settings_appearance_prevue
 import dev.jamesrich.sofaking.resources.settings_appearance_system
 import dev.jamesrich.sofaking.resources.settings_auto_open
 import dev.jamesrich.sofaking.resources.settings_auto_open_10
@@ -188,19 +189,20 @@ private fun LazyListScope.guideRows(
     }
 }
 
-/** The color scheme this device draws in; the list of pages shows it everywhere but on a TV. */
-internal fun LazyListScope.appearanceRow(settings: AppSettings, actions: SettingsActions) {
+/** The look this device draws in. A TV is always dark, so it offers System and Prevue only. */
+internal fun LazyListScope.appearanceRow(settings: AppSettings, actions: SettingsActions, tv: Boolean) {
     item {
         SettingChoice(
             label = stringResource(Res.string.settings_appearance),
             stored = settings.appearance,
-            choices = Appearance.entries,
+            choices = if (tv) listOf(Appearance.SYSTEM, Appearance.PREVUE) else Appearance.entries,
             choiceLabel = {
                 stringResource(
                     when (it) {
                         Appearance.SYSTEM -> Res.string.settings_appearance_system
                         Appearance.DARK -> Res.string.settings_appearance_dark
                         Appearance.LIGHT -> Res.string.settings_appearance_light
+                        Appearance.PREVUE -> Res.string.settings_appearance_prevue
                     },
                 )
             },

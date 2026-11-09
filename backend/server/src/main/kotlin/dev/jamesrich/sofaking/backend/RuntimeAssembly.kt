@@ -28,6 +28,7 @@ import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgCatalog
 import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgClient
 import dev.jamesrich.sofaking.backend.iptvorg.IptvOrgMatcher
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.jobs.StoredJobAlerts
 import dev.jamesrich.sofaking.backend.library.FanartClient
 import dev.jamesrich.sofaking.backend.library.FfmpegFingerprinter
 import dev.jamesrich.sofaking.backend.library.FfmpegSheetMaker
@@ -59,6 +60,7 @@ import dev.jamesrich.sofaking.backend.notify.NotifyIdentity
 import dev.jamesrich.sofaking.backend.pairing.IssuedTokens
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.ChannelTap
+import dev.jamesrich.sofaking.backend.playback.FanoutConfig
 import dev.jamesrich.sofaking.backend.playback.LOW_PRIORITY
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
@@ -135,6 +137,8 @@ internal class RuntimeOptions(
     val restart: () -> Unit,
     /** Builds the setup service in place of the one that asks TMDB, fanart.tv and ListenBrainz; for tests. */
     val setup: ((ServerConfig, () -> Unit) -> SetupService)? = null,
+    /** How the relay fans one MPEG-TS source out; a test shortens the grace period. */
+    val fanout: FanoutConfig = FanoutConfig(),
 )
 
 /**
@@ -235,8 +239,8 @@ internal class RuntimeAssembly(
         plex?.start(scope)
         plex?.requestSync("startup")
         val audio = SegmentAudio(config.ffmpeg)
-        relay =
-            MediaRelay(http, feeds, sessions, scope, audio, config.ffmpeg to config.dataDirectory.resolve("packages"))
+        val packaging = config.ffmpeg to config.dataDirectory.resolve("packages")
+        relay = MediaRelay(http, feeds, sessions, scope, audio, packaging, options.fanout)
         val listener = adListener()
         loopback = LoopbackRelay(http, upstream, relay.permits)
         val worker = probeWorker()
@@ -375,6 +379,7 @@ internal class RuntimeAssembly(
         history.start(scope)
         notifier.start(scope, events.events)
         jobs.events = events
+        jobs.alerts = StoredJobAlerts(store)
         scope.launchEvery("history-prune", HISTORY_PRUNE_MS) { history.prune() }
         library = BreakLibrary(store, clock).also { it.load() }
         sessions.library = library

@@ -38,9 +38,18 @@ class WebChannel(
     val programs: Array<WebProgram>,
 )
 
-/** [state] is `loading`, `unconfigured`, `failed` or `ready`; [message] says why for `failed`. */
+/**
+ * [state] is `loading`, `unconfigured`, `failed` or `ready`; [message] says why for `failed`, and [signedOut] is true
+ * when the server turned this device's token away.
+ */
 @JsExport
-class WebLineup(val state: String, val message: String, val channels: Array<WebChannel>, val guideLoading: Boolean)
+class WebLineup(
+    val state: String,
+    val message: String,
+    val channels: Array<WebChannel>,
+    val guideLoading: Boolean,
+    val signedOut: Boolean = false,
+)
 
 @JsExport
 class WebSettingsState(
@@ -108,6 +117,8 @@ class WebHome(
     val message: String,
     val shelves: Array<WebShelf>,
     val libraries: Array<WebLibraryInfo>,
+    /** True when [state] is `failed` because the server turned this device's token away. */
+    val signedOut: Boolean = false,
 )
 
 @JsExport
@@ -154,7 +165,7 @@ internal fun lineupToWeb(state: LineupState): WebLineup = when (state) {
 
     LineupState.Unconfigured -> WebLineup("unconfigured", "", emptyArray(), false)
 
-    is LineupState.Failed -> WebLineup("failed", state.message, emptyArray(), false)
+    is LineupState.Failed -> WebLineup("failed", state.message, emptyArray(), false, state.signedOut)
 
     is LineupState.Ready -> {
         val lineup = state.visible

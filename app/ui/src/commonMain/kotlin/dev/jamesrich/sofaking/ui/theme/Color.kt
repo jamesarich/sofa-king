@@ -63,3 +63,25 @@ val SofaOnAccent = Color(0xFFFFFFFF)
 val SofaOverlayScrim = SofaPlum.copy(alpha = 0.88f)
 val SofaOverlayScrimDense = SofaPlum.copy(alpha = 0.92f)
 val SofaOverlayTrack = SofaDusk.copy(alpha = 0.3f)
+
+/**
+ * The Prevue look: the 1990s TV Guide channel's deep blue grid, yellow listing text and gray channel column. WCAG 2.1
+ * contrast of text pairs: yellow on blue 12.9:1, on the low, raised and high blues 10.9, 8.8 and 7.7:1, on the gray
+ * column 5.9:1; cyan on blue 11.7:1, on the gray column 5.3:1; light gray on blue 10.8:1, on the gray column 4.9:1;
+ * blue on yellow 12.9:1, on cyan 11.7:1; soft yellow on the airing blue 7.0:1, yellow on it 6.4:1; error on blue 9.4:1.
+ * The outline against blue is 5.6:1. PrevueTest checks the pairs.
+ */
+val PrevueBlue = Color(0xFF0A1070)
+val PrevueBlueLow = Color(0xFF101C8C)
+val PrevueBlueRaised = Color(0xFF1A2AA8)
+val PrevueBlueHigh = Color(0xFF2A3A9E)
+val PrevueGray = Color(0xFF4A5290)
+val PrevueAiring = Color(0xFF1B4DA8)
+val PrevueYellow = Color(0xFFFFE94D)
+val PrevueYellowSoft = Color(0xFFFFF3A8)
+val PrevueCyan = Color(0xFF8CEBFF)
+val PrevueCyanDeep = Color(0xFF00506E)
+val PrevueCyanSoft = Color(0xFFE0F8FF)
+val PrevueSilver = Color(0xFFD0D4E4)
+val PrevueOutline = Color(0xFF8E96D0)
+val PrevueErrorDeep = Color(0xFF7A1A12)

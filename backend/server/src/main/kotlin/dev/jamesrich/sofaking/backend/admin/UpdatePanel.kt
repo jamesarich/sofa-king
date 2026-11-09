@@ -148,6 +148,15 @@ private fun DL.updaterFacts(report: UpdaterReport?, now: Instant, fresh: Boolean
 
                     "skipped" -> "Skipped ${report.candidate ?: "the published image"}; it failed before"
 
+                    "verify-failed" ->
+                        "Refused ${report.candidate ?: "the published image"}; its signature or attestation did not verify"
+
+                    "verify-skipped" ->
+                        "Installed ${report.candidate ?: "a new image"} without verifying it"
+
+                    "gate-skipped" ->
+                        "Installed ${report.candidate ?: "a new image"} without checking recordings or playback"
+
                     "failed" -> "Failed"
 
                     else -> report.outcome

@@ -9,6 +9,8 @@ import type { Context, View } from './view';
 const SAVE_EVERY_MS = 10_000;
 const SEEK_STEP_S = 10;
 const PRESS_TO_PLAY = 'Press Enter to play';
+/** Opens in a row that fail before the picture plays again, after which the page stops and says so. */
+const MAX_DROPS = 8;
 
 /**
  * A library item or recording: the server's HLS through hls.js (or the browser's own where it has no MediaSource), or
@@ -40,6 +42,8 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
     let waited = 0;
     let lastSaved = 0;
     let dropped = 0;
+    /** The place in the item the picture last was, or was told to start at: where a reopen resumes. */
+    let positionMs = 0;
     let reopenTimer: ReturnType<typeof setTimeout> | undefined;
 
     /** Where the item is now, in milliseconds. */
@@ -52,6 +56,7 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
         hls?.destroy();
         hls = null;
         const start = Math.max(0, startSeconds);
+        positionMs = next.offsetMs + start * 1000;
         if (next.mode !== 'direct' && Hls.isSupported()) {
             const player = new Hls({ startPosition: start > 0 ? start : -1 });
             player.on(Hls.Events.ERROR, (_event, data) => {
@@ -78,6 +83,11 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
         } catch (error) {
             if (disposed) return;
             const delay = ctx.core.decisions.isConverterBusy(error) ? (ctx.core.decisions.converterRetryDelayMs(waited) ?? null) : null;
+            const terminal = ctx.core.decisions.terminalOpenFailure(error);
+            if (terminal) {
+                status.set(terminal);
+                return;
+            }
             if (delay === null) {
                 if (resumeMs === null) status.set('This item did not open.');
                 else reopen();
@@ -95,8 +105,12 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
     /** A dropped session is read again through the server and resumed where the picture was, never retried as it was. */
     function reopen(): void {
         if (disposed || reopenTimer !== undefined) return;
+        if (dropped >= MAX_DROPS) {
+            status.set('This item stopped playing.');
+            return;
+        }
         status.set('Reconnecting');
-        const resumeMs = itemMs();
+        const resumeMs = positionMs;
         reopenTimer = setTimeout(() => {
             reopenTimer = undefined;
             void open(resumeMs);
@@ -124,6 +138,7 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
 
     video.addEventListener('timeupdate', () => {
         dropped = 0;
+        if (video.currentTime > 0) positionMs = itemMs();
         status.clearIf(PRESS_TO_PLAY);
         status.clearIf('Reconnecting');
         const now = Date.now();

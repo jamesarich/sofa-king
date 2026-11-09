@@ -52,9 +52,6 @@ internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.
     it[3] = 0x10
 }
 
-/** Overrides every fan-out's grace period, in milliseconds; a test sets it to reach a stall without waiting. */
-@Volatile internal var graceMillisForTest: Long? = null
-
 /** How much of the upstream body one read takes. */
 private const val READ_SIZE = 32 * 1024
 
@@ -83,7 +80,10 @@ internal class TsFanout(
         /** Completes once the first aligned packets arrived, or fails with the first connection's error. */
         suspend fun awaitStarted() = started.await()
 
-        /** Whether the upstream stopped sending for the whole grace period, which is what ended [chunks]. */
+        /**
+         * Whether the upstream stopped sending for the whole grace period, which is what ended [chunks], or failed
+         * [awaitStarted] when it never sent a byte.
+         */
         val stalled: Boolean get() = gaveUp
 
         suspend fun close() = removeReader(this)
@@ -217,12 +217,15 @@ internal class TsFanout(
         runCatchingCancellable {
             pump()
         }.onFailure { e ->
-            if (!started.isCompleted) throw e
+            if (!started.isCompleted) {
+                if (e is SilentUpstreamException) gaveUp = true
+                throw e
+            }
             log.info("relay upstream failed offering={} class={}", key, e.javaClass.simpleName)
         }
         var backoff = FIRST_BACKOFF_MS
         while (readersPresent()) {
-            val remaining = lastDataAt + (graceMillisForTest ?: config.graceMillis) - now()
+            val remaining = lastDataAt + config.graceMillis - now()
             if (remaining <= 0) {
                 log.warn(
                     "relay upstream gave up offering={} graceMillis={} reconnects={}",
@@ -262,7 +265,7 @@ internal class TsFanout(
         val watchdog = launch(CoroutineName("ts-watchdog")) {
             while (true) {
                 delay(config.keepaliveMillis)
-                if (now() - lastDataAt > (graceMillisForTest ?: config.graceMillis)) throw SilentUpstreamException()
+                if (now() - lastDataAt > config.graceMillis) throw SilentUpstreamException()
             }
         }
         try {

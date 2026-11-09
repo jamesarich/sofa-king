@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.PlaylistMarkers
+import dev.jamesrich.sofaking.backend.playback.RemuxWatch
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.StallWatch
 import dev.jamesrich.sofaking.backend.playback.SteadyPlaylists
@@ -134,7 +135,7 @@ class Recorder internal constructor(
         markers: PlaylistMarkers,
         rate: WriteRate,
     ): String? {
-        val session = sessions.external.open(channelId, CLIENT, shareable = false, preempt = preempts())
+        val session = sessions.external.open(channelId, CLIENT, shareable = false, preempt = preempts(), hold = true)
         // Taken while the session is up: most reads end because it went, and the table then no longer answers for it.
         val counter = sessions.media.bytesOf(session.id)
         try {
@@ -161,6 +162,25 @@ class Recorder internal constructor(
         log.info("recording read ended channel={} bytes={} reason={}", channelId, bytes.get(), reason)
     }
 
+    /**
+     * [copyShared]'s result, except that a source silent past the grace moves the session to the channel's next source
+     * and reads that one; "SOURCE_STALLED" when there is none.
+     */
+    private suspend fun readShared(
+        sessionId: String,
+        offering: Offering,
+        stream: ResolvedStream,
+        file: Path,
+        until: Instant,
+        again: suspend () -> String?,
+    ): String? {
+        val join = shared ?: return null
+        val result = copyShared(join, offering, stream, file, until, sessions.media.bytesOf(sessionId))
+        if (result != STALLED) return result
+        val moved = sessions.media.failover(sessionId, null, currentCoroutineContext().job, RemuxWatch.STALL)
+        return if (moved == null) result else again() ?: ""
+    }
+
     /** Reads the session's source into [file] until [until], through the shared connection or FFmpeg. */
     private suspend fun read(
         sessionId: String,
@@ -176,9 +196,8 @@ class Recorder internal constructor(
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
         if (shared != null && offering.protocol == "mpegts") {
-            copyShared(shared, offering, stream, file, until, sessions.media.bytesOf(sessionId))?.let {
-                return it.ifEmpty { null }
-            }
+            readShared(sessionId, offering, stream, file, until) { read(sessionId, file, until, markers, rate) }
+                ?.let { return it.ifEmpty { null } }
             // The body was a playlist after all, so FFmpeg reads it as one: its markers count and its lapses show.
             hls = true
             markers.begin()
@@ -325,7 +344,13 @@ class Recorder internal constructor(
         try {
             // A body in the other protocol counts as the source ending; any other failure to start is the source's.
             runCatchingCancellable { reader.awaitStarted() }
-                .onFailure { return if (it is UpstreamProtocolException) null else "SOURCE_UNAVAILABLE" }
+                .onFailure {
+                    return when {
+                        it is UpstreamProtocolException -> null
+                        reader.stalled -> STALLED
+                        else -> "SOURCE_UNAVAILABLE"
+                    }
+                }
             var written = 0L
             withTimeoutOrNull(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0)) {
                 withContext(Dispatchers.IO) {
@@ -338,7 +363,11 @@ class Recorder internal constructor(
                     }
                 }
             }
-            return if (written == 0L) "NO_MEDIA" else ""
+            return when {
+                reader.stalled -> STALLED
+                written == 0L -> "NO_MEDIA"
+                else -> ""
+            }
         } finally {
             withContext(NonCancellable) { reader.close() }
         }
@@ -348,6 +377,9 @@ class Recorder internal constructor(
         /** The client the portal's Watching now shows for a recording's session. */
         const val CLIENT = "DVR"
         private val RETRY_DELAY: Duration = Duration.ofSeconds(5)
+
+        /** What [copyShared] returns for a shared source that stayed silent past the grace. */
+        private const val STALLED = "SOURCE_STALLED"
 
         /** Long enough for FFmpeg to open a slow source and fill a first segment, short of a minute of lost media. */
         private val STALL_AFTER: Duration = Duration.ofSeconds(30)

@@ -15,6 +15,7 @@ import dev.jamesrich.sofaking.resources.player_server_busy
 import dev.jamesrich.sofaking.resources.player_server_busy_hint
 import dev.jamesrich.sofaking.resources.player_signed_out
 import dev.jamesrich.sofaking.resources.player_signed_out_hint
+import dev.jamesrich.sofaking.resources.player_slot_taken
 import dev.jamesrich.sofaking.resources.stream_refused
 import dev.jamesrich.sofaking.resources.stream_unsupported
 import dev.jamesrich.sofaking.resources.vod_cant_play
@@ -41,6 +42,9 @@ internal fun failureCopy(code: String, live: Boolean = true): FailureCopy {
 
         code == Wire.ErrorCode.CAPACITY_EXHAUSTED ->
             FailureCopy(Res.string.player_server_busy, Res.string.player_server_busy_hint)
+
+        code == Wire.ErrorCode.SESSION_PREEMPTED ->
+            FailureCopy(Res.string.player_slot_taken, Res.string.player_server_busy_hint)
 
         code == Wire.ErrorCode.CHANNEL_NOT_FOUND ->
             FailureCopy(Res.string.player_channel_gone, Res.string.player_channel_gone_hint)

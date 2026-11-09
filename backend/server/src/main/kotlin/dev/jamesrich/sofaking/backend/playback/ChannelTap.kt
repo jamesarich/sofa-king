@@ -31,7 +31,7 @@ class ChannelTap(
      * caller's own cancellation cancels it.
      */
     suspend fun <T> reading(channelId: String, client: String, block: suspend (FfmpegSource) -> T): T {
-        val session = sessions.external.open(channelId, client, shareable = false)
+        val session = sessions.external.open(channelId, client, shareable = false, hold = true)
         try {
             return try {
                 coroutineScope {

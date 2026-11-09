@@ -69,7 +69,9 @@ class SessionMedia internal constructor(
                 )
             }
             session.requests += job
-            if (session.external) session.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE)
+            val now = clock.instant()
+            session.lastActive = now
+            if (session.external) session.expires = now.plus(SessionManager.EXTERNAL_IDLE)
             MediaResource(
                 session.offering,
                 url,
@@ -86,7 +88,9 @@ class SessionMedia internal constructor(
     suspend fun finished(id: String, job: Job) = table.mutex.withLock {
         table.sessions[id]?.let { session ->
             session.requests.remove(job)
-            if (session.external) session.expires = clock.instant().plus(SessionManager.EXTERNAL_IDLE)
+            val now = clock.instant()
+            session.lastActive = now
+            if (session.external) session.expires = now.plus(SessionManager.EXTERNAL_IDLE)
         }
         Unit
     }
@@ -107,7 +111,7 @@ class SessionMedia internal constructor(
 
     /** Registers a request that reads the source outside the relay, so the session lives as long as [job] does. */
     suspend fun attach(id: String, job: Job) = table.mutex.withLock {
-        table.active(id).requests += job
+        table.active(id).also { it.held = false }.requests += job
         Unit
     }
 
@@ -123,7 +127,7 @@ class SessionMedia internal constructor(
         if (id in table.sessions) {
             ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.STREAM_CHANGED, "Fetch the current session descriptor", true)
         } else {
-            ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+            table.gone(id)
         }
     }
 

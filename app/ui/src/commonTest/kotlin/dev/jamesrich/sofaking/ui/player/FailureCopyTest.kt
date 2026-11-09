@@ -29,6 +29,16 @@ class FailureCopyTest {
     }
 
     @Test
+    fun `a media request answered 401 or 403 says the device is signed out`() {
+        val bad = "ERROR_CODE_IO_BAD_HTTP_STATUS"
+
+        assertEquals(Res.string.player_signed_out.key, failureCopy(playerFailureCode(bad, 401)).reason.key)
+        assertEquals(Res.string.player_signed_out.key, failureCopy(playerFailureCode(bad, 403)).reason.key)
+        assertEquals(bad, playerFailureCode(bad, 404))
+        assertEquals(bad, playerFailureCode(bad, null))
+    }
+
+    @Test
     fun `no answer at session open says the server did not start the channel`() {
         assertEquals(Res.string.player_no_answer.key, failureCopy("SESSION_UNAVAILABLE").reason.key)
     }

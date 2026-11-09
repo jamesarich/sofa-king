@@ -112,8 +112,8 @@ internal class ExoLivePlayer(
                 exo.prepare()
                 return
             }
-            val gone = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode == 410
-            _errors.tryEmit(PlayerError(error.errorCodeName, streamGone = gone))
+            val status = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+            _errors.tryEmit(PlayerError(playerFailureCode(error.errorCodeName, status), streamGone = status == 410))
         }
     }
 

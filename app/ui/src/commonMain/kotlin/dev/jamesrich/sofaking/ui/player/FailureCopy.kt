@@ -30,6 +30,16 @@ internal const val SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
 /** The [failureCode] of a failure that came with no server error code, such as a dropped network at session open. */
 internal const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 
+/**
+ * The failure code for a player error: [errorCodeName], or `HTTP_401` and `HTTP_403` when the media request itself was
+ * answered with that [httpStatus], so a token revoked mid-stream reads as signed out like one refused at session open.
+ */
+internal fun playerFailureCode(errorCodeName: String, httpStatus: Int?): String =
+    if (httpStatus == HTTP_UNAUTHORIZED || httpStatus == HTTP_FORBIDDEN) "HTTP_$httpStatus" else errorCodeName
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
+
 /** What a failed playback says: what happened ([reason]) and what to do about it ([hint]). */
 internal class FailureCopy(val reason: StringResource, val hint: StringResource)
 

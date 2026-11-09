@@ -83,7 +83,10 @@ internal class TsFanout(
         /** Completes once the first aligned packets arrived, or fails with the first connection's error. */
         suspend fun awaitStarted() = started.await()
 
-        /** Whether the upstream stopped sending for the whole grace period, which is what ended [chunks]. */
+        /**
+         * Whether the upstream stopped sending for the whole grace period, which is what ended [chunks], or failed
+         * [awaitStarted] when it never sent a byte.
+         */
         val stalled: Boolean get() = gaveUp
 
         suspend fun close() = removeReader(this)
@@ -217,7 +220,10 @@ internal class TsFanout(
         runCatchingCancellable {
             pump()
         }.onFailure { e ->
-            if (!started.isCompleted) throw e
+            if (!started.isCompleted) {
+                if (e is SilentUpstreamException) gaveUp = true
+                throw e
+            }
             log.info("relay upstream failed offering={} class={}", key, e.javaClass.simpleName)
         }
         var backoff = FIRST_BACKOFF_MS

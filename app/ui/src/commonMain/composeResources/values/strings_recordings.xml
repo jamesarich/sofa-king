@@ -26,7 +26,7 @@
     <string name="recordings_protected">Protected</string>
     <string name="recordings_protect">Protect</string>
     <string name="recordings_unprotect">Unprotect</string>
-    <string name="recordings_conflict">Won't record: other recordings fill the server's slots then</string>
+    <string name="recordings_conflict">Won't record: the server will already be playing or recording as many channels as it can</string>
     <string name="recordings_play">Play</string>
     <string name="recordings_resume">Resume</string>
     <string name="recordings_from_start">From start</string>

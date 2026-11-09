@@ -43,7 +43,10 @@ object TvRecordingCopy {
     val protect = twin("recordings_protect", "Protect")
     val unprotect = twin("recordings_unprotect", "Unprotect")
     val protectedMark = twin("recordings_protected", "Protected")
-    val conflict = twin("recordings_conflict", "Won't record: other recordings fill the server's slots then")
+    val conflict = twin(
+        "recordings_conflict",
+        "Won't record: the server will already be playing or recording as many channels as it can",
+    )
     val seriesStop = twin("recordings_series_stop", "Stop series")
 
     private val groupNow = twin("recordings_now", "Recording now")

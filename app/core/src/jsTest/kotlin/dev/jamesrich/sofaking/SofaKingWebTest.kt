@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.SofaKingException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -74,6 +75,15 @@ class SofaKingWebTest {
         assertTrue(signedOut.signedOut)
         assertFalse(homeToWeb(LibraryHomeState.Failed("no route"), toShelf).signedOut)
         assertFalse(homeToWeb(LibraryHomeState.Loading, toShelf).signedOut)
+    }
+
+    @Test
+    fun `an open the server refused with a 4xx is terminal and a server error is retried`() {
+        assertNotNull(terminalOpenFailureOf(SofaKingException(404, "not_found", "gone")))
+        assertTrue(terminalOpenFailureOf(SofaKingException(401, "unauthorized", "no"))!!.contains("signed out"))
+        assertNull(terminalOpenFailureOf(SofaKingException(429, "rate_limited", "slow down")))
+        assertNull(terminalOpenFailureOf(SofaKingException(503, "unavailable", "busy")))
+        assertNull(terminalOpenFailureOf(IllegalStateException("network")))
     }
 
     @Test

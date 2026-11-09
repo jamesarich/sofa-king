@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.BreakMarks
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.VodSeekPlan
+import io.ktor.http.HttpStatusCode
 import dev.jamesrich.sofaking.data.converterRetryDelayMs as converterRetryDelayMsOf
 import dev.jamesrich.sofaking.data.parseBreakMark as parseBreakMarkOf
 import dev.jamesrich.sofaking.data.parsePairingFragment as parsePairingFragmentOf
@@ -52,6 +53,12 @@ class WebDecisions internal constructor(private val parts: WebParts) {
     /** True when [error], from an open or a restart, is the server saying every converter is busy. */
     fun isConverterBusy(error: Any?): Boolean = (error as? SofaKingException)?.code == Wire.ErrorCode.CAPACITY_EXHAUSTED
 
+    /**
+     * What to tell the viewer when [error], from an open, is a refusal that opening again cannot fix (the server
+     * answered 4xx other than a timeout or rate limit); null when the open is worth retrying.
+     */
+    fun terminalOpenFailure(error: Any?): String? = terminalOpenFailureOf(error)
+
     /** How long to wait before asking again after every converter was busy, [waitedMs] in; null when to give up. */
     fun converterRetryDelayMs(waitedMs: Double): Double? = converterRetryDelayMsOf(waitedMs.toLong())?.toDouble()
 
@@ -88,4 +95,25 @@ class WebText {
      */
     fun parsePairingFragment(fragment: String, pageOrigin: String): WebPairing? =
         parsePairingFragmentOf(fragment, pageOrigin)?.let { WebPairing(it.serverUrl, it.code) }
+}
+
+private val CLIENT_ERRORS = 400..499
+
+private const val SIGNED_OUT = "This device is signed out. Open Settings and pair it again."
+
+internal fun terminalOpenFailureOf(error: Any?): String? {
+    val failure = error as? SofaKingException ?: return null
+    return when (failure.statusCode) {
+        HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> SIGNED_OUT
+
+        HttpStatusCode.NotFound -> "The server no longer has this item."
+
+        HttpStatusCode.RequestTimeout, HttpStatusCode.TooManyRequests -> null
+
+        else -> if (failure.status in CLIENT_ERRORS) {
+            failure.message ?: "The server refused to open this item."
+        } else {
+            null
+        }
+    }
 }

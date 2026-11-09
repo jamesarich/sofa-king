@@ -73,6 +73,15 @@ internal class LiveTuner(
         job = scope.launch { tune(channel, nowPlaying) }
     }
 
+    /** Gives the player the lead each renewal of the held live session reports, for as long as the caller collects. */
+    suspend fun followLead() {
+        sessions.current.collect { held ->
+            if (held != null && held.itemId == null && held.channelId == player.currentChannelId) {
+                player.liveLeadMs = held.liveLeadMs
+            }
+        }
+    }
+
     private suspend fun promote(channel: Channel) {
         runCatchingCancellable {
             sessions.setIntent(channel.guideId, PlaybackIntent.WATCH)
@@ -141,6 +150,7 @@ internal fun LiveSessionEffects(player: LivePlayer, state: PlayerState, tuner: L
         }
     }
     LaunchedEffect(player, volume) { snapshotFlow { gain() }.collect { player.volume = it } }
+    LaunchedEffect(player, tuner) { tuner.followLead() }
     LaunchedEffect(player) { player.status.collect { state.onStatus(it) } }
     LaunchedEffect(player) {
         player.errors.collect { error -> state.fail(error.code, immediate = error.streamGone) }

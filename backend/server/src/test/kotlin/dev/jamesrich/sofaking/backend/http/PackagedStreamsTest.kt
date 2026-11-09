@@ -140,6 +140,25 @@ class PackagedStreamsTest {
             assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
         }
 
+    @Test fun `the session carries its player's lead, and segments are listed as they close without a request`() =
+        withTsChannel { channel, _ ->
+            val session = open(channel, "lead", "hls")
+            assertEquals(null, session.liveLeadMs, "no playlist has gone out when a session opens")
+            client.get(session.descriptor.url)
+            suspend fun lead() = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+                client.get("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }.bodyAsText(),
+            ).liveLeadMs
+            assertEquals(6_000L, lead(), "a window under 12 s has no hold-back, so the player plays 3 x 2 s behind")
+            // The player asks for no further playlist: the packager lists each segment to the session as it closes.
+            var seen: Long? = null
+            pollUntil(40_000, 500) {
+                seen = lead()
+                (seen ?: 0L) > 6_000L
+            }
+            assertTrue((seen ?: 0L) in 7_000L..36_000L, "the lead follows the hold-back once the window grows: $seen")
+            client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
+        }
+
     @Test fun `the first playlist for a player other than AVPlayer comes within three seconds`() =
         withTsChannel { channel, _ ->
             val session = open(channel, "fast", "hls")

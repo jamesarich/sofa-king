@@ -310,6 +310,36 @@ master_5_5535913.ts
     }
 
     @Test
+    fun `a slate heard as its segments close is marked in the next playlist before any is fetched`() {
+        val time = MutableClock()
+        val found = mutableListOf<LearnedBreak>()
+        val clock = AdClock(learning = { LearnedBreaks.ON }, clock = time, learned = { found += it })
+        // Each segment is listed and heard as it closes, 6 s apart, and the player has fetched none.
+        val listed = intArrayOf(100, 101, 102, 103, 104)
+        for (sequence in listed) {
+            time.now = time.now.plusSeconds(6)
+            clock.plain(whale(sequence - 2), whaleBase)
+            clock.hear(sequence to if (sequence == 100) loud else silent)
+        }
+        assertEquals(listOf(LearnedBreak(SLATE, 24_000, ended = false, marked = true)), found)
+        assertTrue(clock.plain(whale(102), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=104\n"))
+        assertEquals(AdBreakState(), clock.at(aheadMs = 0), "the picture is placed by what the player fetched")
+    }
+
+    @Test
+    fun `the lead is the hold-back a playlist went out with, else three target durations, and none for its own`() {
+        val clock = AdClock()
+        assertEquals(null, clock.lead())
+        clock.plain(window(100, 3), whaleBase)
+        assertEquals(18_000L, clock.lead(), "a window with no room goes out unchanged: the default, 3 x 6 s")
+        clock.plain(window(100, 10), whaleBase)
+        assertEquals(36_000L, clock.lead())
+        val own = AdClock()
+        own.plain(window(100, 10, "#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES\n"), whaleBase)
+        assertEquals(null, own.lead())
+    }
+
+    @Test
     fun `in shadow a slate is reported and nothing is marked`() {
         val (clock, found) = learning(LearnedBreaks.SHADOW)
         clock.plain(whale(100), whaleBase)

@@ -95,6 +95,7 @@ class AdClock(
         }
         val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs)
         timeline.holdBackMs = holdBack
+        timeline.leadMs = playerLeadMs(text, holdBack)
         val dated = if (read.segments.none { it.dateMs != null }) {
             timeline.anchorEpochMs?.let { withProgramDates(held, read.segments, timeline, it) } ?: held
         } else {
@@ -185,6 +186,13 @@ class AdClock(
         timelines.values.maxOfOrNull { it.learned } ?: 0,
         timelines.values.any { it.joinedInBreak == true },
     )
+
+    /**
+     * How far behind its newest segment the session's player plays: the hold-back its playlist went out with, else
+     * three target durations; null before a playlist has gone out and when the source sets its own.
+     */
+    @Synchronized
+    fun lead(): Long? = timelines.values.filter { it.leadMs != null }.maxByOrNull { it.servedAt }?.leadMs
 
     /** The break playing now for a player with [aheadMs] of media loaded past the picture; not in one when unknown. */
     @Synchronized

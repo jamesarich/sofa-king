@@ -44,6 +44,9 @@ internal class AdTimeline(
     /** The hold-back the last refresh was sent with (see [withHoldBack]). */
     var holdBackMs: Long? = null
 
+    /** How far behind its newest segment a player plays this playlist (see [playerLeadMs]). */
+    var leadMs: Long? = null
+
     /** The first segment of a cue break the last refresh left open. */
     var openCue: Long? = null
 

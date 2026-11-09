@@ -177,6 +177,9 @@
               "stalls": { "type": "integer", "description": "Media requests the upstream refused or dropped before anything was answered" },
               "sourceSwitches": { "type": "integer", "description": "Moves to another source, on a failure or by hand" }
             }
+          },
+          "liveLeadMs": {
+            "type": ["integer", "null"], "description": "How far behind its newest segment the player plays the live playlist: the hold-back the server wrote into it, else three target durations; null before a playlist has gone out and when the source sets its own"
           }
         }
       },

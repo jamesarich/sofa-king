@@ -199,6 +199,14 @@ interface PlayerTimeline {
      */
     fun adBreak(): AdBreakNow? = null
 
+    /**
+     * How far behind its newest segment the server says the live playlist is played, as the held session reports it;
+     * null when it does not. Only an engine that places breaks by that distance reads it.
+     */
+    var liveLeadMs: Long?
+        get() = null
+        set(_) = Unit
+
     /** True while a live picture has nothing left to play, its buffer dry; a stalled picture holds a break up. */
     val pictureStalled: Boolean get() = false
 }

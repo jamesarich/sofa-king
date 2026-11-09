@@ -71,6 +71,10 @@ local_tag=${local_tag:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}
 keep=${SOFA_UPDATE_KEEP_BACKUPS:-5}
 wait_seconds=${SOFA_UPDATE_HEALTH_SECONDS:-180}
+# A pull holds the lock, so a hung one would make every later run exit quietly as "another update is running".
+pull_seconds=${SOFA_UPDATE_PULL_SECONDS:-900}
+# How long the playback check reads each channel's playlist.
+smoke_seconds=${SOFA_UPDATE_SMOKE_SECONDS:-20}
 # The repository whose backend.yml signs the published image, where the running server answers the gates, and the lock.
 verify_repo=jamesarich/sofa-king
 server_url=${SOFA_UPDATE_URL:-http://127.0.0.1:${SOFA_PORT:-9193}}
@@ -82,16 +86,24 @@ request_file="$config/update-requested"
 state="$dir/backups"
 
 log() { echo "sofa-king-update: $*"; }
+# What a gate could not check, joined for the report of a run that goes on to install the image.
+gate_notes=""
+verify_note=""
+gate_note() { gate_notes="${gate_notes:+$gate_notes; }$1"; }
 # Writes the run's outcome for the portal, readable by the config folder's owner, which is the container's user.
 report() {
   local outcome=$1 message=$2 tmp
   [ -d "$config" ] || return 0
+  # Backslashes and quotes are escaped and control characters, which JSON forbids in a string, become spaces.
+  message=${message//\\/\\\\}
+  message=${message//\"/\\\"}
+  message=$(printf '%s' "$message" | tr '\000-\037' ' ')
   # The config folder is the container's: the file is made in root's own folder and renamed over whatever is there,
   # so root never writes through a link the container left.
   mkdir -p "$state"
   tmp=$(mktemp "$state/update-status.XXXXXX")
   printf '{"checkedAt":"%s","image":"%s","running":"%s","candidate":"%s","outcome":"%s","message":"%s"}\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${from:-}" "${to:-}" "$outcome" "${message//\"/\\\"}" > "$tmp"
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${from:-}" "${to:-}" "$outcome" "$message" > "$tmp"
   chmod 644 "$tmp"
   chown --reference="$config" "$tmp" 2>/dev/null || true
   mv -fT "$tmp" "$status_file"
@@ -194,10 +206,50 @@ api() {
     curl --silent --config - --max-time "$api_seconds" --request "$method" --output "$out" --write-out '%{http_code}' \
       ${json:+--header 'Content-Type: application/json' --data "$json"} "$server_url$path" 2>/dev/null || true
 }
-# The API token the server generated; secrets.json has none when SOFA_API_TOKEN sets it.
+# One variable of the container's environment, empty when unset.
+container_env() {
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" 2>/dev/null | sed -n "s/^$1=//p" | tail -n 1
+}
+# The host path of the container's SOFA_DATA_DIR: the source of the deepest mount holding that directory. Sets data
+# and returns 1, with data_error, when the container names no such directory or no mount holds it.
+resolve_data() {
+  local destination source deepest=""
+  data=""
+  data_error=""
+  data_dir=$(container_env SOFA_DATA_DIR)
+  if [ -z "$data_dir" ]; then
+    data_error="$container sets no SOFA_DATA_DIR"
+    return 1
+  fi
+  while IFS=$'\t' read -r destination source; do
+    [ -n "$destination" ] || continue
+    case "$data_dir/" in
+      "${destination%/}/"*)
+        if [ -z "$deepest" ] || [ "${#destination}" -gt "${#deepest}" ]; then
+          deepest=$destination
+          data=$source${data_dir#"${destination%/}"}
+        fi
+        ;;
+    esac
+  done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
+  [ -n "$data" ] || { data_error="no mount of $container holds $data_dir"; return 1; }
+}
+# The API token the server accepts: SOFA_API_TOKEN, else the file SOFA_API_TOKEN_FILE names (read inside the
+# container), else the one the server generated into secrets.json in its data directory. Empty when none is found.
 read_api_token() {
-  [ -f "$config/secrets.json" ] && command -v python3 >/dev/null 2>&1 || return 0
-  python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("apiToken") or "")' "$config/secrets.json" 2>/dev/null || true
+  local token file secrets
+  token=$(container_env SOFA_API_TOKEN)
+  if [ -z "$token" ]; then
+    file=$(container_env SOFA_API_TOKEN_FILE)
+    [ -z "$file" ] || token=$(docker exec "$container" cat "$file" 2>/dev/null | head -n 1 | tr -d '[:space:]' || true)
+  fi
+  if [ -z "$token" ]; then
+    secrets="${data:-$config}/secrets.json"
+    if [ -f "$secrets" ] && command -v python3 >/dev/null 2>&1; then
+      token=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("apiToken") or "")' "$secrets" 2>/dev/null || true)
+    fi
+  fi
+  printf '%s' "$token"
 }
 
 # Invariant: the container is not recreated while a recording runs or starts before the new one could be healthy,
@@ -208,7 +260,8 @@ recordings_idle() {
   busy_reason=""
   api_token=$(read_api_token)
   if [ -z "$api_token" ]; then
-    log "no API token in $config/secrets.json; not checking for recordings"
+    gate_note "no API token found in the container's environment or secrets.json, so recordings and playback were not checked"
+    log "no API token found; not checking for recordings"
     return 0
   fi
   api_seconds=10
@@ -238,16 +291,57 @@ EOF
   [ -z "$busy_reason" ]
 }
 
+# Opens a preview session on channel $1 and reads its playlist for up to 20 seconds, with $2 as scratch file. Returns
+# 0 when it plays, 1 with smoke_error when the server or its playlist is wrong, 2 when no media came (the playlist
+# never answered, as with a dead source) and 3 when every playback slot is in use.
+smoke_channel() {
+  local channel=$1 body=$2 deadline code last=000 session id url playing=""
+  api_seconds=10
+  code=$(api POST /api/v1/playback-sessions "$body" "{\"channelId\":\"$channel\",\"intent\":\"preview\",\"idempotencyKey\":\"updater-$(date +%s)-$$\"}")
+  [ "$code" != 429 ] || return 3
+  session=$(python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); print(s["id"], s["descriptor"]["url"])' "$body" 2>/dev/null || true)
+  if { [ "$code" != 200 ] && [ "$code" != 201 ]; } || [ -z "$session" ]; then
+    smoke_error="a playback session on channel $channel answered HTTP $code"
+    return 1
+  fi
+  id=${session%% *}
+  url=${session#* }
+  deadline=$(($(date +%s) + smoke_seconds))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    api_seconds=$((deadline - $(date +%s)))
+    [ "$api_seconds" -le 10 ] || api_seconds=10
+    code=$(api GET "$url" "$body")
+    last=$code
+    # A media playlist starts with #EXTM3U; a session on the source's own format has no playlist to read.
+    if [ "$code" = 200 ]; then
+      case "${url%%\?*}" in
+        *.m3u8) if head -c 7 "$body" | grep -q '^#EXTM3U'; then playing=yes; fi ;;
+        *) playing=yes ;;
+      esac
+      [ -z "$playing" ] || break
+    fi
+    sleep 1
+  done
+  api_seconds=10
+  api DELETE "/api/v1/playback-sessions/$id" "$body" >/dev/null
+  [ -z "$playing" ] || return 0
+  smoke_error="the playlist of the session on channel $channel did not load"
+  [ "$last" = 200 ] || return 2
+  return 1
+}
+
 # Invariant: a new container counts as healthy only if it opens a playback session on a playable channel and serves
-# its playlist, which /readyz does not exercise. The check takes at most 30 seconds. A host with no playable channel,
-# no full playback slot or no readable API token skips it. Sets smoke_error and returns 1 on a failure.
+# its playlist, which /readyz does not exercise. It tries up to three playable channels, so one dead source does not
+# fail a good image, for at most 20 seconds each. A host with no playable channel, no free playback slot or no readable
+# API token skips it, and so does one where none of the channels gives media; the last two set a gate note for the
+# report. Sets smoke_error and returns 1 on a failure.
 playback_smoke() {
-  local deadline body code channel session id url
+  local body code channels channel result tried=0 failure=""
   smoke_error=""
-  deadline=$(($(date +%s) + 30))
   api_token=$(read_api_token)
   if [ -z "$api_token" ]; then
-    log "no API token in $config/secrets.json; not checking playback"
+    gate_note "no API token found in the container's environment or secrets.json, so recordings and playback were not checked"
+    log "no API token found; not checking playback"
     return 0
   fi
   body=$(mktemp "$state/playback.XXXXXX")
@@ -255,49 +349,39 @@ playback_smoke() {
   code=$(api GET /api/v1/channels "$body")
   case "$code" in
     200) ;;
-    401 | 403) rm -f "$body"; log "the API token was refused; not checking playback"; return 0 ;;
+    401 | 403)
+      rm -f "$body"
+      gate_note "the API token was refused, so playback was not checked"
+      log "the API token was refused; not checking playback"
+      return 0
+      ;;
     *) rm -f "$body"; smoke_error="the channel list answered HTTP $code"; return 1 ;;
   esac
-  channel=$(python3 -I -c 'import json, sys; print(next((c["id"] for c in json.load(open(sys.argv[1])).get("channels", []) if c.get("playbackEligible")), ""))' "$body" 2>/dev/null || true)
-  if [ -z "$channel" ]; then
+  channels=$(python3 -I -c 'import json, sys; print(*[c["id"] for c in json.load(open(sys.argv[1])).get("channels", []) if c.get("playbackEligible")][:3], sep="\n")' "$body" 2>/dev/null || true)
+  if [ -z "$channels" ]; then
     rm -f "$body"
     log "no channel can play yet; not checking playback"
     return 0
   fi
-  code=$(api POST /api/v1/playback-sessions "$body" "{\"channelId\":\"$channel\",\"intent\":\"preview\",\"idempotencyKey\":\"updater-$(date +%s)-$$\"}")
-  if [ "$code" = 429 ]; then
-    rm -f "$body"
-    log "every playback slot is in use; not checking playback"
-    return 0
-  fi
-  session=$(python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); print(s["id"], s["descriptor"]["url"])' "$body" 2>/dev/null || true)
-  if { [ "$code" != 200 ] && [ "$code" != 201 ]; } || [ -z "$session" ]; then
-    rm -f "$body"
-    smoke_error="a playback session on channel $channel answered HTTP $code"
+  while IFS= read -r channel; do
+    [ -n "$channel" ] || continue
+    tried=$((tried + 1))
+    result=0
+    smoke_channel "$channel" "$body" || result=$?
+    case "$result" in
+      0) rm -f "$body"; smoke_error=""; log "playback on channel $channel works"; return 0 ;;
+      3) rm -f "$body"; smoke_error=""; log "every playback slot is in use; not checking playback"; return 0 ;;
+      1) failure=${failure:-$smoke_error} ;;
+    esac
+  done <<<"$channels"
+  rm -f "$body"
+  if [ -n "$failure" ]; then
+    smoke_error=$failure
     return 1
   fi
-  id=${session%% *}
-  url=${session#* }
-  smoke_error="the playlist of the session on channel $channel did not load"
-  while [ "$(date +%s)" -lt "$deadline" ]; do
-    api_seconds=$((deadline - $(date +%s)))
-    [ "$api_seconds" -le 10 ] || api_seconds=10
-    code=$(api GET "$url" "$body")
-    # A media playlist starts with #EXTM3U; a session on the source's own format has no playlist to read.
-    if [ "$code" = 200 ]; then
-      case "${url%%\?*}" in
-        *.m3u8) if head -c 7 "$body" | grep -q '^#EXTM3U'; then smoke_error=""; fi ;;
-        *) smoke_error="" ;;
-      esac
-      [ -n "$smoke_error" ] || break
-    fi
-    sleep 1
-  done
-  api_seconds=10
-  api DELETE "/api/v1/playback-sessions/$id" "$body" >/dev/null
-  rm -f "$body"
-  [ -n "$smoke_error" ] || log "playback on channel $channel works"
-  [ -z "$smoke_error" ]
+  smoke_error=""
+  gate_note "none of $tried channels gave media, so playback was not checked"
+  log "none of $tried channels gave media; not checking playback"
 }
 
 exec 9>"$lock_file"
@@ -306,7 +390,7 @@ mkdir -p "$state"
 # The portal's request is taken whatever this run finds, so the path unit does not start it again for the same request.
 rm -f "$request_file"
 
-if ! docker pull --quiet "$image" >/dev/null; then
+if ! bounded "$pull_seconds" docker pull --quiet "$image" >/dev/null; then
   report failed "could not pull $image"
   exit 1
 fi
@@ -339,6 +423,8 @@ if ! verify_image; then
   report verify-failed "$verify_error; $from is still running"
   exit 1
 fi
+# The gates read secrets.json from the data directory; a container without one is refused below.
+resolve_data || true
 if ! recordings_idle; then
   keep_running_tag
   log "$busy_reason; not updating now"
@@ -348,23 +434,7 @@ fi
 
 log "updating $from to $to"
 
-# The database is in the container's SOFA_DATA_DIR; its host path is the source of the deepest mount holding that directory.
-data_dir=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" | sed -n 's/^SOFA_DATA_DIR=//p' | tail -n 1)
-[ -n "$data_dir" ] || { log "$container sets no SOFA_DATA_DIR"; report failed "$container sets no SOFA_DATA_DIR"; exit 1; }
-data=""
-deepest=""
-while IFS=$'\t' read -r destination source; do
-  [ -n "$destination" ] || continue
-  case "$data_dir/" in
-    "${destination%/}/"*)
-      if [ -z "$deepest" ] || [ "${#destination}" -gt "${#deepest}" ]; then
-        deepest=$destination
-        data=$source${data_dir#"${destination%/}"}
-      fi
-      ;;
-  esac
-done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
-[ -n "$data" ] || { log "no mount of $container holds $data_dir"; report failed "no mount of $container holds $data_dir"; exit 1; }
+[ -n "$data" ] || { log "$data_error"; report failed "$data_error"; exit 1; }
 # No update without a backup to roll back to.
 if ! backup_database "backend-$(date -u +%Y%m%dT%H%M%SZ)-${from//[^A-Za-z0-9._-]/_}.sqlite"; then
   report failed "could not back up the database; $from is still running"
@@ -387,7 +457,9 @@ if compose up -d --no-build --force-recreate && healthy; then
     docker image prune --force >/dev/null || log "could not prune old images"
     log "running $to"
     if [ -n "$verify_note" ]; then
-      report verify-skipped "updated $from to $to; $verify_note"
+      report verify-skipped "updated $from to $to; $verify_note${gate_notes:+; $gate_notes}"
+    elif [ -n "$gate_notes" ]; then
+      report gate-skipped "updated $from to $to; $gate_notes"
     else
       report updated "updated $from to $to"
     fi

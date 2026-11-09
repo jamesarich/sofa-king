@@ -292,7 +292,7 @@ class AdminPortalSettingsTest : AdminPortalCase() {
         }
 
     @Test
-    fun `the about page labels an image the updater refused or installed without verifying`() = testApplication {
+    fun `the about page labels an image the updater refused or installed without a check`() = testApplication {
         portal {
             browser.signIn()
             fun report(outcome: String, message: String) = Files.writeString(
@@ -302,11 +302,18 @@ class AdminPortalSettingsTest : AdminPortalCase() {
             )
             report("verify-failed", "the signature on ghcr.io/x did not verify; abc1234 is still running")
             val refused = browser.get("/admin/system/about").bodyAsText()
-            assertTrue(refused.contains("Refused def5678; its signature or attestation did not verify"), refused.take(4000))
+            assertTrue(
+                refused.contains("Refused def5678; its signature or attestation did not verify"),
+                refused.take(4000),
+            )
             report("verify-skipped", "updated abc1234 to def5678; cosign is not installed")
             val skipped = browser.get("/admin/system/about").bodyAsText()
             assertTrue(skipped.contains("Installed def5678 without verifying it"), skipped.take(4000))
             assertFalse(skipped.contains("verify-skipped"), "the raw outcome name is not shown")
+            report("gate-skipped", "updated abc1234 to def5678; no API token found")
+            val gated = browser.get("/admin/system/about").bodyAsText()
+            assertTrue(gated.contains("Installed def5678 without checking recordings or playback"), gated.take(4000))
+            assertTrue(gated.contains("no API token found"))
         }
     }
 

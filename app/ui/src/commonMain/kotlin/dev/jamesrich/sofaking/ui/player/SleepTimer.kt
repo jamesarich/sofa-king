@@ -50,6 +50,11 @@ class SleepTimer {
         }
     }
 
+    /** Moves a set stop time [ms] later; nothing changes while it waits for the end of an item or is off. */
+    fun extend(ms: Long) {
+        stopAtMs = stopAtMs?.plus(ms)
+    }
+
     fun cancel() {
         choice = SleepChoice.OFF
         stopAtMs = null

@@ -37,12 +37,15 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.resumes
+import dev.jamesrich.sofaking.data.spotlightItem
 import dev.jamesrich.sofaking.data.spotlightTagline
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_spotlight_play
 import dev.jamesrich.sofaking.resources.library_spotlight_resume
 import dev.jamesrich.sofaking.ui.LayoutProfile
+import dev.jamesrich.sofaking.ui.rememberAmbientTint
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.stringResource
 import kotlin.coroutines.coroutineContext
@@ -87,7 +90,7 @@ internal fun Spotlight(
 
 @Composable
 private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, insets: PaddingValues, compact: Boolean) {
-    val art = item.backdrop ?: item.poster
+    val art = item.spotlightArt()
     // A poster stands in for a missing backdrop, blurred so its grain does not read as a picture.
     val artModifier = if (item.backdrop == null) Modifier.fillMaxSize().blur(POSTER_BLUR) else Modifier.fillMaxSize()
     Box(Modifier.fillMaxSize()) {
@@ -145,6 +148,25 @@ private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, in
         }
     }
 }
+
+/** The share of the page's height the shelves take: what a spotlight that stays above them leaves, else all. */
+internal fun shelvesShare(spotlightStaysPut: Boolean): Float =
+    if (spotlightStaysPut) 1f - SPOTLIGHT_HEIGHT_SHARE else 1f
+
+/**
+ * The page's color behind the shelves: the ambient tint of the spotlight's picture fading down to the page background.
+ * It reads the focused id here, so a focus move recomposes only the tint, and drifts (or snaps with animations off)
+ * as the spotlight changes.
+ */
+@Composable
+internal fun SpotlightTint(shelves: List<MediaShelf>, focusedId: () -> String?) {
+    val tint = rememberAmbientTint(spotlightItem(shelves, focusedId())?.spotlightArt())
+    val page = MaterialTheme.colorScheme.background
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(tint, page))))
+}
+
+/** The picture the spotlight draws for the item: its backdrop, or its poster when it has none. */
+internal fun MediaItem.spotlightArt(): String? = backdrop ?: poster
 
 private fun MediaItem.spotlightTitle(): String = if (kind == ItemKind.EPISODE) showTitle ?: title else title
 

@@ -25,6 +25,9 @@ internal interface ChannelZapping {
     /** The row of [channels] on screen. */
     var index: Int
 
+    /** How many times the row has moved to another channel, so the zap's dip and number key on each change. */
+    val zaps: Int
+
     /** What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity. */
     var tuned: Channel?
 
@@ -102,6 +105,9 @@ internal class ChannelRing(
         }.coerceAtLeast(0),
     )
 
+    override var zaps: Int by mutableIntStateOf(0)
+        private set
+
     override var tuned: Channel? by mutableStateOf<Channel?>(null)
 
     override var previousChannel: Channel? by mutableStateOf(
@@ -138,6 +144,7 @@ internal class ChannelRing(
             previousIndex = index
             previousChannel = channels.getOrNull(index)
             index = target
+            zaps++
         }
         panels.showInfo()
         panels.miniGuideOpen = false

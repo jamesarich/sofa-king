@@ -137,6 +137,7 @@ internal class LiveParts(
     val cover: BreakCover,
     val focus: PlayerFocus,
     val notice: PlayerNotice,
+    val sleepWarning: SleepWarning,
 )
 
 /** The parts for [state] on [player]; the break screen follows the tuned channel's breaks while [covers] is on. */
@@ -146,13 +147,15 @@ internal fun rememberLiveParts(
     player: LivePlayer,
     sessions: PlaybackSessions,
     covers: Boolean,
+    sleep: SleepTimer,
 ): LiveParts {
     val tuner = rememberLiveTuner(player, sessions, state)
     val cover = rememberBreakCover(player, covers, state.tuned?.guideId)
     val focus = rememberPlayerFocus(state)
     val notice = rememberPlayerNotice()
-    return remember(state, player, tuner, cover, focus, notice) {
-        LiveParts(state, player, tuner, cover, focus, notice)
+    val sleepWarning = rememberSleepWarning(sleep)
+    return remember(state, player, tuner, cover, focus, notice, sleepWarning) {
+        LiveParts(state, player, tuner, cover, focus, notice, sleepWarning)
     }
 }
 

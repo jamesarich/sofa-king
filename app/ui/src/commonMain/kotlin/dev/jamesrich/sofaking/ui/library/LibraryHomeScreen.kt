@@ -149,48 +149,50 @@ private fun Shelves(
     LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     // The item returned to may sit in several rows; the first takes the requester.
     val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.key }
-    Column(modifier.fillMaxSize()) {
-        if (staysPut) {
-            SpotlightSlot(shelves, {
-                focused.value
-            }, actions, profile.tv, insets, false, Modifier.weight(SPOTLIGHT_HEIGHT_SHARE))
-        }
-        val listShare = if (staysPut) 1f - SPOTLIGHT_HEIGHT_SHARE else 1f
-        RefreshBox(!profile.tv, actions.onRefresh, shelves, Modifier.weight(listShare)) {
-            LazyColumn(
-                // The remote's Search key opens the search by voice from anywhere on the page.
-                Modifier.fillMaxSize().searchKey { actions.onSearch(true) },
-                state = listState,
-                contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
-                verticalArrangement = Arrangement.spacedBy(28.dp),
-            ) {
-                // Without room to stay put, the spotlight is the list's first card and shows the first item.
-                if (!staysPut) {
-                    item(key = "spotlight") {
-                        val card = Modifier.padding(insets.horizontalOnly()).height(COMPACT_SPOTLIGHT_HEIGHT)
-                        SpotlightSlot(shelves, {
-                            null
-                        }, actions, profile.tv, insets, true, card.clip(CardDefaults.shape))
+    Box(modifier.fillMaxSize()) {
+        if (staysPut) SpotlightTint(shelves) { focused.value }
+        Column(Modifier.fillMaxSize()) {
+            if (staysPut) {
+                SpotlightSlot(shelves, {
+                    focused.value
+                }, actions, profile.tv, insets, false, Modifier.weight(SPOTLIGHT_HEIGHT_SHARE))
+            }
+            RefreshBox(!profile.tv, actions.onRefresh, shelves, Modifier.weight(shelvesShare(staysPut))) {
+                LazyColumn(
+                    // The remote's Search key opens the search by voice from anywhere on the page.
+                    Modifier.fillMaxSize().searchKey { actions.onSearch(true) },
+                    state = listState,
+                    contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                ) {
+                    // Without room to stay put, the spotlight is the list's first card and shows the first item.
+                    if (!staysPut) {
+                        item(key = "spotlight") {
+                            val card = Modifier.padding(insets.horizontalOnly()).height(COMPACT_SPOTLIGHT_HEIGHT)
+                            SpotlightSlot(shelves, {
+                                null
+                            }, actions, profile.tv, insets, true, card.clip(CardDefaults.shape))
+                        }
                     }
-                }
-                item(key = "chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
-                items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
-                    Shelf(
-                        shelf,
-                        actions,
-                        insets,
-                        focusItem = if (shelf.key == returnShelf) {
-                            returnedFrom
-                        } else {
-                            null
-                        },
-                        focusRequester = returnFocus,
-                        onFocus = if (staysPut && feedsSpotlight(shelf)) {
-                            { item -> focused.value = item.id }
-                        } else {
-                            null
-                        },
-                    )
+                    item("chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
+                    items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
+                        Shelf(
+                            shelf,
+                            actions,
+                            insets,
+                            focusItem = if (shelf.key == returnShelf) {
+                                returnedFrom
+                            } else {
+                                null
+                            },
+                            focusRequester = returnFocus,
+                            onFocus = if (staysPut && feedsSpotlight(shelf)) {
+                                { item -> focused.value = item.id }
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
         }

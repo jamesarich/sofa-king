@@ -70,6 +70,12 @@
     <string name="player_zoom_notice">Zoom: %1$s</string>
     <string name="player_control_sleep">Sleep timer</string>
     <string name="player_sleep_minutes">Sleep in %1$d min</string>
+    <string name="player_sleep_title">Sleep timer</string>
+    <string name="player_sleep_card">Sleep in %1$d s</string>
+    <string name="player_sleep_keep">OK keeps watching 15 more minutes. Back dismisses.</string>
+    <string name="player_sleep_extend">15 more minutes</string>
+    <string name="player_sleep_dismiss">Dismiss</string>
+    <string name="player_sleep_soon">Sleep timer ends in one minute. OK keeps watching 15 more minutes. Back dismisses.</string>
     <string name="player_sleep_end_program">Sleep after this program</string>
     <string name="player_sleep_end_item">Sleep after this one</string>
     <string name="player_control_channel_up">Channel up</string>

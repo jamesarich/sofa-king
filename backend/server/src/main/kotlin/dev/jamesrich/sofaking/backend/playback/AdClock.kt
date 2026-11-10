@@ -72,6 +72,19 @@ class AdClock(
     val listening: Boolean get() = learning() != LearnedBreaks.OFF
 
     /**
+     * Notes the segments of [text], a playlist no player has been sent, so they can be [heard] before one is fetched.
+     * Nothing a player is sent changes: the hold-back, the break marks and their refresh counts move only with
+     * [annotate].
+     */
+    @Synchronized
+    fun listed(text: String, base: URI) {
+        val read = AdBreaks.parse(text, base) ?: return
+        val timeline = timelines.getOrPut(base.toString()) { AdTimeline(base.toString(), segmentLimit, clock) }
+        timeline.place(read.segments)
+        for (segment in read.segments) marks[segment.url] = Mark(timeline, segment.sequence)
+    }
+
+    /**
      * [text] with its ad runs marked (see [AdBreaks.annotate]) and the player held further back where the window has
      * room (see [withHoldBack]), after noting its segments for [at].
      */
@@ -95,6 +108,7 @@ class AdClock(
         }
         val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs)
         timeline.holdBackMs = holdBack
+        timeline.leadMs = playerLeadMs(text, holdBack)
         val dated = if (read.segments.none { it.dateMs != null }) {
             timeline.anchorEpochMs?.let { withProgramDates(held, read.segments, timeline, it) } ?: held
         } else {
@@ -185,6 +199,13 @@ class AdClock(
         timelines.values.maxOfOrNull { it.learned } ?: 0,
         timelines.values.any { it.joinedInBreak == true },
     )
+
+    /**
+     * How far behind its newest segment the session's player plays: the hold-back its playlist went out with, else
+     * three target durations; null before a playlist has gone out and when the source sets its own.
+     */
+    @Synchronized
+    fun lead(): Long? = timelines.values.filter { it.leadMs != null }.maxByOrNull { it.servedAt }?.leadMs
 
     /** The break playing now for a player with [aheadMs] of media loaded past the picture; not in one when unknown. */
     @Synchronized

@@ -280,6 +280,7 @@ private fun liveStream(api: SofaKingApi, session: PlaybackSessionDto, intent: Pl
     epoch = session.descriptor.epoch,
     intent = PlaybackIntent.fromWire(session.intent) ?: intent,
     providerId = session.providerId,
+    liveLeadMs = session.liveLeadMs,
 )
 
 private fun itemStream(api: SofaKingApi, session: VodSessionDto, itemId: String, startAtMs: Long) = PlaybackStream(

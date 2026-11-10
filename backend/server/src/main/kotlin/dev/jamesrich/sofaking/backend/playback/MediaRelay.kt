@@ -206,6 +206,9 @@ class MediaRelay(
             stream,
             start,
             edit = { playlist -> ads?.annotate(playlist, URI(PackagedStreams.SCHEME)) ?: playlist },
+            closed = ads?.let { clock ->
+                PackagedStreams.ClosedSegments { text, segments -> analyzeClosed(clock, audio, scope, text, segments) }
+            },
         ) { url -> sessions.media.resourcePath(id, epoch, url) }
         // AVFoundation shows captions only when a multivariant playlist declares them: its root goes out as one naming
         // the media playlist, which carries the same token with the media marker (see CaptionPlaylists).
@@ -231,14 +234,6 @@ class MediaRelay(
         call.respond(LocalPathContent(file, ContentType.parse("video/mp2t")))
         val ads = resource.ads ?: return
         ads.served(resource.url, packages.cues(id, epoch, file))
-        // Read after the segment is answered, so the player never waits on it.
-        if (audio != null && ads.listening) {
-            val bytes = withContext(Dispatchers.IO) { runCatchingCancellable { Files.readAllBytes(file) }.getOrNull() }
-            if (bytes != null) {
-                synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }
-                    .offer(resource.url, bytes)
-            }
-        }
     }
 
     private suspend fun serveShared(
@@ -609,4 +604,26 @@ private suspend fun SessionMedia.startFailure(
         "This channel isn't available right now",
         true,
     )
+}
+
+/**
+ * Packaged segments FFmpeg just listed: [text], its playlist, notes them on [ads]' timeline and their audio goes to
+ * the learned breaks now, not when a player fetches them.
+ */
+private suspend fun analyzeClosed(
+    ads: AdClock,
+    audio: SegmentAudio?,
+    scope: CoroutineScope,
+    text: String,
+    segments: List<Pair<String, Path>>,
+) {
+    ads.listed(text, URI(PackagedStreams.SCHEME))
+    if (audio == null || !ads.listening) return
+    for ((url, file) in segments) {
+        val bytes = withContext(Dispatchers.IO) { runCatchingCancellable { Files.readAllBytes(file) }.getOrNull() }
+        if (bytes != null) {
+            synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }
+                .offer(url, bytes)
+        }
+    }
 }

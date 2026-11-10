@@ -115,6 +115,7 @@ internal class LiveSession(
             ),
             offering.providerId,
             SessionHealth(stats.bitrateKbps(now), stats.stalls.get(), stats.switches.get()),
+            ads?.lead(),
         )
     }
 

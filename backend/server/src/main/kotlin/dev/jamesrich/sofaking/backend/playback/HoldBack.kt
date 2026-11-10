@@ -4,11 +4,12 @@ import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import kotlin.math.roundToLong
 
 /**
- * How far behind the newest segment the app's players are asked to play a live playlist. They hold three target
- * durations back by default, about 18 seconds, and fetch up to the newest segment, so the server reads a segment's
- * cues and audio that much before the picture reaches it. Further back, more of what the server finds lands ahead of
- * the picture: a learned break is found only after 10 to 20 seconds of its audio, a stitched break's end shows only
- * once the next show segment is in the window, and the break screen counts down from then.
+ * The most the app's players are asked to play behind a live playlist's newest segment. They hold three target
+ * durations back by default and fetch up to the newest segment, so the server reads a segment's cues and audio that
+ * much before the picture reaches it. The window bounds the lead: a relayed window of 20 seconds gives 14, and a
+ * packaged playlist (2 second segments) gives the default 6 seconds until its window passes 12 seconds, then 7. A
+ * learned break is found only after 10 to 20 seconds of its audio, so on a packaged playlist the picture is already
+ * inside it; a marker the stream carries, and a stitched break's end, arrive ahead of the picture.
  */
 internal const val LIVE_HOLD_BACK_MS = 36_000L
 
@@ -36,4 +37,16 @@ internal fun withHoldBack(text: String, segments: List<AdBreaks.Segment>, kept: 
     val at = target.range.last + 1
     val line = "\n#EXT-X-SERVER-CONTROL:HOLD-BACK=${holdBack / MS_PER_SECOND}"
     return text.substring(0, at) + line + text.substring(at) to holdBack
+}
+
+/**
+ * How far behind its newest segment a player plays [text], a live media playlist sent with [holdBack]: that, else
+ * three target durations. Null for an ended playlist or one with a server control of its own, whose lead is the
+ * source's.
+ */
+internal fun playerLeadMs(text: String, holdBack: Long?): Long? {
+    if (holdBack != null) return holdBack
+    if (text.contains("#EXT-X-ENDLIST") || text.contains("#EXT-X-SERVER-CONTROL")) return null
+    val target = TARGET_DURATION.find(text) ?: return null
+    return TARGET_DURATIONS * (target.groupValues[1].toDouble() * MS_PER_SECOND).roundToLong()
 }

@@ -140,6 +140,31 @@ class PackagedStreamsTest {
             assertEquals(0, runtime.relay.packaged, "releasing the session stops its FFmpeg")
         }
 
+    @Test fun `the session carries the lead its player's last playlist gave it`() = withTsChannel { channel, _ ->
+        val session = open(channel, "lead", "hls")
+        assertEquals(null, session.liveLeadMs, "no playlist has gone out when a session opens")
+        suspend fun lead() = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+            client.get("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }.bodyAsText(),
+        ).liveLeadMs
+        var checked = 0
+        var withHoldBack = false
+        pollUntil(40_000, 500) {
+            val playlist = client.get(session.descriptor.url).bodyAsText()
+            val target = Regex("#EXT-X-TARGETDURATION:(\\d+)").find(playlist)!!.groupValues[1].toLong()
+            val held = Regex("HOLD-BACK=(\\d+)").find(playlist)?.groupValues?.get(1)?.toLong()
+            assertEquals(
+                (held ?: (3 * target)) * 1_000,
+                lead(),
+                "the lead is the playlist's hold-back, else 3 x target",
+            )
+            checked++
+            withHoldBack = withHoldBack || held != null
+            withHoldBack && checked > 1
+        }
+        assertTrue(withHoldBack, "the window grew until the playlist held a hold-back")
+        client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
+    }
+
     @Test fun `the first playlist for a player other than AVPlayer comes within three seconds`() =
         withTsChannel { channel, _ ->
             val session = open(channel, "fast", "hls")

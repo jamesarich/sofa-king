@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,8 +63,39 @@ internal class PackagedStreams(
         /** Reads the SCTE-35 cues of the source's stream, which `-dn` keeps out of the segments. */
         val cues = SpliceReader(resync = true)
 
+        /** What reads each segment as FFmpeg closes it, set by the first playlist request. */
+        @Volatile var closed: ClosedSegments? = null
+
         /** Set before the package is shared. */
         lateinit var job: Job
+
+        /** Hands each segment FFmpeg lists to [closed], once, in order, until canceled. */
+        suspend fun watch() {
+            val seen = HashSet<String>()
+            val file = dir.resolve(PLAYLIST)
+            while (true) {
+                delay(POLL_MS)
+                val reading = closed
+                val text = reading?.let {
+                    withContext(Dispatchers.IO) {
+                        runCatchingCancellable { if (Files.exists(file)) Files.readString(file) else null }.getOrNull()
+                    }
+                }
+                val fresh = text?.lines()?.filter { SEGMENT.matches(it) && seen.add(it) }.orEmpty()
+                if (reading != null && text != null && fresh.isNotEmpty()) {
+                    runCatchingCancellable { reading.closed(text, fresh.map { (SCHEME + it) to dir.resolve(it) }) }
+                        .onFailure { e -> log.debug("closed segments not read session={} {}", id, e.toString()) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads the segments FFmpeg just listed: [playlist] is its playlist as written and [segments] the new ones, each
+     * as the URL a playlist names it by and its file, in order.
+     */
+    fun interface ClosedSegments {
+        suspend fun closed(playlist: String, segments: List<Pair<String, Path>>)
     }
 
     /**
@@ -71,6 +103,7 @@ internal class PackagedStreams(
      * through [segmentPath], after [edit] has marked FFmpeg's playlist, which names each segment `segN.ts`. The first
      * one waits until it lists [startSegments] segments, no longer than [START_WAIT], inside AVPlayer's own 20 second
      * timeout: AVPlayer starts a live stream no nearer its end than [START_SEGMENTS], and other players need one.
+     * [closed] reads each segment as FFmpeg lists it, so the session hears it before any player fetches it.
      */
     suspend fun playlist(
         id: String,
@@ -79,9 +112,11 @@ internal class PackagedStreams(
         stream: ResolvedStream,
         startSegments: Int = START_SEGMENTS,
         edit: (String) -> String = { it },
+        closed: ClosedSegments? = null,
         segmentPath: suspend (String) -> String,
     ): String {
         val pack = packageOf(id, epoch, offering, stream)
+        if (closed != null) pack.closed = closed
         pack.started.await()?.let { throw it }
         val file = pack.dir.resolve(PLAYLIST)
         if (!pack.served) {
@@ -165,7 +200,14 @@ internal class PackagedStreams(
             sessions.attach(pack.id, pack.job)
             val reader = join(offering, stream, READER_CHUNKS)
             try {
-                copy(pack, reader, offering)
+                coroutineScope {
+                    val watching = launch { pack.watch() }
+                    try {
+                        copy(pack, reader, offering)
+                    } finally {
+                        watching.cancel()
+                    }
+                }
             } finally {
                 withContext(NonCancellable) { reader.close() }
             }

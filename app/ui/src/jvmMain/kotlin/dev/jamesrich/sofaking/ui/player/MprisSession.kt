@@ -248,30 +248,37 @@ internal class MprisSession private constructor(
 
         /**
          * Puts [player] on the session bus at [address], the user's session bus by default; null where there is none,
-         * as on Windows, macOS or a desktop without D-Bus, and the player then has no system media session.
+         * as on Windows, macOS or a desktop without D-Bus, and the player then has no system media session. A runtime
+         * missing what dbus-java loads on the way (a JDK module, its native socket transport) counts as none too.
          */
         fun open(
             player: LivePlayer,
             onZapStep: (Int) -> Unit,
             identity: String,
             address: String? = null,
-        ): MprisSession? = runCatchingCancellable {
-            val builder = if (address != null) {
-                DBusConnectionBuilder.forAddress(address)
-            } else {
-                DBusConnectionBuilder.forSessionBus()
-            }
-            val connection = builder.withShared(false).build()
-            try {
-                MprisSession(connection, player, onZapStep, identity).also {
-                    connection.requestBusName(BUS_NAME)
-                    connection.exportObject(it)
+        ): MprisSession? = try {
+            runCatchingCancellable {
+                val builder = if (address != null) {
+                    DBusConnectionBuilder.forAddress(address)
+                } else {
+                    DBusConnectionBuilder.forSessionBus()
                 }
-            } catch (e: org.freedesktop.dbus.exceptions.DBusException) {
-                connection.close()
-                throw e
-            }
-        }.onFailure { log.i { "no MPRIS media session: ${it.message}" } }.getOrNull()
+                val connection = builder.withShared(false).build()
+                try {
+                    MprisSession(connection, player, onZapStep, identity).also {
+                        connection.requestBusName(BUS_NAME)
+                        connection.exportObject(it)
+                        log.i { "MPRIS media session on the session bus" }
+                    }
+                } catch (e: org.freedesktop.dbus.exceptions.DBusException) {
+                    connection.close()
+                    throw e
+                }
+            }.onFailure { log.i { "no MPRIS media session: ${it.message}" } }.getOrNull()
+        } catch (e: LinkageError) {
+            log.w { "no MPRIS media session, the runtime lacks ${e.message}" }
+            null
+        }
     }
 }
 

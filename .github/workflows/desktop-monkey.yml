@@ -51,11 +51,12 @@ jobs:
           cache-read-only: true
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # FFmpeg makes the fixture channels; the app plays them through libVLC, in Xvfb, driven by xdotool, and the
-      # script closes the window through python-xlib.
-      - name: Install FFmpeg, libVLC and the X tools
+      # script closes the window through python-xlib. A session bus from dbus-run-session lets the app register its
+      # MPRIS media session, as it does on a desktop.
+      - name: Install FFmpeg, libVLC, D-Bus and the X tools
         uses: ./.github/actions/apt-install
         with:
-          packages: ffmpeg vlc-plugin-base xvfb xdotool imagemagick python3-xlib
+          packages: ffmpeg vlc-plugin-base xvfb xdotool imagemagick python3-xlib dbus
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist
@@ -67,7 +68,7 @@ jobs:
         env:
           SOFAKING_DESKTOP_MONKEY_KEYS: ${{ inputs.keys || '1000' }}
           SOFAKING_DESKTOP_MONKEY_SEED: ${{ inputs.seed }}
-        run: python3 scripts/desktop-monkey.py --break-check --out build/desktop-monkey
+        run: dbus-run-session -- python3 scripts/desktop-monkey.py --break-check --out build/desktop-monkey
       - name: Upload the logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -584,4 +584,24 @@ master_5_5535913.ts
         assertTrue(clock.plain(window(102, 8), whaleBase).contains("HOLD-BACK=30\n"))
         assertTrue(clock.plain(window(103, 10), whaleBase).contains("HOLD-BACK=30\n"))
     }
+
+    /** A packaged playlist as FFmpeg writes it: a one second first segment, then two second ones. */
+    private fun packaged(first: Int, durations: List<Int>, target: Int): String =
+        "#EXTM3U\n#EXT-X-TARGETDURATION:$target\n#EXT-X-MEDIA-SEQUENCE:$first\n" +
+            durations.withIndex().joinToString("") { (k, d) -> "#EXTINF:$d.000,\nseg-${first + k}.ts\n" }
+
+    private fun holdBackOf(playlist: String) = Regex("HOLD-BACK=(\\d+)").find(playlist)?.groupValues?.get(1)?.toInt()
+
+    @Test
+    fun `a hold-back the target duration outgrows is dropped once and not offered again`() {
+        val clock = AdClock()
+        val seen = listOf(
+            packaged(0, listOf(1, 2, 2, 2), target = 1),
+            packaged(0, listOf(1, 2, 2, 2, 2), target = 2),
+            packaged(0, listOf(1, 2, 2, 2, 2, 2), target = 2),
+            packaged(0, listOf(1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2), target = 2),
+            packaged(0, List(20) { 2 }, target = 2),
+        ).map { holdBackOf(clock.plain(it, whaleBase)) }
+        assertEquals(listOf(4, null, null, null, null), seen)
+    }
 }

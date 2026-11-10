@@ -106,8 +106,8 @@ class AdClock(
             last?.ad == true && parsed.segments.none { it.cueIn } -> timeline.openCue
             else -> null
         }
-        val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs)
-        timeline.holdBackMs = holdBack
+        val (held, holdBack) = withHoldBack(text, read.segments, timeline.holdBackMs, timeline.holdBackDropped)
+        timeline.sentHoldBack(holdBack)
         timeline.leadMs = playerLeadMs(text, holdBack)
         val dated = if (read.segments.none { it.dateMs != null }) {
             timeline.anchorEpochMs?.let { withProgramDates(held, read.segments, timeline, it) } ?: held

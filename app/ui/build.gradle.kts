@@ -191,8 +191,9 @@ compose.desktop {
         providers.gradleProperty("sofaking.tv").orNull?.let { jvmArgs("-Dsofaking.tv=$it") }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.
-            modules("java.instrument", "java.management", "jdk.unsupported")
+            // From `suggestRuntimeModules`, plus two it cannot see: DataStore's protobuf needs jdk.unsupported, and
+            // dbus-java reads the user id through jdk.security.auth when it authenticates to the session bus.
+            modules("java.instrument", "java.management", "jdk.security.auth", "jdk.unsupported")
             packageName = "Sofa King"
             packageVersion = appVersion
             description = "Live TV, recordings and your own movies and shows from your Sofa King server"

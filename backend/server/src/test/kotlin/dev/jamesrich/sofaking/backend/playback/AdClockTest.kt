@@ -318,12 +318,25 @@ master_5_5535913.ts
         val listed = intArrayOf(100, 101, 102, 103, 104)
         for (sequence in listed) {
             time.now = time.now.plusSeconds(6)
-            clock.plain(whale(sequence - 2), whaleBase)
+            clock.listed(whale(sequence - 2), whaleBase)
             clock.hear(sequence to if (sequence == 100) loud else silent)
         }
         assertEquals(listOf(LearnedBreak(SLATE, 24_000, ended = false, marked = true)), found)
         assertTrue(clock.plain(whale(102), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=104\n"))
         assertEquals(AdBreakState(), clock.at(aheadMs = 0), "the picture is placed by what the player fetched")
+    }
+
+    @Test
+    fun `listing a playlist no player has been sent moves neither the hold-back nor the lead`() {
+        val clock = AdClock()
+        clock.listed(window(100, 10), whaleBase)
+        assertEquals(null, clock.lead())
+        assertTrue(
+            clock.plain(window(100, 7), whaleBase).contains("HOLD-BACK=24\n"),
+            "the first playlist sent decides it",
+        )
+        clock.listed(window(100, 10), whaleBase)
+        assertEquals(24_000L, clock.lead())
     }
 
     @Test

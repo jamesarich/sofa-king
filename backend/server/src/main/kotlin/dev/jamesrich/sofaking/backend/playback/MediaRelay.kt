@@ -607,7 +607,7 @@ private suspend fun SessionMedia.startFailure(
 }
 
 /**
- * Packaged segments FFmpeg just listed: [text], its playlist, places them on [ads]' timeline and their audio goes to
+ * Packaged segments FFmpeg just listed: [text], its playlist, notes them on [ads]' timeline and their audio goes to
  * the learned breaks now, not when a player fetches them.
  */
 private suspend fun analyzeClosed(
@@ -617,7 +617,7 @@ private suspend fun analyzeClosed(
     text: String,
     segments: List<Pair<String, Path>>,
 ) {
-    ads.annotate(text, URI(PackagedStreams.SCHEME))
+    ads.listed(text, URI(PackagedStreams.SCHEME))
     if (audio == null || !ads.listening) return
     for ((url, file) in segments) {
         val bytes = withContext(Dispatchers.IO) { runCatchingCancellable { Files.readAllBytes(file) }.getOrNull() }

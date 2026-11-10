@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -88,17 +90,19 @@ internal fun MultiviewPicker(
         modifier.fillMaxHeight().width(PICKER_WIDTH).background(SofaOverlayScrimDense).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            stringResource(Res.string.multiview_title),
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.sectionHeading(),
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(Res.string.multiview_title),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f).sectionHeading(),
+            )
+            SofaButton(onClick = onWatch, main = true, enabled = ready) {
+                Text(pluralStringResource(Res.plurals.multiview_watch, picked.size, picked.size))
+            }
+        }
         val hint = stringResource(Res.string.multiview_pick_hint)
         val keysHint = if (keys) " " + stringResource(Res.string.multiview_pick_keys_hint) else ""
-        Text(hint + keysHint, style = MaterialTheme.typography.bodyMedium)
-        SofaButton(onClick = onWatch, main = true, enabled = ready) {
-            Text(pluralStringResource(Res.plurals.multiview_watch, picked.size, picked.size))
-        }
+        Text(hint + keysHint, style = MaterialTheme.typography.bodySmall)
         TvTextField(
             state = query,
             focusRequester = search,

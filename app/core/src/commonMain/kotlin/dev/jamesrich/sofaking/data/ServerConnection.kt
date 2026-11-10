@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -40,10 +42,6 @@ class ServerConnection(
     scope: CoroutineScope,
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions = PlaybackSessions(scope + Dispatchers.Default + logFailures),
-    /** A session for each of multiview's panes, held beside [sessions] so every pane plays a stream of its own. */
-    val paneSessions: List<PlaybackSessions> = List(Wire.MULTIVIEW_MAX_TILES) {
-        PlaybackSessions(scope + Dispatchers.Default + logFailures)
-    },
     /** The library kinds beyond movies, shows and videos the client shows, which every API call names. */
     libraryKinds: List<String> = emptyList(),
     /** The live protocols the player plays when it plays HLS only, which every API call names; empty plays both. */
@@ -59,6 +57,20 @@ class ServerConnection(
     crashReporter: CrashReporter? = null,
 ) {
     private val work = scope + logFailures
+    private val paneLock = Mutex()
+    private var panes: List<PlaybackSessions>? = null
+    private var paneApi: SofaKingApi? = null
+
+    /**
+     * A session for each of multiview's panes, held beside [sessions] so every pane plays a stream of its own. They
+     * are made the first time multiview asks, and follow the server as [sessions] does.
+     */
+    suspend fun paneSessions(): List<PlaybackSessions> = paneLock.withLock {
+        panes ?: List(Wire.MULTIVIEW_MAX_TILES) { PlaybackSessions(work + Dispatchers.Default) }.also { made ->
+            for (pane in made) pane.configure(paneApi)
+            panes = made
+        }
+    }
 
     /**
      * The server as Settings has it, with one API client for the sessions and the repositories, or null while
@@ -81,7 +93,10 @@ class ServerConnection(
             try {
                 server.collect {
                     sessions.configure(it?.api)
-                    for (pane in paneSessions) pane.configure(it?.api)
+                    paneLock.withLock {
+                        paneApi = it?.api
+                        panes?.forEach { pane -> pane.configure(it?.api) }
+                    }
                     open?.close()
                     open = it?.api
                 }

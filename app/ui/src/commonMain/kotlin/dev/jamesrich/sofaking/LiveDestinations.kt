@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -277,10 +278,12 @@ internal fun MultiviewDestination(
         LaunchedEffect(Unit) { shell.back() }
         return
     }
+    val panes by produceState<List<PlaybackSessions>?>(null, vm) { value = vm.paneSessions() }
+    val paneSessions = panes ?: return
     MultiviewScreen(
         lineup = lineup,
         initial = route.guideIds,
-        players = remember(player, vm) { MultiviewPlayers(player, vm.sessions, vm.paneSessions) },
+        players = remember(player, vm, paneSessions) { MultiviewPlayers(player, vm.sessions, paneSessions) },
         favoritesOrder = prefs.favoritesOrder,
         recent = prefs.recentChannels,
         captions = playerCaptions(prefs, vm),

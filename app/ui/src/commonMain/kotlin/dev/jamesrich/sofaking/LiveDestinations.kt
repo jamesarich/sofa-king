@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.player.ChannelChoices
 import dev.jamesrich.sofaking.ui.player.KeyLegendCount
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MultiviewPlayers
 import dev.jamesrich.sofaking.ui.player.MultiviewScreen
 import dev.jamesrich.sofaking.ui.player.PlayerBreaks
 import dev.jamesrich.sofaking.ui.player.PlayerCaptions
@@ -234,8 +235,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             onZoom = { shell.videoZoom = it },
             breaks = playerBreaks(prefs, vm),
             sleep = shell.sleep,
-            onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
-                .takeIf { capabilities.multiview },
+            onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) },
         )
     }
 }
@@ -280,10 +280,11 @@ internal fun MultiviewDestination(
     MultiviewScreen(
         lineup = lineup,
         initial = route.guideIds,
-        player = player,
-        sessions = vm.sessions,
+        players = remember(player, vm) { MultiviewPlayers(player, vm.sessions, vm.paneSessions) },
         favoritesOrder = prefs.favoritesOrder,
         recent = prefs.recentChannels,
+        captions = playerCaptions(prefs, vm),
+        breaks = playerBreaks(prefs, vm),
         onWatch = { channel -> shell.backToPlayer(channel.guideId) },
         onExit = { shell.backToPlayer(route.guideIds.first()) },
     )

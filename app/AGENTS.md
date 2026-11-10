@@ -54,6 +54,7 @@ How the player, sessions and caches work is in [docs/architecture.md](docs/archi
 
 - One `LivePlayer` from `rememberLivePlayer`; preview and full screen borrow it and never release it. Screens read its `status`, `errors` and `cues` flows.
 - Screens call `tune` and `setIntent` on `PlaybackSessions`, never the session API directly. One session at a time.
+- Multiview is the exception to both: it stops the shared player and releases its session, and each pane plays on a player of its own (`rememberLivePlayer(pane = true)`) and one of `ServerConnection.paneSessions` (`PanePlay`). Moving the sound changes only the panes' volume, never a stream.
 - The preview opens a `preview` session and OK promotes it to `watch` with `setIntent`; do not reopen or reload on the handoff. The full screen sets the shared player's volume to 1 when it opens; the preview writes it only while the guide is the page on top.
 - Keep `PreviewDwell`'s timing decisions in the class, not in effects. The auto full screen never fires unless the host is STARTED.
 - Items carry the channel id and the descriptor's MIME type (`mediaItemFor`); Media3 never sniffs a session URL.

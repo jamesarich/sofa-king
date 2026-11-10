@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,10 @@ class ServerConnection(
     scope: CoroutineScope,
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions = PlaybackSessions(scope + Dispatchers.Default + logFailures),
+    /** A session for each of multiview's panes, held beside [sessions] so every pane plays a stream of its own. */
+    val paneSessions: List<PlaybackSessions> = List(Wire.MULTIVIEW_MAX_TILES) {
+        PlaybackSessions(scope + Dispatchers.Default + logFailures)
+    },
     /** The library kinds beyond movies, shows and videos the client shows, which every API call names. */
     libraryKinds: List<String> = emptyList(),
     /** The live protocols the player plays when it plays HLS only, which every API call names; empty plays both. */
@@ -76,6 +81,7 @@ class ServerConnection(
             try {
                 server.collect {
                     sessions.configure(it?.api)
+                    for (pane in paneSessions) pane.configure(it?.api)
                     open?.close()
                     open = it?.api
                 }

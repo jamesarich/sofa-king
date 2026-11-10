@@ -169,7 +169,8 @@ private fun SofaKingApp(
     val guidePlays = PREVIEW_ENABLED && LocalLayoutProfile.current.showsPreviewBand
     val music = rememberMusicPlayback(playback, sessions, libraryVm)
     RouteStreamEffects(shell, top, playback, music, sessions, guidePlays)
-    val plays = if (top is Route.Guide) guidePlays else top.playsLive
+    // Multiview's panes play on players of their own, which stop and start with the app themselves.
+    val plays = if (top is Route.Guide) guidePlays else top.playsLive && top !is Route.Multiview
     ForegroundEffects(playback, music, sessions, lifecycleOwner, plays)
 
     val chrome = rememberTabChrome(shell, offered, LocalLayoutProfile.current.tv, libraryVm::refreshHome)

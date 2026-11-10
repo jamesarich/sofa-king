@@ -164,7 +164,7 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `multiview sits just before the guide where the server draws it`() {
+    fun `multiview sits just before the guide`() {
         val buttons = liveButtons(pointer = false, canRecord = false, canFavorite = true, canMultiview = true)
         assertEquals(listOf(LiveButton.FAVORITE, LiveButton.MULTIVIEW, LiveButton.GUIDE), buttons.takeLast(3))
     }

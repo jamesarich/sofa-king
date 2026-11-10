@@ -55,7 +55,7 @@ private val log = Logger.withTag("SofaKing")
 internal var newDesktopLivePlayer: (CaptionSync) -> LivePlayer = { VlcLivePlayer(it) }
 
 @Composable
-actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
+actual fun rememberLivePlayer(captionSync: CaptionSync, pane: Boolean): LivePlayer {
     val player = remember(captionSync) { newDesktopLivePlayer(captionSync) }
     DisposableEffect(player) { onDispose { player.release() } }
     return player

@@ -6,9 +6,11 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
@@ -38,6 +40,7 @@ internal fun newExoPlayer(
     captionSync: CaptionSync,
     tuning: PlaybackTuning,
     tap: AudioAnalyzer? = null,
+    pane: Boolean = false,
 ): ExoPlayer {
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(
@@ -50,15 +53,30 @@ internal fun newExoPlayer(
         .setMediaCodecSelector(tuning.codecSelector)
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderers)
-        .setLoadControl(CaptionSyncLoadControl(captionSync, tuning, defaultDelegate(context.isLowRamDevice())))
+        .setLoadControl(CaptionSyncLoadControl(captionSync, tuning, defaultDelegate(bufferBytes(context, pane))))
         // Audio focus and the unplugged-headphones pause start off and follow the volume; see [ExoLivePlayer.volume].
         .setAudioAttributes(MEDIA_AUDIO, false)
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
         .build()
         .apply {
             trackSelectionParameters = captionParameters(trackSelectionParameters, enabled = false)
+            if (pane) trackSelectionParameters = paneParameters(context, trackSelectionParameters)
             playWhenReady = true
         }
+}
+
+/** The most the load control buffers: a pane's share, a low-RAM device's, or Media3's own (null). */
+private fun bufferBytes(context: Context, pane: Boolean): Int? = when {
+    pane -> PANE_TARGET_BUFFER_BYTES
+    context.isLowRamDevice() -> LOW_RAM_TARGET_BUFFER_BYTES
+    else -> null
+}
+
+/** [base] with no picture larger than half the display each way, which is the most a pane of multiview shows. */
+@OptIn(UnstableApi::class)
+private fun paneParameters(context: Context, base: TrackSelectionParameters): TrackSelectionParameters {
+    val display = Util.getCurrentDisplayModeSize(context)
+    return base.buildUpon().setMaxVideoSize(display.x / 2, display.y / 2).build()
 }
 
 /** The caption and audio tracks of [exo]'s stream; the player's listener hands them each track change and cue. */

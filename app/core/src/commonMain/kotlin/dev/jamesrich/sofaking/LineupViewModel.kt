@@ -125,6 +125,9 @@ class LineupViewModel(
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions get() = connection.sessions
 
+    /** The sessions multiview's panes hold, one each. */
+    val paneSessions: List<PlaybackSessions> get() = connection.paneSessions
+
     /** What the server offers beyond live TV, from its bootstrap. */
     val capabilities: StateFlow<ServerCapabilities> get() = connection.capabilities
 

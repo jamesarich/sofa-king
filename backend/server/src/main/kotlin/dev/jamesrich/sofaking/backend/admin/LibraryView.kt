@@ -33,6 +33,8 @@ internal class LibraryView(
     val secretError: Pair<SavedSecret, String>? = null,
     /** Folders whose names say what they hold, each one click from a library. */
     val suggestions: List<LibrarySuggestion> = emptyList(),
+    /** Each library's files the probe found no video or audio in, as folder-relative paths. */
+    val unreadable: Map<String, List<String>> = emptyMap(),
 )
 
 /** What a library holds, in words: "120 movies", "14 shows, 612 episodes", with its extras when it has any. */

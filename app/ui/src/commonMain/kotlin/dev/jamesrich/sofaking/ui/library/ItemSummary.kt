@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.resources.library_seasons
 import dev.jamesrich.sofaking.resources.library_shuffle
 import dev.jamesrich.sofaking.resources.library_subtitles
 import dev.jamesrich.sofaking.resources.library_tracks
+import dev.jamesrich.sofaking.resources.library_unreadable
 import dev.jamesrich.sofaking.resources.tagline
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.announcesChanges
@@ -315,6 +316,9 @@ private fun MetaLine(detail: MediaItemDetail) {
         item.contentRating?.let { OutlinedBadge(it) }
         pictureBadge(item.videoHeight)?.let { OutlinedBadge(it) }
         if (item.hdr) OutlinedBadge(HDR)
+        if (item.unreadable) {
+            OutlinedBadge(stringResource(Res.string.library_unreadable), MaterialTheme.colorScheme.error)
+        }
         if (item.progress?.watched == true) WatchedTick()
     }
 }
@@ -355,12 +359,12 @@ private fun Credit(text: String) {
 }
 
 @Composable
-private fun OutlinedBadge(text: String) {
-    val outline = MaterialTheme.colorScheme.outline
+private fun OutlinedBadge(text: String, tint: Color? = null) {
+    val outline = tint ?: MaterialTheme.colorScheme.outline
     Text(
         text,
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier.border(
             1.dp,

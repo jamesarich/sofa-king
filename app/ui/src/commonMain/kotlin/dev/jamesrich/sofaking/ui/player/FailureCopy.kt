@@ -23,6 +23,8 @@ import dev.jamesrich.sofaking.resources.stream_refused
 import dev.jamesrich.sofaking.resources.stream_unsupported
 import dev.jamesrich.sofaking.resources.vod_cant_play
 import dev.jamesrich.sofaking.resources.vod_cant_play_retry
+import dev.jamesrich.sofaking.resources.vod_unreadable
+import dev.jamesrich.sofaking.resources.vod_unreadable_hint
 import org.jetbrains.compose.resources.StringResource
 
 /** The server's answer when every source of a channel is down or quarantined. */
@@ -49,6 +51,9 @@ internal class FailureCopy(val reason: StringResource, val hint: StringResource)
  * channel from a library item or recording, which has no reconnect.
  */
 internal fun failureCopy(code: String, live: Boolean = true): FailureCopy {
+    if (code == Wire.ErrorCode.MEDIA_UNREADABLE) {
+        return FailureCopy(Res.string.vod_unreadable, Res.string.vod_unreadable_hint)
+    }
     val known = when {
         code == Wire.ErrorCode.AUTH_REQUIRED || code == "HTTP_401" || code == "HTTP_403" ->
             FailureCopy(Res.string.player_signed_out, Res.string.player_signed_out_hint)

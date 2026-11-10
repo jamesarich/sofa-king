@@ -64,6 +64,7 @@ A failed stream shows a headline, a line saying what to do, and in small type th
 | No DVR tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
 | A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
 | `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as it allows ([conversion](usage.md#conversion-progress-and-up-next)). Stop playback elsewhere and try again. |
+| The server can't read this file | The server found no video or audio in the file, as in a download that did not finish (`MEDIA_UNREADABLE`). The item's page badges it Unreadable, and the server's Library page lists it. Replace the file; the next scan reads it again. |
 | A jump in a library item takes a moment | The server converts that file as it plays, and a jump past what it has converted restarts the conversion there. |
 | No commercial breaks on the seek bar | The server's [commercial scan](../../backend/docs/recordings.md#commercial-breaks) found none, or has not finished; Skip commercials has nothing to skip. |
 

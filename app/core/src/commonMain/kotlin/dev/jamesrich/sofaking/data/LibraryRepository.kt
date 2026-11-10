@@ -147,6 +147,7 @@ internal fun SofaKingApi.mediaItem(dto: LibraryItemDto) = MediaItem(
     rating = dto.rating,
     videoHeight = dto.videoHeight,
     hdr = dto.hdr,
+    unreadable = dto.unreadable,
     children = dto.children,
     unwatched = dto.unwatched,
     progress = dto.playState?.let { PlayProgress(it.positionMs, it.durationMs, it.watched) },

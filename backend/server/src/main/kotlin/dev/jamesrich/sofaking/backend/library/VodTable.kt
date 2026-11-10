@@ -50,6 +50,7 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
      */
     fun retire(state: VodState, reason: String) {
         if (sessions.remove(state.id) != null) history?.ended(state.start(), reason)
+        state.ending = true
         state.process?.destroy()
         retired += state
     }
@@ -60,7 +61,7 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
      * a preview never ends anything.
      */
     fun makeRoom(max: Int, others: Int, intent: String): Boolean {
-        fun converting() = sessions.values.count { heavy(it.mode, it.media) } + others
+        fun converting() = sessions.values.count { heavy(it.mode, it.media) && !it.failed.get() } + others
         fun oldestPreview() = sessions.values.filter { it.intent == Wire.Intent.PREVIEW && heavy(it.mode, it.media) }
             .minByOrNull { it.startedAt }
         while (converting() >= max && intent == Wire.Intent.WATCH) {
@@ -72,8 +73,10 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
     /** The open session [id], once the expired ones are gone. */
     fun live(id: String): VodState {
         reap()
-        return sessions[id]
+        val state = sessions[id]
             ?: throw ApiFailure(HttpStatusCode.Gone, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+        if (state.failed.get()) throw conversionFailed()
+        return state
     }
 
     fun reap() {
@@ -87,3 +90,7 @@ internal class VodTable(private val clock: Clock, private val runner: VodRunner)
         locked { if (sessions[state.id] !== state) retire(state, HistoryReason.RELEASED) }
     }
 }
+
+/** The answer for a session whose FFmpeg died: a player stops renewing and shows the failure. */
+internal fun conversionFailed() =
+    ApiFailure(HttpStatusCode.UnprocessableEntity, Wire.ErrorCode.MEDIA_UNREADABLE, UNREADABLE_MESSAGE)

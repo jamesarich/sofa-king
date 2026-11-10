@@ -43,6 +43,9 @@ class LibraryPlaybackTest {
         var nextId = 1
         var openDelayMs = 0L
 
+        /** True for a server whose conversion died: it answers every renewal with this 422. */
+        var unreadable = false
+
         val http = FakeHttp(scope) { request ->
             val vodId = request.path.removePrefix("/api/v1/vod-sessions/").takeIf {
                 request.path.startsWith("/api/v1/vod-sessions/")
@@ -71,6 +74,8 @@ class LibraryPlaybackTest {
                     delay(openDelayMs)
                     json(vod.body(), status = 201)
                 }
+
+                vodId != null && request.method == "PATCH" && unreadable -> apiError(422, "MEDIA_UNREADABLE")
 
                 vodId != null && request.method == "PATCH" -> vods[vodId]?.let { vod ->
                     Json.parseToJsonElement(request.body).jsonObject["startMs"]?.jsonPrimitive?.longOrNull?.let {
@@ -277,6 +282,16 @@ class LibraryPlaybackTest {
         val reopened = withTimeout(5_000) { sessions.current.filterNotNull().first { it.sessionId != "v1" } }
         assertEquals("m1", reopened.itemId)
         assertEquals(42_000, reopened.offsetMs)
+    }
+
+    @Test
+    fun `an item whose conversion died is renewed once and then left alone`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.play("m1", tv)
+        fake.unreadable = true
+        withTimeout(5_000) { while (fake.requests.none { it == "PATCH /api/v1/vod-sessions/v1 {}" }) delay(10) }
+        delay(1_000)
+        assertEquals(1, fake.requests.count { it.startsWith("PATCH /api/v1/vod-sessions/v1") })
     }
 
     private fun FakeServer.opens() = requests.filter { it.startsWith("POST /api/v1/vod-sessions") }

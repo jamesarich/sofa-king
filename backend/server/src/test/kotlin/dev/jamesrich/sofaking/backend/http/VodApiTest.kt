@@ -201,6 +201,40 @@ class VodApiTest {
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
     }
 
+    @Test fun `a file FFprobe cannot read is flagged by the scan and opens as 422 with no FFmpeg started`() =
+        vodServer("sofa-vod-zero-", { dir ->
+            val file = dir.resolve("media/movies/Zeros (2020)/Zeros (2020).mkv")
+            Files.createDirectories(file.parent)
+            Files.write(file, ByteArray(1_048_576))
+        }) {
+            assertTrue(catalog.item(item().id).item.unreadable, "the scan found no video or audio in it")
+            val refused = open(ClientProfile())
+            assertEquals(HttpStatusCode.UnprocessableEntity, refused.status)
+            val error = json.decodeFromString<ApiError>(refused.bodyAsText())
+            assertEquals(Wire.ErrorCode.MEDIA_UNREADABLE, error.code)
+            assertEquals("The server can't read this file; it may be incomplete or damaged", error.message)
+            assertFalse(error.retryable)
+            assertEquals(0L, transcoding())
+        }
+
+    @Test fun `a file that was unreadable plays once it is replaced and scanned again`() = vodServer(
+        "sofa-vod-heal-",
+        { dir ->
+            val file = dir.resolve("media/movies/Heals (2020)/Heals (2020).mkv")
+            Files.createDirectories(file.parent)
+            Files.write(file, ByteArray(1_048_576))
+        },
+    ) {
+        val id = item().id
+        assertTrue(catalog.item(id).item.unreadable)
+        runtime.libraries!!.scan(item().libraryId)
+        assertTrue(catalog.item(id).item.unreadable, "a rescan of the same file keeps the flag")
+        clip(dir.resolve("media/movies/Heals (2020)/Heals (2020).mkv"))
+        runtime.libraries!!.scan(item().libraryId)
+        assertFalse(catalog.item(id).item.unreadable, "the changed file is probed again")
+        assertEquals(HttpStatusCode.Created, open(remuxProfile(), itemId = id).status)
+    }
+
     @Test fun `an intent the server does not know answers 400`() = clipServer {
         val response = client.post("/api/v1/vod-sessions") {
             bearerAuth(token)

@@ -241,6 +241,7 @@ private fun itemView(
         addedAt = record.addedAt,
         genres = text.genres, contentRating = text.contentRating, rating = text.rating,
         videoHeight = video?.height, hdr = video?.transfer != null,
+        unreadable = record.details?.unreadable == true,
         extra = record.details?.extra?.takeIf { record.kind == ItemKind.EXTRA },
         tmdbId = ids.tmdb, tvdbId = ids.tvdb, imdbId = ids.imdb,
     )

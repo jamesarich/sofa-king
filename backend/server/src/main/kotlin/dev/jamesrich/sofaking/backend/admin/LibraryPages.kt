@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.LibraryService
 import dev.jamesrich.sofaking.backend.store.library
+import dev.jamesrich.sofaking.backend.store.libraryItems
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.parameters
@@ -148,6 +149,11 @@ internal class LibraryPages(private val portal: Portal) {
             settable = SavedSecret.entries.filterTo(mutableSetOf()) { runtime.setup?.fromEnvironment(it) == false },
             secretError = secretError,
             suggestions = service.folders.suggestions(),
+            unreadable = service.libraries().associate { library ->
+                library.id to runtime.store.libraryItems(library.id)
+                    .filter { it.missingSince == null && it.details?.unreadable == true }
+                    .mapNotNull { it.path }.sorted()
+            }.filterValues { it.isNotEmpty() },
         )
     }
 }

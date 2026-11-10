@@ -354,6 +354,8 @@ class AdminPortalPagesTest : AdminPortalCase() {
             runtime.libraries!!.scan(library.id)
             val listed = browser.get("/admin/library").bodyAsText()
             assertTrue(listed.contains("1 movie"), listed)
+            assertTrue(listed.contains("1 unreadable file"), "the probe found nothing in the text file: $listed")
+            assertTrue(listed.contains("Alien (1979)/Alien (1979).mkv"), "the unreadable file is listed")
 
             browser.post("/admin/library/${library.id}/rename", "csrf" to csrf, "name" to "Films")
             assertEquals("Films", runtime.libraries!!.library(library.id).name)

@@ -318,6 +318,7 @@ struct ItemDetailView: View {
         if let content = item.contentRating { parts.append(content) }
         if let height = item.videoHeight?.intValue { if height >= 2000 { parts.append("4K") } else if height >= 720 { parts.append("HD") } }
         if item.hdr { parts.append("HDR") }
+        if item.unreadable { parts.append("Unreadable") }
         if !item.genres.isEmpty { parts.append(item.genres.prefix(3).joined(separator: ", ")) }
         return parts.joined(separator: " · ")
     }

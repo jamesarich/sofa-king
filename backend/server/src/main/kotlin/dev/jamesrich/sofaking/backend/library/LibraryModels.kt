@@ -96,6 +96,8 @@ data class ItemDetails(
     val musicBrainzId: String? = null,
     /** An album's MusicBrainz release group, the album over all its editions. */
     val releaseGroupId: String? = null,
+    /** Whether the probe of the file found no video or audio; the scan probes it again only once the file changes. */
+    val unreadable: Boolean = false,
 )
 
 /**

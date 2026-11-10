@@ -103,6 +103,8 @@ class WebItem(
     val watched: Boolean,
     /** How far in, 0 to 1, or null when not started or the length is unknown. */
     val progress: Double?,
+    /** True when the server found no video or audio in the file, so it cannot play. */
+    val unreadable: Boolean = false,
 )
 
 @JsExport
@@ -242,6 +244,7 @@ internal fun WebParts.toWeb(item: MediaItem): WebItem {
         progress?.positionMs?.toDouble() ?: 0.0,
         progress?.watched == true,
         progress?.takeIf { it.inProgress && !it.watched }?.fraction?.toDouble(),
+        item.unreadable,
     )
 }
 

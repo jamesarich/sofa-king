@@ -69,7 +69,7 @@ class MultiviewJourneyTest {
     }
 
     private fun journey(block: AppDriver.() -> Unit) =
-        runSofaKing(tv = true, File("build/journeys", "multiview"), FakeServer(multiview = true), block)
+        runSofaKing(tv = true, File("build/journeys", "multiview"), FakeServer(multiview = true), block = block)
 
     private companion object {
         const val BAR_BUTTONS = 14

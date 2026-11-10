@@ -49,9 +49,15 @@ import kotlin.time.Instant
 /**
  * A server on loopback with a lineup, a day of guide, a movie library and a show library, and, unless [recordings] is
  * false, a few finished recordings. Its playback sessions, live and library, point at streams that go nowhere, since
- * the tests have no decoder; it counts the guide queries and the sessions the app holds open.
+ * the tests have no decoder; it counts the guide queries and the sessions the app holds open. With [signedOut] it
+ * pairs a device and then turns the device's token away with a 401 on every other route, as a server does once the
+ * device was revoked.
  */
-internal class FakeServer(private val recordings: Boolean = true, private val multiview: Boolean = false) {
+internal class FakeServer(
+    private val recordings: Boolean = true,
+    private val multiview: Boolean = false,
+    private val signedOut: Boolean = false,
+) {
     private val http = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
     val url = "http://127.0.0.1:${http.address.port}"
     val guideQueries = AtomicInteger()
@@ -174,6 +180,10 @@ internal class FakeServer(private val recordings: Boolean = true, private val mu
     private fun handle(exchange: HttpExchange) {
         val request = Request(exchange)
         requestLog += "${request.method} ${request.path}"
+        if (signedOut && request.path != "pair") {
+            exchange.json(401, ApiError("UNAUTHORIZED", request.path))
+            return
+        }
         if (!live(exchange, request) && !library(exchange, request)) exchange.notFound(request.path)
     }
 

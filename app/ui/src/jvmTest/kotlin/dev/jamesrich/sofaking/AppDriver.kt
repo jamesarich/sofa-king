@@ -44,11 +44,18 @@ import kotlin.test.fail
 
 /**
  * Starts the whole app in a 1920 by 1080 test scene, paired with [server] through the link a QR code carries, in the
- * TV layout when [tv] is set, and runs [block] once the guide shows the lineup. libVLC is left out, so the player
- * reports that VLC is missing without looking for it. A failure's screen and semantics tree go to [out].
+ * TV layout when [tv] is set, and runs [block] once [ready] says the app has settled: by default, once the guide shows
+ * the lineup. libVLC is left out, so the player reports that VLC is missing without looking for it. A failure's
+ * screen and semantics tree go to [out].
  */
 @OptIn(ExperimentalTestApi::class, DelicateCoilApi::class)
-internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer(), block: AppDriver.() -> Unit) {
+internal fun runSofaKing(
+    tv: Boolean,
+    out: File,
+    server: FakeServer = FakeServer(),
+    ready: AppDriver.() -> Boolean = { server.guideQueries.get() > 0 && focusedCount() > 0 },
+    block: AppDriver.() -> Unit,
+) {
     out.mkdirs()
     System.setProperty(TV_PROPERTY, tv.toString())
     val uncaught = Collections.synchronizedList(mutableListOf<Throwable>())
@@ -56,6 +63,7 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
     Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
     val backInput = EscapeBackInput()
     val link = mutableStateOf<AppLink?>(null)
+    val pairing = mutableStateOf<PairingRequest?>(PairingRequest(server.url, "123456"))
     try {
         val data = Files.createTempDirectory("sofaking-test").toString()
         initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "test")))
@@ -71,15 +79,15 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
                     dispatcher?.addInput(backInput)
                     onDispose { dispatcher?.removeInput(backInput) }
                 }
-                App(pairing = PairingRequest(server.url, "123456"), link = link.value, onLinkHandle = {
-                    link.value =
-                        null
-                })
+                App(
+                    pairing = pairing.value,
+                    onPairingHandle = { pairing.value = null },
+                    link = link.value,
+                    onLinkHandle = { link.value = null },
+                )
             }
-            val driver = AppDriver(this, server, backInput, uncaught, out, link)
-            waitUntil("the guide shows the lineup", timeoutMillis = 20_000) {
-                server.guideQueries.get() > 0 && driver.focusedCount() > 0
-            }
+            val driver = AppDriver(this, server, backInput, uncaught, out, link, pairing)
+            waitUntil("the app settles", timeoutMillis = 20_000) { driver.ready() }
             driver.block()
         }
     } finally {
@@ -100,7 +108,14 @@ internal class AppDriver(
     val uncaught: List<Throwable>,
     val out: File,
     private val link: MutableState<AppLink?>,
+    private val pairing: MutableState<PairingRequest?>,
 ) {
+    /** Hands the app [request] as the platform hands it a `sofaking://pair` link, and waits for the app to settle. */
+    fun openPairing(request: PairingRequest) {
+        ui.runOnUiThread { pairing.value = request }
+        ui.waitForIdle()
+    }
+
     /** Opens [appLink] as the platform hands the app a `sofaking://` link, and waits for the app to settle. */
     fun openLink(appLink: AppLink) {
         ui.runOnUiThread { link.value = appLink }

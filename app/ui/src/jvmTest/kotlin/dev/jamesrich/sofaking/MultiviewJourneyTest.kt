@@ -34,7 +34,8 @@ class MultiviewJourneyTest {
         val opened = server.watchedChannels.single()
         keys("Down", "OK")
         ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
-        keys("Up", "Up", "Up")
+        keys("Up", "Up")
+        if (focusedLabel() != "Watch 2 channels") keys("Right")
         assertFocused("Watch 2 channels")
         keys("OK")
         assertFocused("the pane with the sound") { it?.endsWith("playing sound") == true }
@@ -57,9 +58,21 @@ class MultiviewJourneyTest {
     @Test
     fun `a click on a row ticks its channel as OK does`() = journey {
         openPicker()
-        // The search box comes first, then the row of the channel being watched.
-        ui.onAllNodes(hasText("Channel", substring = true) and hasClickAction())[2].performClick()
+        ui.onAllNodes(hasText("Channel", substring = true) and hasClickAction())[1].performClick()
         ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+    }
+
+    @Test
+    fun `the search box stays shut until Search opens it and Back shuts it`() = journey {
+        openPicker()
+        keys("Up")
+        if (focusedLabel() != "Search") keys("Left")
+        assertFocused("Search")
+        keys("OK")
+        assertFocused("Channel, number or program")
+        keys("Back")
+        assertFocused("the first channel") { it?.contains("Channel") == true }
+        assertEquals(1, server.watchedChannels.size, "Back shut the search, not multiview")
     }
 
     /** From the guide, the focused channel full screen, then its bar's Multiview button pressed. */

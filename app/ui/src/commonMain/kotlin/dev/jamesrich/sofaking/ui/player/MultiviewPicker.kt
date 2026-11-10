@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.multiview_no_results
 import dev.jamesrich.sofaking.resources.multiview_pick_hint
 import dev.jamesrich.sofaking.resources.multiview_pick_keys_hint
+import dev.jamesrich.sofaking.resources.multiview_search
 import dev.jamesrich.sofaking.resources.multiview_search_hint
 import dev.jamesrich.sofaking.resources.multiview_section_all
 import dev.jamesrich.sofaking.resources.multiview_section_favorites
@@ -67,50 +68,48 @@ import org.jetbrains.compose.resources.stringResource
 internal val PICKER_WIDTH: Dp = 480.dp
 
 /**
- * The channels to watch at once, beside the panes: a search box, then [groups] under their headings as rows OK or a
- * tap ticks, each with the program [airing] on it. A ticked channel ([picked]) starts playing at once; Watch, or
- * Right from a row, puts the list away ([onWatch]) once two to four are ticked.
+ * The channels to watch at once, beside the panes: [groups] under their headings as rows OK or a tap ticks, each with
+ * the program [airing] on it. Search opens a box for the [query] ([onSearch]); it stays shut until asked for
+ * ([searching]), since a text box that takes focus on a TV brings up the on-screen keyboard, which takes the remote.
+ * A ticked channel ([picked]) starts playing at once; Watch, or Right from a row, puts the list away ([onWatch]) once
+ * two to four are ticked.
  */
 @Composable
 internal fun MultiviewPicker(
     groups: List<PickGroup>,
     picked: List<String>,
     query: TextFieldState,
+    searching: Boolean,
     airing: (Channel) -> String?,
     onToggle: (Channel) -> Unit,
+    onSearch: () -> Unit,
     onWatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val first = remember { FocusRequester() }
     val search = remember { FocusRequester() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
+    // At first, and when the search box shuts, the first channel has focus; the box has it while it is open.
+    LaunchedEffect(searching) { requestFocusWhenAttached(if (searching) search else first) }
     val ready = picked.size in MULTIVIEW_MIN_TILES..Wire.MULTIVIEW_MAX_TILES
     val keys = LocalLastInput.current.kind != InputKind.POINTER
     Column(
         modifier.fillMaxHeight().width(PICKER_WIDTH).background(SofaOverlayScrimDense).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(Res.string.multiview_title),
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.weight(1f).sectionHeading(),
-            )
-            SofaButton(onClick = onWatch, main = true, enabled = ready) {
-                Text(pluralStringResource(Res.plurals.multiview_watch, picked.size, picked.size))
-            }
-        }
+        PickHeader(picked.size, ready, searching, onSearch, onWatch)
         val hint = stringResource(Res.string.multiview_pick_hint)
         val keysHint = if (keys) " " + stringResource(Res.string.multiview_pick_keys_hint) else ""
         Text(hint + keysHint, style = MaterialTheme.typography.bodySmall)
-        TvTextField(
-            state = query,
-            focusRequester = search,
-            imeAction = ImeAction.Done,
-            onAction = { first.requestFocus(FocusDirection.Enter) },
-            modifier = Modifier.fillMaxWidth(),
-            hint = stringResource(Res.string.multiview_search_hint),
-        )
+        if (searching) {
+            TvTextField(
+                state = query,
+                focusRequester = search,
+                imeAction = ImeAction.Done,
+                onAction = { first.requestFocus(FocusDirection.Enter) },
+                modifier = Modifier.fillMaxWidth(),
+                hint = stringResource(Res.string.multiview_search_hint),
+            )
+        }
         val rightWatches = Modifier.onPreviewKeyEvent { event ->
             val takes = ready && event.key == Key.DirectionRight
             if (takes && event.type == KeyEventType.KeyDown) onWatch()
@@ -134,6 +133,26 @@ internal fun MultiviewPicker(
                     )
                 }
             }
+        }
+    }
+}
+
+/** The picker's title, Search while its box is shut, and Watch, which is on once the pick is [ready]. */
+@Composable
+private fun PickHeader(count: Int, ready: Boolean, searching: Boolean, onSearch: () -> Unit, onWatch: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(Res.string.multiview_title),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.weight(1f).sectionHeading(),
+        )
+        if (!searching) SofaButton(onClick = onSearch) { Text(stringResource(Res.string.multiview_search)) }
+        SofaButton(onClick = onWatch, main = true, enabled = ready) {
+            Text(pluralStringResource(Res.plurals.multiview_watch, count, count))
         }
     }
 }

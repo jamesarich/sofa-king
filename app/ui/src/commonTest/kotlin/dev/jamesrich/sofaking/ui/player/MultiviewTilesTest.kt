@@ -107,6 +107,18 @@ class MultiviewTilesTest {
     }
 
     @Test
+    fun `Back shuts the search then leaves from the list and brings the list back from the panes`() {
+        val state = MultiviewState(listOf("a", "b"))
+        state.searching = true
+        assertTrue(state.back())
+        assertFalse(state.searching)
+        assertFalse(state.back(), "Back from the list leaves")
+        state.watch()
+        assertTrue(state.back())
+        assertTrue(state.picking)
+    }
+
+    @Test
     fun `a silent pane always shows captions and the heard one follows the setting`() {
         assertTrue(paneCaptions(sound = false, setting = false))
         assertFalse(paneCaptions(sound = true, setting = false))

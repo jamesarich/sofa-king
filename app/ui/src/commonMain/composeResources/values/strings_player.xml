@@ -173,6 +173,7 @@
     <string name="multiview_title">Multiview</string>
     <string name="multiview_pick_hint">Pick 2 to 4 channels. Each starts playing as you pick it.</string>
     <string name="multiview_pick_keys_hint">Right watches them.</string>
+    <string name="multiview_search">Search</string>
     <string name="multiview_search_hint">Channel, number or program</string>
     <string name="multiview_section_watching">Watching</string>
     <string name="multiview_section_favorites">Favorites</string>

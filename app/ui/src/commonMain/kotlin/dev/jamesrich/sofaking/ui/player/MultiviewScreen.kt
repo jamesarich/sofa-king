@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,8 +115,9 @@ fun MultiviewScreen(
     KeepScreenOn(state.picked.isNotEmpty())
     val leave = rememberLeave(state, players.paneSessions)
     BackHandler {
-        if (state.picking) leave(onExit) else state.picking = true
+        if (!state.back()) leave(onExit)
     }
+    LaunchedEffect(state.searching) { if (!state.searching) query.clearText() }
     val channels = state.picked.mapNotNull { id -> lineup.channels.firstOrNull { it.guideId == id } }
     val names by produceLabels(state.touched)
     BoxWithConstraints(modifier.fillMaxSize().background(SofaScrim).testTag(MULTIVIEW_TEST_TAG)) {
@@ -141,8 +143,10 @@ fun MultiviewScreen(
                 },
                 picked = state.picked,
                 query = query,
+                searching = state.searching,
                 airing = airing,
                 onToggle = { state.toggle(it.guideId) },
+                onSearch = { state.searching = true },
                 onWatch = state::watch,
             )
         } else {
@@ -183,8 +187,8 @@ private fun rememberLeave(state: MultiviewState, sessions: List<PlaybackSessions
 
 /**
  * What a multiview shows: the channels [picked], in the order they were ticked and starting with those it [opened]
- * on, the player each plays on ([slots]), the one whose [sound] plays, whether the list is up ([picking]), and a
- * count of the presses and taps that show the names ([touched]).
+ * on, the player each plays on ([slots]), the one whose [sound] plays, whether the list is up ([picking])
+ * and its search box open ([searching]), and a count of the presses and taps that show the names ([touched]).
  */
 @Stable
 internal class MultiviewState(val opened: List<String>) {
@@ -194,6 +198,7 @@ internal class MultiviewState(val opened: List<String>) {
         private set
     var sound by mutableStateOf(opened.firstOrNull())
     var picking by mutableStateOf(true)
+    var searching by mutableStateOf(false)
     var touched by mutableIntStateOf(0)
 
     /** Ticks or unticks [guideId]: its pane opens or closes, and the sound stays where it was while that one shows. */
@@ -204,6 +209,21 @@ internal class MultiviewState(val opened: List<String>) {
     }
 
     private var closed = false
+
+    /** Back: shuts the search box, or brings the list back over the panes; false when it leaves multiview. */
+    fun back(): Boolean = when {
+        searching -> {
+            searching = false
+            true
+        }
+
+        picking -> false
+
+        else -> {
+            picking = true
+            true
+        }
+    }
 
     /** Closes every pane, once: false when they were closed already. */
     fun close(): Boolean {

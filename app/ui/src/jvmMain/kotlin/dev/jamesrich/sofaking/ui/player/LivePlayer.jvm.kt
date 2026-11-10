@@ -179,7 +179,6 @@ internal class VlcLivePlayer(
         val url = stream?.url ?: return
         mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
-        breakMarks.lead = stream?.liveLeadMs
         breakMarks.follow(url.takeIf { stream?.seekable == false })
         val opening = commands.generation.incrementAndGet()
         commands.execute {
@@ -227,13 +226,7 @@ internal class VlcLivePlayer(
 
     private val breakMarks = VlcBreakMarks(VLC_LIVE_DELAY_MS)
 
-    override var liveLeadMs: Long?
-        get() = breakMarks.lead
-        set(value) {
-            breakMarks.lead = value
-        }
-
-    /** libVLC reports no playlist, so the marks come from [VlcBreakMarks], placed by the server's lead or 15 s. */
+    /** libVLC reports no playlist, so the marks come from [VlcBreakMarks]; the break placement is 15 s approximate. */
     override fun adBreak(): AdBreakNow? = if (stream?.seekable == false) breakMarks.adBreak() else null
 
     override fun seekTo(positionMs: Long) {
@@ -422,10 +415,7 @@ internal const val VLC_NOT_INSTALLED = "VLC_NOT_INSTALLED"
 /** The name the desktop's media controls show for the player. */
 private const val APP_NAME = "Sofa King"
 
-/**
- * libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays, for a
- * session whose server reports no lead.
- */
+/** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
 private const val VLC_LIVE_DELAY_MS = 15_000L
 
 /** libVLC's volume for the full level, and the cache it reports once full, both in percent. */

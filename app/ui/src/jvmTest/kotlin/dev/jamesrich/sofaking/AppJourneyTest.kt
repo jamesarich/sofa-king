@@ -150,7 +150,7 @@ class AppJourneyTest {
     }
 
     private fun journey(tv: Boolean, server: FakeServer = FakeServer(), block: AppDriver.() -> Unit) =
-        runSofaKing(tv, File("build/journeys", if (tv) "tv" else "desktop"), server, block)
+        runSofaKing(tv, File("build/journeys", if (tv) "tv" else "desktop"), server, block = block)
 
     private companion object {
         const val ALL_CHIP = "All 40"

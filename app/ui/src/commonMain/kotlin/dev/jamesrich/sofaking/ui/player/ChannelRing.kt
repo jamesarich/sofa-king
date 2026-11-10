@@ -219,4 +219,4 @@ internal class ChannelRing(
 }
 
 /** The failure code of a live stream that ended. */
-private const val STREAM_ENDED = "STREAM_ENDED"
+internal const val STREAM_ENDED = "STREAM_ENDED"

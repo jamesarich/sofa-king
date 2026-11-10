@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -54,6 +57,20 @@ class ServerConnection(
     crashReporter: CrashReporter? = null,
 ) {
     private val work = scope + logFailures
+    private val paneLock = Mutex()
+    private var panes: List<PlaybackSessions>? = null
+    private var paneApi: SofaKingApi? = null
+
+    /**
+     * A session for each of multiview's panes, held beside [sessions] so every pane plays a stream of its own. They
+     * are made the first time multiview asks, and follow the server as [sessions] does.
+     */
+    suspend fun paneSessions(): List<PlaybackSessions> = paneLock.withLock {
+        panes ?: List(Wire.MULTIVIEW_MAX_TILES) { PlaybackSessions(work + Dispatchers.Default) }.also { made ->
+            for (pane in made) pane.configure(paneApi)
+            panes = made
+        }
+    }
 
     /**
      * The server as Settings has it, with one API client for the sessions and the repositories, or null while
@@ -76,6 +93,10 @@ class ServerConnection(
             try {
                 server.collect {
                     sessions.configure(it?.api)
+                    paneLock.withLock {
+                        paneApi = it?.api
+                        panes?.forEach { pane -> pane.configure(it?.api) }
+                    }
                     open?.close()
                     open = it?.api
                 }

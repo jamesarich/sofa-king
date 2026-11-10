@@ -1,0 +1,66 @@
+# Multiview: two channels in panes of their own, and the sound moved between them. Starts on any tab (a player left
+# open is left first), tunes Sofa Sports by its link (the fixture numbers its channels from 2), opens Multiview from the
+# player's bar, ticks the next channel in the list, which must start a second pane, and puts the list away. Right must
+# move the sound to that channel with both panes still up. Ends in the live player on Sofa Sports.
+appId: dev.jamesrich.sofaking
+name: Multiview panes and the sound
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- openLink: "sofaking://live/3"
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+# Pausing holds the bar up, since Maestro reads the screen slower than the bar's 5 seconds while video plays. Right
+# then moves into the bar's buttons and along them to Multiview, whose name shows a second time under the row while it
+# has focus.
+- pressKey: Remote Media Play Pause
+- extendedWaitUntil:
+    visible: "Multiview"
+    timeout: 5000
+- pressKey: Remote Dpad Right
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: "Multiview"
+        index: 1
+    commands:
+      - pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: "multiview"
+    timeout: 15000
+# The list opens with focus on the channel being watched, and Down is the next one listed.
+# A tap would bring up the on-screen keyboard, which the flows after this one cannot see past.
+- pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Watch 2 channels"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- extendedWaitUntil:
+    visible: ".*Sofa Sports, playing sound"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- extendedWaitUntil:
+    notVisible: ".*Sofa Sports, playing sound"
+    timeout: 15000
+- assertVisible: ".*, playing sound"
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Watch 2 channels"
+    timeout: 15000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+- assertNotVisible:
+    id: "multiview"

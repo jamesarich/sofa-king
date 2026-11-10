@@ -1,64 +1,82 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performClick
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
-/** Multiview on the TV, driven with the remote: from the live player's bar, through the picker, to the picture. */
+/** Multiview on the TV, driven with the remote: from the live player's bar, through the picker, to the panes. */
 class MultiviewJourneyTest {
     @Test
-    fun `the bar opens the picker and Watch plays two channels whose sound the arrows move`() = journey {
+    fun `a ticked channel plays in a pane of its own and the arrows move the sound without a new session`() = journey {
         openPicker()
+        val opened = server.watchedChannels.single()
         keys("Down", "OK")
-        keys("Up", "Up")
-        assertFocused("Watch 2 channels")
-        keys("OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.multiviews.size == 1 }
-        val (channels, audio) = server.multiviews.values.single()
-        assertEquals(2, channels.size)
-        assertEquals(0, audio)
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        val other = server.watchedChannels.single { it != opened }
         keys("Right")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.multiviews.values.singleOrNull()?.second == 1 }
+        assertFocused("the first pane, with the sound") { it?.endsWith("playing sound") == true }
+        val heard = focusedLabel()
+        val sessions = server.sessionsOpened.get()
+        keys("Right")
+        assertFocused("the second pane, with the sound") { it?.endsWith("playing sound") == true && it != heard }
+        assertEquals(sessions, server.sessionsOpened.get(), "moving the sound opens nothing")
+        assertEquals(setOf(opened, other), server.watchedChannels.toSet())
         keys("OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.multiviews.isEmpty() && server.watching }
-        assertFocused("the live player") { it != null && "Watch" !in it }
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(other) }
     }
 
     @Test
-    fun `Back from the picture returns to the picker and Back again to the live player`() = journey {
+    fun `Watch puts the list away and Back returns to it then to the live player`() = journey {
         openPicker()
-        keys("Down", "OK", "Up", "Up", "OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.multiviews.size == 1 }
+        val opened = server.watchedChannels.single()
+        keys("Down", "OK")
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        keys("Up", "Up")
+        if (focusedLabel() != "Watch 2 channels") keys("Right")
+        assertFocused("Watch 2 channels")
+        keys("OK")
+        assertFocused("the pane with the sound") { it?.endsWith("playing sound") == true }
         keys("Back")
         assertFocused("the first channel") { it?.contains("Channel") == true }
         keys("Back")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.multiviews.isEmpty() && server.watching }
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(opened) }
     }
 
     @Test
-    fun `a server that cannot draw multiview leaves the button off the bar`() =
-        runSofaKing(tv = true, File("build/journeys", "multiview-off")) {
-            openPlayerBar()
-            val seen = mutableListOf<String?>()
-            repeat(BAR_BUTTONS) {
-                seen += focusedLabel()
-                keys("Right")
-            }
-            assertTrue("Multiview" !in seen, seen.toString())
-        }
+    fun `unticking a channel closes its pane and frees its session`() = journey {
+        openPicker()
+        val opened = server.watchedChannels.single()
+        keys("Down", "OK")
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        keys("OK")
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(opened) }
+    }
+
+    @Test
+    fun `a click on a row ticks its channel as OK does`() = journey {
+        openPicker()
+        ui.onAllNodes(hasText("Channel", substring = true) and hasClickAction())[1].performClick()
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+    }
+
+    @Test
+    fun `the search box stays shut until Search opens it and Back shuts it`() = journey {
+        openPicker()
+        keys("Up")
+        if (focusedLabel() != "Search") keys("Left")
+        assertFocused("Search")
+        keys("OK")
+        assertFocused("Channel, number or program")
+        keys("Back")
+        assertFocused("the first channel") { it?.contains("Channel") == true }
+        assertEquals(1, server.watchedChannels.size, "Back shut the search, not multiview")
+    }
 
     /** From the guide, the focused channel full screen, then its bar's Multiview button pressed. */
     private fun AppDriver.openPicker() {
-        openPlayerBar()
-        var presses = 0
-        while (focusedLabel() != "Multiview" && presses++ < BAR_BUTTONS) keys("Right")
-        assertFocused("Multiview")
-        keys("OK")
-        assertFocused("the channel watched") { it?.contains("Channel") == true }
-    }
-
-    private fun AppDriver.openPlayerBar() {
         assertFocused("a guide cell") { it?.startsWith("Show at") == true }
         keys("OK")
         ui.waitUntil(timeoutMillis = WAIT_MS) { server.watching }
@@ -66,10 +84,16 @@ class MultiviewJourneyTest {
         keys("Right")
         if (focusedLabel() != "Channels") keys("Right")
         assertFocused("Channels")
+        var presses = 0
+        while (focusedLabel() != "Multiview" && presses++ < BAR_BUTTONS) keys("Right")
+        assertFocused("Multiview")
+        keys("OK")
+        assertFocused("the channel watched") { it?.contains("Channel") == true }
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 1 }
     }
 
     private fun journey(block: AppDriver.() -> Unit) =
-        runSofaKing(tv = true, File("build/journeys", "multiview"), FakeServer(multiview = true), block = block)
+        runSofaKing(tv = true, File("build/journeys", "multiview"), block = block)
 
     private companion object {
         const val BAR_BUTTONS = 14

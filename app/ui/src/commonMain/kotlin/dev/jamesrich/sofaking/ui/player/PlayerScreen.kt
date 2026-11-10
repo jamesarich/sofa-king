@@ -115,7 +115,7 @@ fun PlayerScreen(
     breaks: PlayerBreaks = PlayerBreaks(),
     /** The sleep timer, which leaves the player as Back does once it runs out. */
     sleep: SleepTimer = remember { SleepTimer() },
-    /** Opens multiview on the channel; null where the server does not draw it. */
+    /** Opens multiview on the channel; null where there is none. */
     onMultiview: ((Channel) -> Unit)? = null,
 ) {
     val state = rememberPlayerState(

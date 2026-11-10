@@ -42,11 +42,22 @@ import kotlin.math.roundToInt
 private val log = Logger.withTag("SofaKing")
 
 @Composable
-actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
-    val context = LocalContext.current
-    val player = remember(captionSync) { ExoLivePlayer(context.applicationContext, captionSync) }
+actual fun rememberLivePlayer(captionSync: CaptionSync, pane: Boolean): LivePlayer {
+    val context = LocalContext.current.applicationContext
+    val player = remember(captionSync, pane) {
+        if (pane) panePlayer(context, captionSync) else ExoLivePlayer(context, captionSync)
+    }
     DisposableEffect(player) { onDispose { player.release() } }
     return player
+}
+
+/** A player for one pane of multiview: its own tuning and tap, on a Media3 player built for a pane. */
+@OptIn(UnstableApi::class)
+private fun panePlayer(context: Context, captionSync: CaptionSync): ExoLivePlayer {
+    val tuning = PlaybackTuning()
+    val tap = AudioAnalyzer()
+    val exo = newExoPlayer(context, captionSync, tuning, tap, pane = true)
+    return ExoLivePlayer(context, captionSync, tuning, tap, exo)
 }
 
 /**

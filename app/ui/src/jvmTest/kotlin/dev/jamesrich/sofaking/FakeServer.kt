@@ -84,6 +84,11 @@ internal class FakeServer(
         liveSessions.values.any { it.second == Wire.Intent.WATCH }
     }
 
+    /** The channels of the live sessions open to watch, one per multiview pane. */
+    val watchedChannels: List<String> get() = synchronized(liveSessions) {
+        liveSessions.values.filter { it.second == Wire.Intent.WATCH }.map { it.first }
+    }
+
     /** The channel of the live session open to watch full screen; null while none is. */
     val watchedChannel: String? get() = synchronized(liveSessions) {
         liveSessions.values.firstOrNull { it.second == Wire.Intent.WATCH }?.first

@@ -3,27 +3,27 @@ package dev.jamesrich.sofaking.ui.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -37,198 +37,305 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.multiview_busy
-import dev.jamesrich.sofaking.resources.multiview_busy_hint
-import dev.jamesrich.sofaking.resources.multiview_failed
-import dev.jamesrich.sofaking.resources.multiview_failed_hint
 import dev.jamesrich.sofaking.resources.multiview_keys_hint
-import dev.jamesrich.sofaking.resources.multiview_opening
 import dev.jamesrich.sofaking.resources.multiview_sound
 import dev.jamesrich.sofaking.resources.multiview_touch_hint
-import dev.jamesrich.sofaking.resources.multiview_unavailable
-import dev.jamesrich.sofaking.resources.multiview_unavailable_hint
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
-import org.jetbrains.compose.resources.StringResource
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 
 /** The multiview screen's test tag, as the player's is. */
 const val MULTIVIEW_TEST_TAG = "multiview"
 
-/** The picture's shape, which the server draws at. */
+/** The shape the panes are laid out in. */
 private const val PICTURE_ASPECT = 16f / 9f
 
+/** The players a multiview plays on beside the app's own: the app's [player] and session, and a session per pane. */
+class MultiviewPlayers(
+    val player: LivePlayer,
+    val sessions: PlaybackSessions,
+    val paneSessions: List<PlaybackSessions>,
+)
+
 /**
- * Multiview: a picker of two to four channels from [lineup], starting with [initial], then the one picture the server
- * draws them into on [player]. On the picture the arrows or a tap move the sound between the channels, OK or a double
- * tap watches the one with the sound full screen ([onWatch]), and Back returns to the picker, whose Back leaves
- * ([onExit]). The picker lists the channels picked, the starred ones in [favoritesOrder], the [recent] ones, then the
- * rest.
+ * Multiview: two to four channels from [lineup] side by side, each a pane with a player and a session of its own
+ * ([players]), starting with [initial]. A list beside the panes picks them, and each plays as soon as it is ticked.
+ * With the list away, the arrows or a tap move the sound between the panes, which changes nothing but their loudness;
+ * OK or a double tap watches the one with the sound full screen ([onWatch]), and Back returns to the list, whose Back
+ * leaves ([onExit]). The app's own player is stopped and its session released for as long as multiview is up. The
+ * list groups the channels multiview opened on, the starred ones in [favoritesOrder], the [recent] ones and the rest.
  */
 @Composable
 fun MultiviewScreen(
     lineup: Lineup,
     initial: List<String>,
-    player: LivePlayer,
-    sessions: PlaybackSessions,
+    players: MultiviewPlayers,
     onWatch: (Channel) -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
     favoritesOrder: List<String> = emptyList(),
     recent: List<String> = emptyList(),
+    captions: PlayerCaptions = PlayerCaptions(),
+    breaks: PlayerBreaks = PlayerBreaks(),
+    playback: PlaybackPreferences = PlaybackPreferences(),
 ) {
-    var picked by remember { mutableStateOf(initial.take(Wire.MULTIVIEW_MAX_TILES)) }
-    var watching by remember { mutableStateOf<List<String>?>(null) }
-    val play = rememberMultiviewPlay(player, sessions)
-    // The player keeps this stream's channel tag; stopped, the live player that takes over tunes afresh.
-    val leave = { action: () -> Unit ->
-        if (sessions.current.value?.isMultiview == true) player.stop()
-        action()
+    val state = remember { MultiviewState(initial.take(Wire.MULTIVIEW_MAX_TILES)) }
+    val query = remember { TextFieldState() }
+    val now by rememberMinuteNow()
+    val airing = { channel: Channel -> lineup.nowAndNext(channel, now).first?.title }
+    LaunchedEffect(players) {
+        players.player.stop()
+        // A channel paused when multiview opened plays again when the live player takes over.
+        players.player.playWhenReady = true
+        players.sessions.release(forget = true)
     }
-    MultiviewPlayerEffects(player, play, active = watching != null)
+    KeepScreenOn(state.picked.isNotEmpty())
+    val leave = rememberLeave(state, players.paneSessions)
     BackHandler {
-        if (watching != null) watching = null else leave(onExit)
+        if (!state.back()) leave(onExit)
     }
-    Box(modifier.fillMaxSize().background(SofaScrim).testTag(MULTIVIEW_TEST_TAG)) {
-        player.Video(Modifier.fillMaxSize(), VideoZoom.FIT) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
-        val tiles = watching
-        if (tiles == null) {
+    LaunchedEffect(state.searching) { if (!state.searching) query.clearText() }
+    val channels = state.picked.mapNotNull { id -> lineup.channels.firstOrNull { it.guideId == id } }
+    val names by produceLabels(state.touched)
+    BoxWithConstraints(modifier.fillMaxSize().background(SofaScrim).testTag(MULTIVIEW_TEST_TAG)) {
+        val beside = if (state.picking && maxWidth >= PICKER_WIDTH * 2) PICKER_WIDTH else 0.dp
+        val width = min(maxWidth - beside, maxHeight * PICTURE_ASPECT)
+        val height = width / PICTURE_ASPECT
+        val left = beside + (maxWidth - beside - width) / 2
+        val picture = Modifier.offset(left, (maxHeight - height) / 2).size(width, height)
+        Panes(
+            channels,
+            state,
+            players.paneSessions,
+            airing,
+            names = names || state.picking,
+            look = PaneLook(captions.enabled, captions.style, breaks.mode, playback),
+            modifier = picture,
+        )
+        if (state.picking) {
             MultiviewPicker(
-                choices = remember(lineup, favoritesOrder, recent) {
-                    multiviewChoices(lineup.channels, initial, favoritesOrder, recent)
+                groups = remember(lineup, favoritesOrder, recent, query.text, now) {
+                    val typed = query.text.toString()
+                    multiviewGroups(lineup.channels, state.opened, favoritesOrder, recent, typed, airing)
                 },
-                picked = picked,
-                onToggle = { picked = togglePick(picked, it.guideId) },
-                onWatch = {
-                    if (picked != play.channelIds) play.start(picked, play.audio.coerceAtMost(picked.size - 1))
-                    watching = picked
-                },
+                picked = state.picked,
+                query = query,
+                searching = state.searching,
+                airing = airing,
+                onToggle = { state.toggle(it.guideId) },
+                onSearch = { state.searching = true },
+                onWatch = state::watch,
             )
         } else {
-            val channels = tiles.mapNotNull { id -> lineup.channels.firstOrNull { it.guideId == id } }
-            MultiviewPicture(channels, play, onWatch = { channel -> leave { onWatch(channel) } })
+            PaneControls(
+                channels,
+                sound = channels.indexOfFirst { it.guideId == state.sound }.coerceAtLeast(0),
+                onTouch = { state.touched++ },
+                onSound = { index -> channels.getOrNull(index)?.let { state.sound = it.guideId } },
+                onWatch = { channel -> leave { onWatch(channel) } },
+                modifier = picture,
+            )
+            if (names) PaneHint(Modifier.align(Alignment.BottomCenter))
         }
     }
 }
 
-/** The player's volume, its failures and the screen staying on, while a multiview plays ([active]). */
-@Composable
-private fun MultiviewPlayerEffects(player: LivePlayer, play: MultiviewPlay, active: Boolean) {
-    val volume = LocalPlayerVolume.current
-    val currentActive by rememberUpdatedState(active)
-    LaunchedEffect(player, volume) { snapshotFlow { volume.gain }.collect { player.volume = it } }
-    LaunchedEffect(player, play) {
-        player.errors.collect { if (currentActive) play.playerFailed(it.code) }
-    }
-    val status by player.status.collectAsStateWithLifecycle()
-    KeepScreenOn(status.isPlaying)
-}
-
 /**
- * The picture of [channels], each in its tile: the keys and taps move the sound, and the tiles' names show for a
- * while after each. A failure covers it with why, until the next try.
+ * Leaving multiview: the panes close and their sessions are released before the action given runs, so the live player
+ * that takes over finds its session slot free on a server whose every slot the panes held. A server that does not
+ * answer holds the leave up for no longer than [LEAVE_WAIT_MS].
  */
 @Composable
-private fun MultiviewPicture(channels: List<Channel>, play: MultiviewPlay, onWatch: (Channel) -> Unit) {
-    val focus = remember { FocusRequester() }
-    var touched by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
-    val labels by produceLabels(touched)
-    val count = channels.size
-    val audio = play.audio.coerceIn(0, (count - 1).coerceAtLeast(0))
-    val audioChannel = channels.getOrNull(audio)
-    val soundTemplate = stringResource(Res.string.multiview_sound)
-    BoxWithConstraints(
-        Modifier
-            .fillMaxSize()
-            .focusRequester(focus)
-            .focusable()
-            .semantics {
-                audioChannel?.let { contentDescription = formatTemplate(soundTemplate, it.label()) }
-            }
-            .multiviewKeys(count, audio, { touched++ }, play::moveAudio) { audioChannel?.let(onWatch) },
-    ) {
-        val width = min(maxWidth, maxHeight * PICTURE_ASPECT)
-        val height = width / PICTURE_ASPECT
-        Box(
-            Modifier
-                .align(Alignment.Center)
-                .size(width, height)
-                .pointerInput(count) {
-                    detectTapGestures(
-                        onTap = { at ->
-                            touched++
-                            multiviewTileAt(count, at.x / size.width, at.y / size.height)?.let(play::moveAudio)
-                        },
-                        onDoubleTap = { at ->
-                            multiviewTileAt(count, at.x / size.width, at.y / size.height)
-                                ?.let { channels.getOrNull(it) }
-                                ?.let(onWatch)
-                        },
-                    )
-                },
-        ) {
-            channels.forEachIndexed { index, channel ->
-                val tile = multiviewTile(count, index)
-                val place = Modifier.offset(width * tile.left, height * tile.top)
-                Box(place.size(width * tile.width, height * tile.height)) {
-                    if (labels || index == audio) TileLabel(channel, sound = index == audio, full = labels)
+private fun rememberLeave(state: MultiviewState, sessions: List<PlaybackSessions>): (() -> Unit) -> Unit {
+    val scope = rememberCoroutineScope()
+    return remember(state, sessions, scope) {
+        { then ->
+            if (state.close()) {
+                // A release finishes on its own even when the wait for it is given up.
+                val releases = sessions.map { scope.async { it.release(forget = true) } }
+                scope.launch {
+                    withTimeoutOrNull(LEAVE_WAIT_MS) { releases.awaitAll() }
+                    then()
                 }
             }
         }
-        MultiviewStatus(play, hint = labels, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 /**
- * An arrow moves the sound from tile [audio] of [count] by [onAudio], after [onMove]; OK, on its key-up, watches the
- * tile with the sound full screen.
+ * What a multiview shows: the channels [picked], in the order they were ticked and starting with those it [opened]
+ * on, the player each plays on ([slots]), the one whose [sound] plays, whether the list is up ([picking])
+ * and its search box open ([searching]), and a count of the presses and taps that show the names ([touched]).
  */
-private fun Modifier.multiviewKeys(
-    count: Int,
-    audio: Int,
-    onMove: () -> Unit,
-    onAudio: (Int) -> Unit,
-    onWatch: () -> Unit,
-): Modifier = onPreviewKeyEvent { event ->
-    val key = event.key
-    when {
-        key in ARROWS && event.type == KeyEventType.KeyDown -> {
-            onMove()
-            onAudio(multiviewMove(count, audio, key))
-            true
-        }
+@Stable
+internal class MultiviewState(val opened: List<String>) {
+    var picked by mutableStateOf(opened)
+        private set
+    var slots by mutableStateOf(paneSlots(emptyMap(), opened))
+        private set
+    var sound by mutableStateOf(opened.firstOrNull())
+    var picking by mutableStateOf(true)
+    var searching by mutableStateOf(false)
+    var touched by mutableIntStateOf(0)
 
-        key in SELECT && event.type == KeyEventType.KeyUp -> {
-            onWatch()
-            true
-        }
-
-        else -> false
+    /** Ticks or unticks [guideId]: its pane opens or closes, and the sound stays where it was while that one shows. */
+    fun toggle(guideId: String) {
+        picked = togglePick(picked, guideId)
+        slots = paneSlots(slots, picked)
+        sound = soundAfter(sound, picked)
     }
+
+    private var closed = false
+
+    /** Back: shuts the search box, or brings the list back over the panes; false when it leaves multiview. */
+    fun back(): Boolean = when {
+        searching -> {
+            searching = false
+            true
+        }
+
+        picking -> false
+
+        else -> {
+            picking = true
+            true
+        }
+    }
+
+    /** Closes every pane, once: false when they were closed already. */
+    fun close(): Boolean {
+        if (closed) return false
+        closed = true
+        picked = emptyList()
+        slots = emptyMap()
+        return true
+    }
+
+    /** Puts the list away, with the names up. */
+    fun watch() {
+        touched++
+        picking = false
+    }
+}
+
+/** The panes of [channels] in [modifier]'s bounds, each on its player's session of [sessions]. */
+@Composable
+private fun Panes(
+    channels: List<Channel>,
+    state: MultiviewState,
+    sessions: List<PlaybackSessions>,
+    airing: (Channel) -> String?,
+    names: Boolean,
+    look: PaneLook,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier) {
+        val width = maxWidth
+        val height = maxHeight
+        channels.forEachIndexed { index, channel ->
+            val slot = state.slots[channel.guideId] ?: return@forEachIndexed
+            val tile = multiviewTile(channels.size, index)
+            val heard = channel.guideId == state.sound
+            key(slot) {
+                MultiviewPane(
+                    channel,
+                    program = airing(channel),
+                    sessions = sessions[slot],
+                    sound = heard,
+                    names = names,
+                    framed = heard && channels.size >= MULTIVIEW_MIN_TILES,
+                    look = look,
+                    modifier = Modifier
+                        .offset(width * tile.left, height * tile.top)
+                        .size(width * tile.width, height * tile.height),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The keys and taps over the panes, laid over them in [modifier]'s bounds: an arrow or a tap moves the [sound] to
+ * another of [channels] by [onSound], after [onTouch]; OK, on its key-up, or a double tap watches one full screen.
+ */
+@Composable
+private fun PaneControls(
+    channels: List<Channel>,
+    sound: Int,
+    onTouch: () -> Unit,
+    onSound: (Int) -> Unit,
+    onWatch: (Channel) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
+    val count = channels.size
+    val heard = channels.getOrNull(sound)
+    val soundTemplate = stringResource(Res.string.multiview_sound)
+    Box(
+        modifier
+            .focusRequester(focus)
+            .focusable()
+            .semantics { heard?.let { contentDescription = formatTemplate(soundTemplate, it.label()) } }
+            .onPreviewKeyEvent { event ->
+                val key = event.key
+                when {
+                    key in ARROWS && event.type == KeyEventType.KeyDown -> {
+                        onTouch()
+                        onSound(multiviewMove(count, sound, key))
+                        true
+                    }
+
+                    key in SELECT && event.type == KeyEventType.KeyUp -> {
+                        heard?.let(onWatch)
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+            .pointerInput(count) {
+                detectTapGestures(
+                    onTap = { at ->
+                        onTouch()
+                        multiviewTileAt(count, at.x / size.width, at.y / size.height)?.let(onSound)
+                    },
+                    onDoubleTap = { at ->
+                        multiviewTileAt(count, at.x / size.width, at.y / size.height)
+                            ?.let { channels.getOrNull(it) }
+                            ?.let(onWatch)
+                    },
+                )
+            },
+    )
 }
 
 /** True for [BAR_IDLE_MS] after each press or tap, counted by [touched], and at first. */
 @Composable
-private fun produceLabels(touched: Int): androidx.compose.runtime.State<Boolean> {
+private fun produceLabels(touched: Int): State<Boolean> {
     val shown = remember { mutableStateOf(true) }
     LaunchedEffect(touched) {
         shown.value = true
@@ -238,62 +345,19 @@ private fun produceLabels(touched: Int): androidx.compose.runtime.State<Boolean>
     return shown
 }
 
-/** A tile's channel, and a speaker on the one whose sound plays; only the speaker once the names fade ([full]). */
+/** What the keys or a finger do, under the panes while their names show. */
 @Composable
-private fun TileLabel(channel: Channel, sound: Boolean, full: Boolean) {
-    Row(
-        Modifier.padding(
-            12.dp,
-        ).background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (sound) {
-            Icon(SofaIcons.VolumeUp, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-        }
-        if (full) {
-            Text(
-                channel.label(),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-/** Why the multiview is not playing, or the keys' hint under the picture while the names show ([hint]). */
-@Composable
-private fun MultiviewStatus(play: MultiviewPlay, hint: Boolean, modifier: Modifier = Modifier) {
-    val failure = play.failure
-    val text: Pair<StringResource, StringResource?>? = when {
-        failure == null && play.opening -> Res.string.multiview_opening to null
-        failure == null -> null
-        failure == MULTIVIEW_UNAVAILABLE -> Res.string.multiview_unavailable to Res.string.multiview_unavailable_hint
-        failure == Wire.ErrorCode.CAPACITY_EXHAUSTED -> Res.string.multiview_busy to Res.string.multiview_busy_hint
-        else -> Res.string.multiview_failed to Res.string.multiview_failed_hint
-    }
+private fun PaneHint(modifier: Modifier = Modifier) {
     val pointer = LocalLastInput.current.kind == InputKind.POINTER
-    val lines = when {
-        text != null -> listOfNotNull(stringResource(text.first), text.second?.let { stringResource(it) })
-        hint -> listOf(stringResource(if (pointer) Res.string.multiview_touch_hint else Res.string.multiview_keys_hint))
-        else -> return
-    }
-    Column(
-        modifier.screenPadding().background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        lines.forEachIndexed { index, line ->
-            Text(
-                line,
-                style = if (index == 0) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
+    Text(
+        stringResource(if (pointer) Res.string.multiview_touch_hint else Res.string.multiview_keys_hint),
+        modifier.screenPadding().background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(HINT_PADDING),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
 }
 
-/** The server's answer when it does not draw multiview. */
-internal const val MULTIVIEW_UNAVAILABLE = "MULTIVIEW_UNAVAILABLE"
-
+private const val LEAVE_WAIT_MS = 2_000L
+private val HINT_PADDING: Dp = 12.dp
 private val ARROWS = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
 private val SELECT = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)

@@ -136,7 +136,7 @@ internal enum class LiveButton {
     RECORD,
     FAVORITE,
 
-    /** Several channels at once, which the server draws into one picture. */
+    /** Several channels at once, each in a pane of its own. */
     MULTIVIEW,
     GUIDE,
 }
@@ -145,7 +145,7 @@ internal enum class LiveButton {
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
  * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Watch from start while the
  * program on now is recording ([canWatchFromStart]), Record where the server records and there is a program on, the
- * star where favorites can change, Multiview where the server draws it ([canMultiview]), and the guide. A finger or a
+ * star where favorites can change, Multiview where there is one ([canMultiview]), and the guide. A finger or a
  * mouse has play and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(

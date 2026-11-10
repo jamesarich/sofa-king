@@ -1,0 +1,53 @@
+package dev.jamesrich.sofaking.ui
+
+/** Matching a typed query against channels, for the guide's search row and multiview's picker. */
+internal object ChannelSearch {
+    /** Lowercased with accents removed, so "Télé" and "tele" compare equal. */
+    fun normalize(text: String): String = buildString(text.length) {
+        for (char in text.lowercase()) {
+            // Combining marks (a decomposed accent) are dropped; precomposed letters fold to their base letter.
+            if (char in '̀'..'ͯ') continue
+            append(FOLDS[char] ?: char)
+        }
+    }
+
+    /**
+     * True when [query] is blank, or it appears in the channel [name] or the airing program
+     * [programTitle], or it is the start of the channel [number].
+     */
+    fun matches(query: String, number: Double, name: String, programTitle: String?): Boolean {
+        val needle = normalize(query.trim())
+        if (needle.isEmpty()) return true
+        return normalize(number.formatNumber()).startsWith(needle) ||
+            normalize(name).contains(needle) ||
+            (programTitle != null && normalize(programTitle).contains(needle))
+    }
+
+    /**
+     * The Latin letters with diacritics that NFD would decompose, folded to their base letter; Kotlin has no
+     * common Unicode normalizer. Covers Latin-1 Supplement and Latin Extended-A, which is what channel and
+     * program names use.
+     */
+    private val FOLDS: Map<Char, Char> = buildMap {
+        fun fold(base: Char, accented: String) = accented.forEach { put(it, base) }
+        fold('a', "àáâãäåāăą")
+        fold('c', "çćĉċč")
+        fold('d', "ď")
+        fold('e', "èéêëēĕėęě")
+        fold('g', "ĝğġģ")
+        fold('h', "ĥ")
+        fold('i', "ìíîïĩīĭįİ")
+        fold('j', "ĵ")
+        fold('k', "ķ")
+        fold('l', "ĺļľ")
+        fold('n', "ñńņňŉ")
+        fold('o', "òóôõöōŏő")
+        fold('r', "ŕŗř")
+        fold('s', "śŝşš")
+        fold('t', "ţť")
+        fold('u', "ùúûüũūŭůűų")
+        fold('w', "ŵ")
+        fold('y', "ýÿŷ")
+        fold('z', "źżž")
+    }
+}

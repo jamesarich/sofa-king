@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,6 +39,7 @@ import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.player.ChannelChoices
 import dev.jamesrich.sofaking.ui.player.KeyLegendCount
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MultiviewPlayers
 import dev.jamesrich.sofaking.ui.player.MultiviewScreen
 import dev.jamesrich.sofaking.ui.player.PlayerBreaks
 import dev.jamesrich.sofaking.ui.player.PlayerCaptions
@@ -234,8 +236,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
             onZoom = { shell.videoZoom = it },
             breaks = playerBreaks(prefs, vm),
             sleep = shell.sleep,
-            onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) }
-                .takeIf { capabilities.multiview },
+            onMultiview = { channel: Channel -> shell.push(Route.Multiview(listOf(channel.guideId))) },
         )
     }
 }
@@ -277,13 +278,17 @@ internal fun MultiviewDestination(
         LaunchedEffect(Unit) { shell.back() }
         return
     }
+    val panes by produceState<List<PlaybackSessions>?>(null, vm) { value = vm.paneSessions() }
+    val paneSessions = panes ?: return
     MultiviewScreen(
         lineup = lineup,
         initial = route.guideIds,
-        player = player,
-        sessions = vm.sessions,
+        players = remember(player, vm, paneSessions) { MultiviewPlayers(player, vm.sessions, paneSessions) },
         favoritesOrder = prefs.favoritesOrder,
         recent = prefs.recentChannels,
+        captions = playerCaptions(prefs, vm),
+        breaks = playerBreaks(prefs, vm),
+        playback = prefs.playback,
         onWatch = { channel -> shell.backToPlayer(channel.guideId) },
         onExit = { shell.backToPlayer(route.guideIds.first()) },
     )

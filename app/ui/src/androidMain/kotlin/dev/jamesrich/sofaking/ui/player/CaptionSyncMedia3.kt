@@ -68,6 +68,9 @@ internal const val LOW_RAM_MEMORY_CLASS_MB = 192
 /** The buffer cap on a low-memory device: with the player's other allocations a default-sized one risks the heap. */
 internal const val LOW_RAM_TARGET_BUFFER_BYTES = 32 * 1024 * 1024
 
+/** What one pane of multiview buffers, as up to four play at once. */
+internal const val PANE_TARGET_BUFFER_BYTES = 12 * 1024 * 1024
+
 /** Whether the device is short on memory: flagged by the system, or an app heap class of [LOW_RAM_MEMORY_CLASS_MB]. */
 internal fun isLowRam(flaggedLowRam: Boolean, memoryClassMb: Int): Boolean =
     flaggedLowRam || memoryClassMb <= LOW_RAM_MEMORY_CLASS_MB
@@ -84,7 +87,12 @@ internal fun Context.isLowRamDevice(): Boolean {
  * stay the same.
  */
 @UnstableApi
-internal fun defaultDelegate(lowRam: Boolean): LoadControl = DefaultLoadControl.Builder()
+internal fun defaultDelegate(lowRam: Boolean): LoadControl =
+    defaultDelegate(LOW_RAM_TARGET_BUFFER_BYTES.takeIf { lowRam })
+
+/** Media3's load control holding no more than [targetBufferBytes], or by its own measure when that is null. */
+@UnstableApi
+internal fun defaultDelegate(targetBufferBytes: Int?): LoadControl = DefaultLoadControl.Builder()
     .setBufferDurationsMs(
         DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
         DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
@@ -92,8 +100,8 @@ internal fun defaultDelegate(lowRam: Boolean): LoadControl = DefaultLoadControl.
         BufferPreference.FAST_START.rebufferMs,
     )
     .apply {
-        if (lowRam) {
-            setTargetBufferBytes(LOW_RAM_TARGET_BUFFER_BYTES)
+        if (targetBufferBytes != null) {
+            setTargetBufferBytes(targetBufferBytes)
             setPrioritizeTimeOverSizeThresholds(false)
         }
     }

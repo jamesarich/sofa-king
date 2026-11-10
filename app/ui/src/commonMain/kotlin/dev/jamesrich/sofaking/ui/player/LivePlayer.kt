@@ -317,9 +317,11 @@ interface LivePlayer :
 
 /**
  * The platform's player for the app's one playback pipeline; remembered for the host's lifetime and released with it.
+ * One for a [pane] of multiview plays beside others: it keeps a short buffer and takes a picture no larger than its
+ * share of the screen where the stream offers the choice, and is released when its pane goes.
  */
 @Composable
-expect fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer
+expect fun rememberLivePlayer(captionSync: CaptionSync, pane: Boolean = false): LivePlayer
 
 /** An object rather than a top-level value, which would clash with the Android source set's `LivePlayerKt`. */
 private object UnknownVideoSize {

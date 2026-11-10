@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performClick
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -49,6 +52,14 @@ class MultiviewJourneyTest {
         ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
         keys("OK")
         ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(opened) }
+    }
+
+    @Test
+    fun `a click on a row ticks its channel as OK does`() = journey {
+        openPicker()
+        // The search box comes first, then the row of the channel being watched.
+        ui.onAllNodes(hasText("Channel", substring = true) and hasClickAction())[2].performClick()
+        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
     }
 
     /** From the guide, the focused channel full screen, then its bar's Multiview button pressed. */

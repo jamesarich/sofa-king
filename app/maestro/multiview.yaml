@@ -1,7 +1,7 @@
 # Multiview: two channels in panes of their own, and the sound moved between them. Starts on any tab (a player left
 # open is left first), tunes Sofa Sports by its link (the fixture numbers its channels from 2), opens Multiview from the
-# player's bar, ticks News Now, which must start a second pane, and puts the list away. Right must move the sound to
-# News Now with both panes still up. Ends in the live player on Sofa Sports.
+# player's bar, ticks the next channel in the list, which must start a second pane, and puts the list away. Right must
+# move the sound to that channel with both panes still up. Ends in the live player on Sofa Sports.
 appId: dev.jamesrich.sofaking
 name: Multiview panes and the sound
 ---
@@ -37,18 +37,22 @@ name: Multiview panes and the sound
     visible:
       id: "multiview"
     timeout: 15000
-- tapOn: "2  News Now"
+# The list opens with focus on the channel being watched, and Down is the next one listed.
+# A tap would bring up the on-screen keyboard, which the flows after this one cannot see past.
+- pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible: "Watch 2 channels"
     timeout: 15000
-- tapOn: "Watch 2 channels"
+- pressKey: Remote Dpad Right
 - extendedWaitUntil:
     visible: ".*Sofa Sports, playing sound"
     timeout: 15000
 - pressKey: Remote Dpad Right
 - extendedWaitUntil:
-    visible: ".*News Now, playing sound"
+    notVisible: ".*Sofa Sports, playing sound"
     timeout: 15000
+- assertVisible: ".*, playing sound"
 - pressKey: Back
 - extendedWaitUntil:
     visible: "Watch 2 channels"

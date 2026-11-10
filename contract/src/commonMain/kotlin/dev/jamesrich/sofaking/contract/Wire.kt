@@ -56,6 +56,9 @@ object Wire {
 
         /** `POST /api/v1/pair` with a code that is wrong, used up or expired. */
         const val PAIRING_INVALID = "PAIRING_INVALID"
+
+        /** A library file the server cannot read, as in an incomplete download; trying again will not help. */
+        const val MEDIA_UNREADABLE = "MEDIA_UNREADABLE"
     }
 
     /** What a library holds. */

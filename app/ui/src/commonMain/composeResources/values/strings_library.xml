@@ -75,6 +75,7 @@
         <item quantity="other">%1$d episodes</item>
     </plurals>
     <string name="library_watched">Watched</string>
+    <string name="library_unreadable">Unreadable</string>
     <string name="library_rating">★ %1$s</string>
     <string name="library_cast">Cast</string>
     <string name="library_members">Members</string>

@@ -37,7 +37,7 @@ internal class VodRunner(private val ffmpeg: String, private val directory: Path
                 follow = state.growing, encoder = encoder, burn = state.burn,
             )
         }
-        state.process = try {
+        val process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
             log.warn("vod ffmpeg did not start class={}", e.javaClass.simpleName)
@@ -48,11 +48,30 @@ internal class VodRunner(private val ffmpeg: String, private val directory: Path
                 true,
             )
         }
+        state.process = process
+        process.onExit().thenAccept { exited(state, it) }
         log.info(
             "vod session started session={} mode={} startMs={}",
             state.id,
             state.mode,
             if (state.whole) state.runStart * SEGMENT_MS else state.startMs,
+        )
+    }
+
+    /**
+     * Marks [state] failed and logs why, once, when [process] is its running FFmpeg and it stopped before writing the
+     * segment its player waits for. The last line of `ffmpeg.log` is read here, before a release clears the folder.
+     */
+    fun exited(state: VodState, process: Process) {
+        if (state.ending || state.process !== process || process.isAlive) return
+        val dir = folderOf(state)
+        if (Files.isRegularFile(dir.resolve(firstSegmentOf(state))) || !state.failed.compareAndSet(false, true)) return
+        log.warn(
+            "vod ffmpeg exited before its first segment session={} item={} exit={} last={}",
+            state.id,
+            state.itemId.ifEmpty { state.recordingId },
+            process.exitValue(),
+            lastLine(dir.resolve("ffmpeg.log"), state.file),
         )
     }
 
@@ -65,7 +84,30 @@ internal class VodRunner(private val ffmpeg: String, private val directory: Path
         }
     }
 
+    private fun firstSegmentOf(state: VodState) = when {
+        state.whole -> "seg${state.runStart}.ts"
+        fragmentedMp4(state.mode, state.media) -> "seg0.m4s"
+        else -> "seg0.ts"
+    }
+
     companion object {
+        private const val LOG_TAIL_BYTES = 4096L
+        private const val LAST_LINE_CHARS = 300
+
+        /** The last line of FFmpeg's [log], with the library's [file] path left out. */
+        private fun lastLine(log: Path, file: Path): String = try {
+            java.io.RandomAccessFile(log.toFile(), "r").use { raw ->
+                val from = maxOf(0L, raw.length() - LOG_TAIL_BYTES)
+                raw.seek(from)
+                val bytes = ByteArray((raw.length() - from).toInt())
+                raw.readFully(bytes)
+                String(bytes, Charsets.UTF_8).lines().lastOrNull { it.isNotBlank() }
+                    ?.trim()?.replace(file.toString(), "<file>")?.take(LAST_LINE_CHARS) ?: "(empty)"
+            }
+        } catch (_: IOException) {
+            "(no log)"
+        }
+
         /**
          * Deletes [dir] and what it holds. A seek's restart and a release can stop one session at once, so a folder
          * the other stop deletes first is already done.

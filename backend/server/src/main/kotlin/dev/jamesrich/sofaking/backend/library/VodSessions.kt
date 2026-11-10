@@ -25,6 +25,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** The HLS segment length FFmpeg cuts to, in seconds. */
 internal const val SEGMENT_SECONDS = 4
@@ -120,6 +121,12 @@ internal class VodState(
     /** Held while this session's FFmpeg is stopped and started again, off the sessions' lock. */
     val restarting = Mutex()
 
+    /** Set once its FFmpeg exits before writing its first segment, which is logged once; the session then fails. */
+    val failed = AtomicBoolean(false)
+
+    /** Set before the server stops its FFmpeg on purpose, so that exit is not a death. */
+    @Volatile var ending = false
+
     /** The session as the history records its start. */
     fun start(): SessionStart = SessionStart(
         id,
@@ -207,6 +214,7 @@ class VodSessions(
         }
         request.recordingId?.let { return openRecording(it, request, from) }
         val (item, file) = subtitles.itemFile(request.itemId)
+        val media = item.record.media ?: readable(probe, item.record, file)
         val burn = request.subtitleIndex?.let { index ->
             subtitles.sourceOf(item, file, index).also {
                 if (!it.picture) {
@@ -224,7 +232,7 @@ class VodSessions(
             null,
             file,
             growing = false,
-            item.record.media,
+            media,
             item.item.durationMs,
             burn,
             from,
@@ -382,6 +390,18 @@ class VodSessions(
         table.sessions.values.toList().forEach { table.retire(it, HistoryReason.STOPPED) }
     }
 }
+
+/**
+ * What [probe] reads of [file], for an item the scan has not probed yet; fails at once when the scan or this probe
+ * found no video or audio in it, as FFmpeg would only quit.
+ */
+private suspend fun readable(probe: suspend (Path) -> MediaInfo?, record: LibraryItemRecord, file: Path): MediaInfo {
+    if (record.details?.unreadable != true) probe(file)?.let { return it }
+    throw conversionFailed()
+}
+
+/** What a viewer reads when the server cannot play a file. */
+internal const val UNREADABLE_MESSAGE = "The server can't read this file; it may be incomplete or damaged"
 
 private fun secret(): String = randomHex(SECRET_BYTES)
 

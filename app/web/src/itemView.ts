@@ -46,7 +46,7 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
     const watched = button(item.watched ? 'Mark unwatched' : 'Mark watched', () => ctx.core.library.setWatched(item.id, !item.watched));
     watched.dataset.key = 'watched';
 
-    const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.kind === 'movie' ? '' : item.kind]
+    const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.kind === 'movie' ? '' : item.kind, item.unreadable ? 'Unreadable' : '']
         .filter(Boolean)
         .join(' · ');
     return h(

@@ -33,9 +33,16 @@ class VodMediaFiles internal constructor(
     suspend fun media(id: String, epoch: Int, secret: String, name: String): VodMedia? {
         val state = table.locked {
             val state = table.sessions[id]?.takeIf { it.epoch == epoch && sameSecret(it.secret, secret) } ?: return null
+            if (state.failed.get()) throw conversionFailed()
             state.expires = clock.instant().plus(state.lease)
             state
         }
+        val media = find(state, epoch, name)
+        if (media == null && state.failed.get()) throw conversionFailed()
+        return media
+    }
+
+    private suspend fun find(state: VodState, epoch: Int, name: String): VodMedia? {
         val dir = runner.folderOf(state)
         return when {
             state.mode == Wire.VodMode.DIRECT ->
@@ -96,7 +103,10 @@ class VodMediaFiles internal constructor(
             val running = table.locked {
                 state.epoch == epoch && state.process?.isAlive == true && table.sessions[state.id] === state
             }
-            if (!running) return Unit.takeIf { withContext(Dispatchers.IO) { ready() } }
+            if (!running) {
+                state.process?.let { runner.exited(state, it) }
+                return Unit.takeIf { withContext(Dispatchers.IO) { ready() } }
+            }
             delay(READY_CHECK_MS)
             checks++
         }

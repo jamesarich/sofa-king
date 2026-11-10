@@ -49,6 +49,8 @@ import kotlinx.serialization.Serializable
     /** The video's height in pixels, for a 4K or HD badge; null for a show or season. */
     val videoHeight: Int? = null,
     val hdr: Boolean = false,
+    /** True when the server's probe found no video or audio in the file, as in an incomplete download. */
+    val unreadable: Boolean = false,
     val children: Int = 0,
     val unwatched: Int = 0,
     val playState: PlayState? = null,

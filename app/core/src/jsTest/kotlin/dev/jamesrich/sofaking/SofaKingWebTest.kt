@@ -81,6 +81,16 @@ class SofaKingWebTest {
     fun `an open the server refused with a 4xx is terminal and a server error is retried`() {
         assertNotNull(terminalOpenFailureOf(SofaKingException(404, "not_found", "gone")))
         assertTrue(terminalOpenFailureOf(SofaKingException(401, "unauthorized", "no"))!!.contains("signed out"))
+        assertEquals(
+            "The server can't read this file; it may be incomplete or damaged",
+            terminalOpenFailureOf(
+                SofaKingException(
+                    422,
+                    "MEDIA_UNREADABLE",
+                    "The server can't read this file; it may be incomplete or damaged",
+                ),
+            ),
+        )
         assertNull(terminalOpenFailureOf(SofaKingException(429, "rate_limited", "slow down")))
         assertNull(terminalOpenFailureOf(SofaKingException(503, "unavailable", "busy")))
         assertNull(terminalOpenFailureOf(IllegalStateException("network")))

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -139,7 +140,8 @@ internal class SessionHold(
     } catch (e: SofaKingException) {
         val gone = e.statusCode == HttpStatusCode.Gone
         if (gone) mutex.withLock { reopen(api, held, kind) }
-        !gone
+        // A converter that died answers every renewal the same way, so renewing again only keeps the dead session.
+        !gone && e.code != Wire.ErrorCode.MEDIA_UNREADABLE
     } catch (_: IOException) {
         true
     }

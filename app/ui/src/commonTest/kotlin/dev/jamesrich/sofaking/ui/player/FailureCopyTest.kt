@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.resources.player_server_busy
 import dev.jamesrich.sofaking.resources.player_signed_out
 import dev.jamesrich.sofaking.resources.player_slot_taken
 import dev.jamesrich.sofaking.resources.vod_cant_play
+import dev.jamesrich.sofaking.resources.vod_unreadable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -47,6 +48,11 @@ class FailureCopyTest {
     @Test
     fun `no answer at session open says the server did not start the channel`() {
         assertEquals(Res.string.player_no_answer.key, failureCopy("SESSION_UNAVAILABLE").reason.key)
+    }
+
+    @Test
+    fun `a file the server cannot read says so for an item`() {
+        assertEquals(Res.string.vod_unreadable.key, failureCopy("MEDIA_UNREADABLE", live = false).reason.key)
     }
 
     @Test

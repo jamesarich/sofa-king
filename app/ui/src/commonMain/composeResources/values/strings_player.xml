@@ -89,6 +89,8 @@
     <string name="vod_waiting_converter">Waiting for a free converter</string>
     <string name="vod_cant_play">Can't play this title</string>
     <string name="vod_cant_play_retry">Press OK to try again, or Back to leave.</string>
+    <string name="vod_unreadable">The server can't read this file</string>
+    <string name="vod_unreadable_hint">It may be incomplete or damaged. Press Back to leave.</string>
     <string name="vod_control_back">Back %1$d seconds</string>
     <string name="vod_control_forward">Forward %1$d seconds</string>
     <string name="vod_mode_direct">Direct play</string>

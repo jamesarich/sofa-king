@@ -107,10 +107,28 @@ private fun TR.libraryRow(chrome: Chrome, view: LibraryView, library: LibraryRec
         span("muted small") { +" · ${library.kind.label}" }
     }
     td { code { +library.path } }
-    td("nowrap") { +librarySummary(library.kind, view.counts[library.id].orEmpty()) }
+    td("nowrap") {
+        +librarySummary(library.kind, view.counts[library.id].orEmpty())
+        unreadableFiles(view.unreadable[library.id].orEmpty())
+    }
     scanResult(library, chrome.now)
     libraryActions(chrome, library)
 }
+
+/** The files the server cannot read, such as incomplete downloads, as a count that opens to the list. */
+private fun FlowContent.unreadableFiles(files: List<String>) {
+    if (files.isEmpty()) return
+    details {
+        summary("small") { chip(plural(files.size, "unreadable file"), Tone.BAD) }
+        p("muted small mt-0") { +"The server found no video or audio in these. The app marks them unreadable." }
+        ul {
+            for (file in files.take(UNREADABLE_LISTED)) li { code { +file } }
+        }
+        if (files.size > UNREADABLE_LISTED) p("muted small") { +"and ${files.size - UNREADABLE_LISTED} more" }
+    }
+}
+
+private const val UNREADABLE_LISTED = 50
 
 private fun TR.scanResult(library: LibraryRecord, now: Instant) = td {
     when (library.scanOk) {

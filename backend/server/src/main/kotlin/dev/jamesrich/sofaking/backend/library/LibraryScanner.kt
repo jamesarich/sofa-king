@@ -125,8 +125,7 @@ class LibraryScanner(
 
         private suspend fun probed(item: LibraryItemRecord): LibraryItemRecord {
             val old = byId[item.id]
-            val unchanged =
-                old != null && old.size == item.size && old.modifiedAt == item.modifiedAt && old.media != null
+            val unchanged = old != null && old.probedAs(item)
             val media = when {
                 item.path == null -> null
                 unchanged -> old.media
@@ -137,8 +136,10 @@ class LibraryScanner(
             } else if (item.path != null && !unchanged) {
                 updated.incrementAndGet()
             }
+            val unreadable = item.path != null && media == null
             return item.copy(
                 media = media,
+                details = if (unreadable) (item.details ?: ItemDetails()).copy(unreadable = true) else item.details,
                 durationMs = media?.durationMs ?: item.durationMs,
                 addedAt = old?.addedAt ?: item.addedAt.ifEmpty { now.toString() },
             )
@@ -259,6 +260,10 @@ class LibraryScanner(
             ?.takeIf { it in shows }
     }
 }
+
+/** Whether this stored row already holds what a probe of [item]'s file would read: same size and change time. */
+private fun LibraryItemRecord.probedAs(item: LibraryItemRecord) =
+    size == item.size && modifiedAt == item.modifiedAt && (media != null || details?.unreadable == true)
 
 /**
  * A show or season takes the newest add time of what it holds, so a new episode brings its show up in Recently

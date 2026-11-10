@@ -129,6 +129,8 @@ data class MediaItem(
     val rating: Double? = null,
     val videoHeight: Int? = null,
     val hdr: Boolean = false,
+    /** The server found no video or audio in the file, as in an incomplete download; it cannot play. */
+    val unreadable: Boolean = false,
     val children: Int = 0,
     val unwatched: Int = 0,
     val progress: PlayProgress? = null,

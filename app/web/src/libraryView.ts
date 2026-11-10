@@ -9,7 +9,7 @@ import { Watches, type Context, type View } from './view';
 
 /** A card for [item], which opens its page. */
 export function card(item: WebItem, keyPrefix: string): HTMLElement {
-    const detail = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs)].filter(Boolean).join(' · ');
+    const detail = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.unreadable ? 'Unreadable' : ''].filter(Boolean).join(' · ');
     return h(
         'a',
         { class: 'card', attrs: { href: href({ page: 'item', id: item.id }), 'data-key': `${keyPrefix}:${item.id}` } },

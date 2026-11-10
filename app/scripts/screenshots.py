@@ -92,7 +92,10 @@ def web(args, out):
 
         def settled():
             # The posters load lazily, so the picture waits for every one that is on the page.
-            page.wait_for_function('[...document.images].every((image) => image.complete)')
+            # A function, not an expression: Playwright calls a function through the protocol, while an expression
+            # that is still false on the first check is polled by evaluating it in the page, which the app's content
+            # security policy forbids.
+            page.wait_for_function('() => [...document.images].every((image) => image.complete)')
             page.wait_for_timeout(1000)
 
         page.goto(f'{base}/app/#/library')

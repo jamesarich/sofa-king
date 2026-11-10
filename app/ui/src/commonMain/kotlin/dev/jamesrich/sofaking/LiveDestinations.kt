@@ -285,6 +285,7 @@ internal fun MultiviewDestination(
         recent = prefs.recentChannels,
         captions = playerCaptions(prefs, vm),
         breaks = playerBreaks(prefs, vm),
+        playback = prefs.playback,
         onWatch = { channel -> shell.backToPlayer(channel.guideId) },
         onExit = { shell.backToPlayer(route.guideIds.first()) },
     )

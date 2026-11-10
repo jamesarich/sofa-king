@@ -136,7 +136,7 @@ internal enum class LiveButton {
     RECORD,
     FAVORITE,
 
-    /** Several channels at once, which the server draws into one picture. */
+    /** Several channels at once, each in a pane of its own. */
     MULTIVIEW,
     GUIDE,
 }

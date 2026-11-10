@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.LiveBreaks
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.ui.ChannelSearch
 
 /** The fewest channels a multiview shows. */
@@ -54,12 +55,16 @@ internal fun paneSlots(held: Map<String, Int>, picked: List<String>): Map<String
 internal fun soundAfter(sound: String?, picked: List<String>): String? =
     sound?.takeIf { it in picked } ?: picked.firstOrNull()
 
-/** What every pane of a multiview takes from Settings: the captions and their look, and what an ad break does. */
+/**
+ * What every pane of a multiview takes from Settings: the captions and their look, what an ad break does, and the
+ * decoder and buffer choices.
+ */
 @Immutable
 internal data class PaneLook(
     val captions: Boolean = false,
     val captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     val breaks: LiveBreaks = LiveBreaks.PLAY,
+    val playback: PlaybackPreferences = PlaybackPreferences(),
 )
 
 /** Whether a pane draws captions: always while it is silent, by the setting while its [sound] plays. */

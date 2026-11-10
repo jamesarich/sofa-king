@@ -49,8 +49,8 @@ internal sealed interface Route : NavKey {
     }
 
     /**
-     * Multiview, opened from the live player on [guideIds]' first channel: a picker of two to four channels, then
-     * the one picture the server draws them into.
+     * Multiview, opened from the live player on [guideIds]' first channel: a picker of two to four channels, each
+     * playing in a pane of its own.
      */
     @Serializable
     data class Multiview(val guideIds: List<String>) : Route {

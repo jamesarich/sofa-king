@@ -93,6 +93,20 @@ class MultiviewTilesTest {
     }
 
     @Test
+    fun `ticking opens a pane and unticking the heard one moves the sound and closing empties them once`() {
+        val state = MultiviewState(listOf("a"))
+        state.toggle("b")
+        state.sound = "b"
+        assertEquals(mapOf("a" to 0, "b" to 1), state.slots)
+        state.toggle("b")
+        assertEquals(listOf("a"), state.picked)
+        assertEquals("a", state.sound)
+        assertTrue(state.close())
+        assertEquals(emptyList(), state.picked)
+        assertFalse(state.close())
+    }
+
+    @Test
     fun `a silent pane always shows captions and the heard one follows the setting`() {
         assertTrue(paneCaptions(sound = false, setting = false))
         assertFalse(paneCaptions(sound = true, setting = false))

@@ -16,8 +16,23 @@ name: Multiview panes and the sound
     visible:
       id: "player"
     timeout: 30000
+# Pausing holds the bar up, since Maestro reads the screen slower than the bar's 5 seconds while video plays. Right
+# then moves into the bar's buttons and along them to Multiview, whose name shows a second time under the row while it
+# has focus.
+- pressKey: Remote Media Play Pause
+- extendedWaitUntil:
+    visible: "Multiview"
+    timeout: 5000
 - pressKey: Remote Dpad Right
-- tapOn: "Multiview"
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: "Multiview"
+        index: 1
+    commands:
+      - pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible:
       id: "multiview"

@@ -65,6 +65,8 @@ internal fun MultiviewPane(
     // draw them when wanted; the other engines draw their own into the picture.
     val readCaptions = captions || player.supportsCaptionLead
     LaunchedEffect(player, readCaptions) { player.setCaptionsEnabled(readCaptions) }
+    // Before the first tune, so a channel kept on the software decoder plays on it here too.
+    LaunchedEffect(player, look.playback) { player.setPlaybackPreferences(look.playback) }
     PaneVolume(player, silent = paneSilent(sound, cover.up, look.breaks))
     val lifecycle = appLifecycleOwner.lifecycle
     LaunchedEffect(play, channel.guideId, lifecycle) {

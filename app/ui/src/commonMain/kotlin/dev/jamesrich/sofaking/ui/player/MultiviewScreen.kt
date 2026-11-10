@@ -21,6 +21,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.min
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.multiview_keys_hint
@@ -57,7 +59,11 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
 
 /** The multiview screen's test tag, as the player's is. */
@@ -93,6 +99,7 @@ fun MultiviewScreen(
     recent: List<String> = emptyList(),
     captions: PlayerCaptions = PlayerCaptions(),
     breaks: PlayerBreaks = PlayerBreaks(),
+    playback: PlaybackPreferences = PlaybackPreferences(),
 ) {
     val state = remember { MultiviewState(initial.take(Wire.MULTIVIEW_MAX_TILES)) }
     val query = remember { TextFieldState() }
@@ -100,11 +107,14 @@ fun MultiviewScreen(
     val airing = { channel: Channel -> lineup.nowAndNext(channel, now).first?.title }
     LaunchedEffect(players) {
         players.player.stop()
+        // A channel paused when multiview opened plays again when the live player takes over.
+        players.player.playWhenReady = true
         players.sessions.release(forget = true)
     }
     KeepScreenOn(state.picked.isNotEmpty())
+    val leave = rememberLeave(state, players.paneSessions)
     BackHandler {
-        if (state.picking) onExit() else state.picking = true
+        if (state.picking) leave(onExit) else state.picking = true
     }
     val channels = state.picked.mapNotNull { id -> lineup.channels.firstOrNull { it.guideId == id } }
     val names by produceLabels(state.touched)
@@ -120,7 +130,7 @@ fun MultiviewScreen(
             players.paneSessions,
             airing,
             names = names || state.picking,
-            look = PaneLook(captions.enabled, captions.style, breaks.mode),
+            look = PaneLook(captions.enabled, captions.style, breaks.mode, playback),
             modifier = picture,
         )
         if (state.picking) {
@@ -141,10 +151,32 @@ fun MultiviewScreen(
                 sound = channels.indexOfFirst { it.guideId == state.sound }.coerceAtLeast(0),
                 onTouch = { state.touched++ },
                 onSound = { index -> channels.getOrNull(index)?.let { state.sound = it.guideId } },
-                onWatch = onWatch,
+                onWatch = { channel -> leave { onWatch(channel) } },
                 modifier = picture,
             )
             if (names) PaneHint(Modifier.align(Alignment.BottomCenter))
+        }
+    }
+}
+
+/**
+ * Leaving multiview: the panes close and their sessions are released before the action given runs, so the live player
+ * that takes over finds its session slot free on a server whose every slot the panes held. A server that does not
+ * answer holds the leave up for no longer than [LEAVE_WAIT_MS].
+ */
+@Composable
+private fun rememberLeave(state: MultiviewState, sessions: List<PlaybackSessions>): (() -> Unit) -> Unit {
+    val scope = rememberCoroutineScope()
+    return remember(state, sessions, scope) {
+        { then ->
+            if (state.close()) {
+                // A release finishes on its own even when the wait for it is given up.
+                val releases = sessions.map { scope.async { it.release(forget = true) } }
+                scope.launch {
+                    withTimeoutOrNull(LEAVE_WAIT_MS) { releases.awaitAll() }
+                    then()
+                }
+            }
         }
     }
 }
@@ -169,6 +201,17 @@ internal class MultiviewState(val opened: List<String>) {
         picked = togglePick(picked, guideId)
         slots = paneSlots(slots, picked)
         sound = soundAfter(sound, picked)
+    }
+
+    private var closed = false
+
+    /** Closes every pane, once: false when they were closed already. */
+    fun close(): Boolean {
+        if (closed) return false
+        closed = true
+        picked = emptyList()
+        slots = emptyMap()
+        return true
     }
 
     /** Puts the list away, with the names up. */
@@ -294,6 +337,7 @@ private fun PaneHint(modifier: Modifier = Modifier) {
     )
 }
 
+private const val LEAVE_WAIT_MS = 2_000L
 private val HINT_PADDING: Dp = 12.dp
 private val ARROWS = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
 private val SELECT = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)

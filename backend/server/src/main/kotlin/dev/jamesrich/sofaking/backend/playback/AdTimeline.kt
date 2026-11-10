@@ -44,6 +44,9 @@ internal class AdTimeline(
     /** The hold-back the last refresh was sent with (see [withHoldBack]). */
     var holdBackMs: Long? = null
 
+    /** Whether a hold-back the player was given has been dropped; none is offered again (see [withHoldBack]). */
+    var holdBackDropped = false
+
     /** How far behind its newest segment a player plays this playlist (see [playerLeadMs]). */
     var leadMs: Long? = null
 

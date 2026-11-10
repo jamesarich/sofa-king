@@ -23,12 +23,19 @@ private val TARGET_DURATION = Regex("""^#EXT-X-TARGETDURATION:\s*(\d+(?:\.\d+)?)
  * player to play [LIVE_HOLD_BACK_MS] behind its newest segment, or less where that would leave under three target
  * durations of the window behind the player, and the hold-back it was given. [kept], the one this playlist was given
  * last, stays while the window still fits it, so the player's target does not move with every refresh: AVPlayer
- * re-targets its live position on every HOLD-BACK change and never settles while a packaged window grows. A playlist
- * that ended, sets its own server control, or has no room to hold the player further back than the default comes
- * back as it was, with null.
+ * re-targets its live position on every HOLD-BACK change and never settles while a packaged window grows. A
+ * hold-back is never under three target durations, so one the target duration outgrows is dropped; once a hold-back
+ * has been dropped, [dropped], none is offered again and the player sees one change, not a second. A playlist that
+ * ended, sets its own server control, or has no room to hold the player further back than the default comes back as
+ * it was, with null.
  */
-internal fun withHoldBack(text: String, segments: List<AdBreaks.Segment>, kept: Long?): Pair<String, Long?> {
-    if (text.contains("#EXT-X-ENDLIST") || text.contains("#EXT-X-SERVER-CONTROL")) return text to null
+internal fun withHoldBack(
+    text: String,
+    segments: List<AdBreaks.Segment>,
+    kept: Long?,
+    dropped: Boolean = false,
+): Pair<String, Long?> {
+    if (dropped || text.contains("#EXT-X-ENDLIST") || text.contains("#EXT-X-SERVER-CONTROL")) return text to null
     val target = TARGET_DURATION.find(text) ?: return text to null
     val targetMs = (target.groupValues[1].toDouble() * MS_PER_SECOND).roundToLong()
     val room = segments.sumOf { it.durationMs } - TARGET_DURATIONS * targetMs
@@ -49,4 +56,10 @@ internal fun playerLeadMs(text: String, holdBack: Long?): Long? {
     if (text.contains("#EXT-X-ENDLIST") || text.contains("#EXT-X-SERVER-CONTROL")) return null
     val target = TARGET_DURATION.find(text) ?: return null
     return TARGET_DURATIONS * (target.groupValues[1].toDouble() * MS_PER_SECOND).roundToLong()
+}
+
+/** Notes [holdBack], the one the last refresh was sent with, and that the one before it was dropped when it goes. */
+internal fun AdTimeline.sentHoldBack(holdBack: Long?) {
+    if (holdBackMs != null && holdBack == null) holdBackDropped = true
+    holdBackMs = holdBack
 }

@@ -101,8 +101,10 @@ internal fun fragmentedMp4(mode: String, media: MediaInfo?): Boolean =
 /**
  * The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist in [dir], with MPEG-TS segments, or
  * fragmented MP4 for copied HEVC. [encoder] converts the video when the mode does, drawing the picture subtitles
- * [burn] over it. With [follow] it reads a file still being written, ending the stream once the file stops growing
- * for a minute.
+ * [burn] over it. Copied video can only start at the key frame before [startMs], so audio converted beside it starts
+ * there too: cut at [startMs] itself, the sound would begin up to a key frame interval after the picture, and a
+ * player that starts both tracks together plays it that much early. With [follow] it reads a file still being
+ * written, ending the stream once the file stops growing for a minute.
  */
 internal fun vodCommand(
     ffmpeg: String,
@@ -122,7 +124,9 @@ internal fun vodCommand(
     firstSegment: Int? = null,
 ): List<String> {
     val streams = VodStreams(mode, media, audioIndex, encoder, burn)
-    val seek = if (startMs > 0) listOf("-ss", seconds(startMs)) else emptyList()
+    val position = if (startMs > 0) listOf("-ss", seconds(startMs)) else emptyList()
+    val fromKeyFrame = startMs > 0 && streams.copyVideo && !media.audioOnly
+    val seek = (if (fromKeyFrame) listOf("-noaccurate_seek") else emptyList()) + position
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
         addAll(FFMPEG_LOCAL_PROTOCOL_WHITELIST)
@@ -188,13 +192,17 @@ private class VodStreams(
 
 /**
  * The HLS output into [dir], with fragmented MP4 segments when [fmp4]. A [whole] playlist's FFmpeg writes its own
- * playlist aside, as the server lists every segment itself.
+ * playlist aside, as the server lists every segment itself. Fragmented MP4 is written without edit lists, so where
+ * each track starts is in the fragments' own times: Media3 and other players ignore an edit list in fragmented MP4,
+ * and played a track that an edit list delayed that much early.
  */
 private fun hlsOutput(dir: Path, fmp4: Boolean, whole: Boolean): List<String> {
     val segments = if (fmp4) {
         listOf(
             "-hls_segment_type",
             "fmp4",
+            "-hls_segment_options",
+            "use_editlist=0",
             "-hls_fmp4_init_filename",
             FMP4_INIT,
             "-hls_segment_filename",

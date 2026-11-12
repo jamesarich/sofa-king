@@ -98,7 +98,7 @@ class Dvr(
         if (commercials != null ||
             learned != null
         ) {
-            CommercialScanner(store, files, commercials, learned, mutex, clock)
+            CommercialScanner(store, files, commercials, learned, mutex, clock, jobs)
         } else {
             null
         }

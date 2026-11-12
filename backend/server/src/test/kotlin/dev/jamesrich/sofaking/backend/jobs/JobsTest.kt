@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.IOException
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -97,6 +98,69 @@ class JobsTest {
         restarted.fail(3)
         runCurrent()
         assertEquals(2, seen.size)
+    }
+
+    private class Kept : JobRuns {
+        val runs = mutableMapOf<String, LastRun>()
+        var broken = false
+
+        override suspend fun all(): Map<String, LastRun> = if (broken) throw IOException("locked") else runs.toMap()
+
+        override suspend fun remember(id: String, run: LastRun) {
+            runs[id] = run
+        }
+    }
+
+    @Test fun `a restart shows each job's last run, with no next due time until it runs again`() = runTest {
+        val clock = MutableClock()
+        val kept = Kept()
+        val first = Jobs(clock).also { it.keepRuns(kept) }
+        val started = clock.instant()
+        first.record("library-scan") {
+            clock.now = clock.now.plusSeconds(40)
+            JobOutcome(true, "12 files")
+        }
+        first.record("backup") { JobOutcome(false, "IOException") }
+        clock.now = clock.now.plusSeconds(600)
+
+        val restarted = Jobs(clock)
+        restarted.register("library-scan", "Library scan", Duration.ofHours(6))
+        restarted.keepRuns(kept)
+        restarted.register("backup", "Database backup", Duration.ofDays(1))
+        restarted.register("plex", "Plex sync", Duration.ofHours(1))
+        val (scan, backup, plex) = restarted.snapshot()
+        assertEquals(started, scan.lastStartedAt)
+        assertEquals(40_000, scan.lastDurationMs)
+        assertEquals(true, scan.lastOk)
+        assertEquals("12 files", scan.lastNote)
+        assertNull(scan.nextDueAt, "this process has not run it, so its loop's timing is unknown")
+        assertEquals(false, backup.lastOk)
+        assertNull(plex.lastStartedAt)
+
+        restarted.record("library-scan") { JobOutcome(true, "13 files") }
+        val again = restarted.snapshot().first()
+        assertEquals("13 files", again.lastNote)
+        assertEquals(clock.instant().plus(Duration.ofHours(6)), again.nextDueAt)
+        assertEquals("13 files", kept.runs.getValue("library-scan").note)
+    }
+
+    @Test fun `a run this process finished is not replaced by an older kept one`() = runTest {
+        val clock = MutableClock()
+        val kept = Kept().apply { runs["import:a"] = LastRun(0, 1, false, "old") }
+        val jobs = Jobs(clock)
+        jobs.record("import:a") { JobOutcome(true, "new") }
+        jobs.keepRuns(kept)
+        assertEquals("new", jobs.snapshot().single().lastNote)
+    }
+
+    @Test fun `runs that cannot be read show none, and later runs are still kept`() = runTest {
+        val kept = Kept().apply { broken = true }
+        val jobs = Jobs(MutableClock())
+        jobs.register("import:a", "Import a")
+        jobs.keepRuns(kept)
+        assertNull(jobs.snapshot().single().lastStartedAt)
+        jobs.record("import:a") { JobOutcome(true, "2 channels") }
+        assertEquals("2 channels", kept.runs.getValue("import:a").note)
     }
 
     @Test fun `a canceled run is neither a failure nor an outcome`() = runTest {

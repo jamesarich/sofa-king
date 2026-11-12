@@ -98,7 +98,7 @@ class Dvr(
         if (commercials != null ||
             learned != null
         ) {
-            CommercialScanner(store, files, commercials, learned, mutex, clock)
+            CommercialScanner(store, files, commercials, learned, mutex, clock, jobs)
         } else {
             null
         }
@@ -322,7 +322,11 @@ class Dvr(
         mutex.withLock {
             val open = store.recordingsIn(Wire.RecordingState.SCHEDULED, Wire.RecordingState.RECORDING)
             for (missed in open.filter { it.state == Wire.RecordingState.SCHEDULED && it.recordUntil <= now }) {
-                val failed = missed.copy(state = Wire.RecordingState.FAILED, reason = "MISSED", updatedAt = now)
+                val failed = missed.copy(
+                    state = Wire.RecordingState.FAILED,
+                    reason = Wire.RecordingReason.MISSED,
+                    updatedAt = now,
+                )
                 store.saveRecording(failed)
                 events.recordingChanged(failed)
                 log.warn("recording missed id={} title=\"{}\"", missed.id, missed.title)
@@ -395,7 +399,7 @@ class Dvr(
 
     companion object {
         const val SCHEDULE_JOB = "dvr-schedule"
-        const val DISK_FULL = "DISK_FULL"
+        const val DISK_FULL = Wire.RecordingReason.DISK_FULL
         const val CULL_JOB = "dvr-cull"
         internal const val GIB = 1024L * 1024 * 1024
         val DEFAULT_START_PADDING: Duration = Duration.ofMinutes(1)

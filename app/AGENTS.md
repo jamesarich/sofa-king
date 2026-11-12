@@ -21,7 +21,7 @@ Version pins and update steps: CONTRIBUTING.md#dependencies, plus docs/dependenc
 All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `commonTest`, `jvmTest` or `androidHostTest`. These are the placement rules the source doesn't show:
 
 - Key mapping, back, focus and timing decisions are plain functions or classes beside the composables (`guideBackAction`, `PreviewDwell`, `launchTarget` and their neighbors), unit-tested without a device; put new decisions there too.
-- Anything two feature packages share lives in `ui/.../ui` (`Adaptive.kt`, `Focus.kt`, `theme/` and the other top-level files), so `guide`, `library`, `player`, `preview`, `recordings` and `settings` never depend on each other in a cycle.
+- Anything two feature packages share lives in `ui/.../ui` (`Adaptive.kt`, `Focus.kt`, `theme/` and the other top-level files), so `guide`, `library`, `player`, `preview`, `recordings` and `settings` never depend on each other in a cycle; `PackageCyclesTest` fails on one.
 - `core/.../data/ServerConnection` is the one process-wide link to the server (API client, capabilities, the one `PlaybackSessions`, the `RecordingSchedule`, the preference sync). Every ViewModel plays through it.
 - `ui/.../App.kt` is the shell: the ViewModels, the player and its lifecycle, and the Navigation 3 routes. Its state and moves are unit-tested in `AppShellState.kt` and `Navigation.kt`.
 
@@ -69,7 +69,7 @@ How the player, sessions and caches work is in [docs/architecture.md](docs/archi
 - Keep sockets and files off the main thread (`ioDispatcher`). Preserve cancellation and close owned calls, listeners and resources.
 - Keep DataStore corruption recovery, its Android file path and last-good lineup behavior; add lineup cache protobuf fields with new numbers and never renumber them. Never log or print the API token; `AppSettings.toString` hides it and Settings masks all but its last four characters.
 - API requests go through `SofaKingApi` with the bearer token; media requests carry none. Transport errors surface as `IOException` on every engine. Guide queries stay within 200 channels and 24 hours.
-- The server's request and response types come from `../contract` (aliased in `SofaKingDto.kt` beside `wireJson`, which ignores unknown fields); change a wire field there, never in the app (CONTRIBUTING.md#wire-changes). Branch on `Wire` constants, not string literals.
+- The server's request and response types come from `../contract` (aliased in `SofaKingDto.kt` beside `wireJson`, which ignores unknown fields); change a wire field there, never in the app (CONTRIBUTING.md#wire-changes). Branch on `Wire` constants, not string literals; `WireLiteralsTest` fails on an error code or recording reason written as one in `core` or `ui`.
 
 ## Documentation
 

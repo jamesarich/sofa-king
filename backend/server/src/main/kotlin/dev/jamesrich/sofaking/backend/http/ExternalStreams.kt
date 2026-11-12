@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.contract.PlaybackSession
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
@@ -54,7 +55,7 @@ private suspend fun serveOpened(
     try {
         runtime.relay.serve(call, session.id, session.descriptor.epoch, session.descriptor.url.substringAfterLast('/'))
     } catch (e: ApiFailure) {
-        if (e.code != "STREAM_CHANGED" || retried) throw e
+        if (e.code != Wire.ErrorCode.STREAM_CHANGED || retried) throw e
         return serveOpened(call, runtime, runtime.sessions.get(session.id), hls, retried = true)
     }
     return true
@@ -72,7 +73,7 @@ internal suspend fun remux(call: ApplicationCall, runtime: LiveRuntime, sessionI
     } catch (e: ProviderFailure) {
         throw ApiFailure(
             HttpStatusCode.ServiceUnavailable,
-            "SOURCE_UNAVAILABLE",
+            Wire.ErrorCode.SOURCE_UNAVAILABLE,
             "Source could not be resolved",
             true,
             e,

@@ -29,8 +29,9 @@ object Wire {
     }
 
     /**
-     * `Recording.reason` values the DVR sets itself. Any other value is the [ErrorCode] of the failure that ended
-     * the recording, such as [ErrorCode.SOURCE_UNAVAILABLE].
+     * `Recording.reason` values the DVR sets itself. Any other value is the code of the failure that ended the
+     * recording, most often an [ErrorCode] such as [ErrorCode.SOURCE_UNAVAILABLE]; a client reads one it does not
+     * know as its fallback.
      */
     object RecordingReason {
         /** Its whole window passed before it started. */

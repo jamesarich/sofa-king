@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.lineup
 import dev.jamesrich.sofaking.backend.store.saveLineupChanges
 import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -69,7 +70,11 @@ class LineupService(
 
     suspend fun update(id: String, request: UpdateLineupEntry): LineupEntryRecord = mutate { entries ->
         val index = entries.indexOfFirst { it.id == id }
-        if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        if (index <
+            0
+        ) {
+            throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND, "Unknown lineup entry")
+        }
         val next = drafts.updated(entries[index], request)
         entries.removeAt(index)
         entries.add(request.position?.coerceIn(0, entries.size) ?: index, next)
@@ -78,7 +83,7 @@ class LineupService(
 
     suspend fun delete(id: String) = mutate { entries ->
         if (!entries.removeIf { it.id == id }) {
-            throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+            throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND, "Unknown lineup entry")
         }
     }
 
@@ -153,7 +158,15 @@ suspend fun LineupService.updateAll(ids: List<String>, request: UpdateLineupEntr
     mutate { entries ->
         ids.map { id ->
             val index = entries.indexOfFirst { it.id == id }
-            if (index < 0) throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+            if (index <
+                0
+            ) {
+                throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND,
+                    "Unknown lineup entry",
+                )
+            }
             drafts.updated(entries[index], request).also { entries[index] = it }
         }
     }

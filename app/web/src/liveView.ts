@@ -4,6 +4,7 @@ import { button, h } from './dom';
 import { setKeyHandler } from './focus';
 import { clock, filterChannels, nowNext } from './guide';
 import { LivePlayback } from './live';
+import { startPlaying } from './media';
 import { StatusLine } from './status';
 import { Watches, type Context, type View } from './view';
 import {
@@ -168,7 +169,7 @@ export function liveView(ctx: Context, channelId: string): View {
                 toggleFullScreen(el);
                 return true;
             case 'pause':
-                if (video.paused) void video.play();
+                if (video.paused) startPlaying(video, () => status.set('Press Enter to play'));
                 else video.pause();
                 return true;
             case 'zap':

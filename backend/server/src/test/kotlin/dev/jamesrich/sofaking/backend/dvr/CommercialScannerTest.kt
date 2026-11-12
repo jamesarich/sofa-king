@@ -106,7 +106,7 @@ class CommercialScannerTest {
                 assertEquals(listOf(RecordingBreak(30_000, 55_000)), recording.breaks)
                 assertTrue(Files.exists(Commercials.sidecar(file)))
                 assertEquals(true, outcome?.ok)
-                assertEquals("Show: 1 breaks", outcome?.note)
+                assertEquals("Show: 1 break", outcome?.note)
             }
             scan(missingComskip(dir), null, dir = dir.resolve("only")) { recording, file ->
                 assertEquals(Wire.CommercialScan.FAILED, recording.commercials)

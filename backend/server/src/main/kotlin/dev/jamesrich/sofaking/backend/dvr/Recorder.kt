@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import dev.jamesrich.sofaking.contract.RecordingBreak
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -101,7 +102,7 @@ class Recorder internal constructor(
                     when (e) {
                         is ApiFailure -> e.code
 
-                        is ProviderFailure -> "SOURCE_UNAVAILABLE"
+                        is ProviderFailure -> Wire.ErrorCode.SOURCE_UNAVAILABLE
 
                         else -> {
                             log.warn(
@@ -148,9 +149,9 @@ class Recorder internal constructor(
                 // Rethrown when the recording itself was canceled, as it is at its deadline, which ends the last read;
                 // otherwise the session ended under this attempt.
                 val canceled = !currentCoroutineContext().isActive
-                readEnded(channelId, counter, if (canceled) "CANCELED" else "SESSION_ENDED")
+                readEnded(channelId, counter, if (canceled) "CANCELED" else Wire.ErrorCode.SESSION_ENDED)
                 currentCoroutineContext().ensureActive()
-                "SESSION_ENDED"
+                Wire.ErrorCode.SESSION_ENDED
             }
         } finally {
             withContext(NonCancellable) { sessions.release(session.id) }
@@ -305,8 +306,8 @@ class Recorder internal constructor(
             logFfmpeg(errors, file)
         }
         return when {
-            stalled.get() -> "SOURCE_STALLED"
-            written == 0L -> "NO_MEDIA"
+            stalled.get() -> Wire.RecordingReason.SOURCE_STALLED
+            written == 0L -> Wire.RecordingReason.NO_MEDIA
             else -> null
         }
     }
@@ -348,7 +349,7 @@ class Recorder internal constructor(
                     return when {
                         it is UpstreamProtocolException -> null
                         reader.stalled -> STALLED
-                        else -> "SOURCE_UNAVAILABLE"
+                        else -> Wire.ErrorCode.SOURCE_UNAVAILABLE
                     }
                 }
             var written = 0L
@@ -365,7 +366,7 @@ class Recorder internal constructor(
             }
             return when {
                 reader.stalled -> STALLED
-                written == 0L -> "NO_MEDIA"
+                written == 0L -> Wire.RecordingReason.NO_MEDIA
                 else -> ""
             }
         } finally {
@@ -379,7 +380,7 @@ class Recorder internal constructor(
         private val RETRY_DELAY: Duration = Duration.ofSeconds(5)
 
         /** What [copyShared] returns for a shared source that stayed silent past the grace. */
-        private const val STALLED = "SOURCE_STALLED"
+        private const val STALLED = Wire.RecordingReason.SOURCE_STALLED
 
         /** Long enough for FFmpeg to open a slow source and fill a first segment, short of a minute of lost media. */
         private val STALL_AFTER: Duration = Duration.ofSeconds(30)

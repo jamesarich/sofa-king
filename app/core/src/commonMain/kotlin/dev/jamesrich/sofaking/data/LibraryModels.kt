@@ -312,4 +312,13 @@ data class PlaybackProfile(
      * item and converts from wherever it seeks.
      */
     val wholePlaylist: Boolean = false,
-)
+) {
+    /**
+     * This profile with the video [codecs] the device says it decodes as well, at 10 bits too. A probe only ever
+     * adds: with no answer the profile is the one the player is known to play.
+     */
+    fun alsoDecoding(codecs: List<String>): PlaybackProfile = copy(
+        videoCodecs = (videoCodecs + codecs).distinct(),
+        deepColor = deepColor?.let { (it + codecs).distinct() },
+    )
+}

@@ -101,8 +101,13 @@ internal class CommercialScanner(
         }
         return when (state) {
             null -> JobOutcome(true, "${recording.title}: nothing to read it with")
+
             Wire.CommercialScan.FAILED -> JobOutcome(false, "${recording.title}: every detector failed")
-            else -> JobOutcome(true, "${recording.title}: ${breaks.size} breaks")
+
+            else -> JobOutcome(
+                true,
+                "${recording.title}: " + if (breaks.size == 1) "1 break" else "${breaks.size} breaks",
+            )
         }
     }
 

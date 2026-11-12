@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -42,6 +43,9 @@ class CommercialScannerTest {
     private fun ads(sound: Sound, mode: LearnedBreaks = LearnedBreaks.ON) =
         RecordingAds(sound, { null as BreakLibrary? }, { mode })
 
+    /** What the last [scan] told the Jobs page. */
+    private var outcome: JobOutcome? = null
+
     /** The scanner over a fresh store and a recording of [marked] breaks, scanned once; [check] reads the outcome. */
     private fun scan(
         comskip: Commercials?,
@@ -65,7 +69,7 @@ class CommercialScannerTest {
                     createdAt = start, updatedAt = start, commercials = Wire.CommercialScan.SCANNING, breaks = marked,
                 ),
             )
-            CommercialScanner(store, files, comskip, learned, Mutex(), clock).scan("r1")
+            outcome = CommercialScanner(store, files, comskip, learned, Mutex(), clock).scan("r1")
             check(assertNotNull(store.recording("r1")), file)
         } finally {
             store.close()
@@ -101,11 +105,14 @@ class CommercialScannerTest {
                 assertEquals(Wire.CommercialScan.DONE, recording.commercials)
                 assertEquals(listOf(RecordingBreak(30_000, 55_000)), recording.breaks)
                 assertTrue(Files.exists(Commercials.sidecar(file)))
+                assertEquals(true, outcome?.ok)
+                assertEquals("Show: 1 break", outcome?.note)
             }
             scan(missingComskip(dir), null, dir = dir.resolve("only")) { recording, file ->
                 assertEquals(Wire.CommercialScan.FAILED, recording.commercials)
                 assertEquals(emptyList(), recording.breaks)
                 assertFalse(Files.exists(Commercials.sidecar(file)))
+                assertEquals(false, outcome?.ok)
             }
         }
 

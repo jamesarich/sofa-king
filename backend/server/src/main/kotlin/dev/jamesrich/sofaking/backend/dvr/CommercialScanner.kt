@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.recording
@@ -17,6 +19,9 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
+
+/** The commercial scan's id on the Jobs page; each recording scanned is one run. */
+internal const val SCAN_JOB = "dvr-commercials"
 
 /**
  * Finds the commercial breaks in finished recordings, one at a time, and keeps them on the recording unless it was
@@ -36,9 +41,14 @@ internal class CommercialScanner(
     private val learned: RecordingAds?,
     private val mutex: Mutex,
     private val clock: Clock,
+    private val jobs: Jobs = Jobs(clock),
 ) {
     private val log = LoggerFactory.getLogger(Dvr::class.java)
     private val scans = Channel<String>(Channel.UNLIMITED)
+
+    init {
+        jobs.register(SCAN_JOB, "Commercial detection")
+    }
 
     fun request(id: String) {
         scans.trySend(id)
@@ -55,16 +65,17 @@ internal class CommercialScanner(
         }
         for (id in scans) {
             runCatchingCancellable {
-                scan(id)
+                jobs.record(SCAN_JOB) { scan(id) ?: JobOutcome(true, "Recording gone") }
             }.onFailure { e ->
                 log.warn("commercial scan failed id={} class={}", id, e.javaClass.simpleName)
             }
         }
     }
 
-    internal suspend fun scan(id: String) {
+    /** Scans the recording [id] and says what it came to; null when it is gone or was never kept. */
+    internal suspend fun scan(id: String): JobOutcome? {
         val recording =
-            store.recording(id)?.takeIf { it.state == Wire.RecordingState.COMPLETED && it.path != null } ?: return
+            store.recording(id)?.takeIf { it.state == Wire.RecordingState.COMPLETED && it.path != null } ?: return null
         val file = files.resolve(recording.path!!)
         val marked = recording.breaks
         val runs = detect(recording, file)
@@ -86,6 +97,16 @@ internal class CommercialScanner(
                 state,
                 breaks.size,
                 marked.size,
+            )
+        }
+        return when (state) {
+            null -> JobOutcome(true, "${recording.title}: nothing to read it with")
+
+            Wire.CommercialScan.FAILED -> JobOutcome(false, "${recording.title}: every detector failed")
+
+            else -> JobOutcome(
+                true,
+                "${recording.title}: " + if (breaks.size == 1) "1 break" else "${breaks.size} breaks",
             )
         }
     }

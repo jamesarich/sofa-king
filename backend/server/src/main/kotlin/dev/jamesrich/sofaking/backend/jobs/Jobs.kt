@@ -46,7 +46,10 @@ class JobStatus(
     val lastDurationMs: Long?,
     val lastOk: Boolean?,
     val lastNote: String?,
-    /** When the loop runs the job next, from its last end and [every]; null while it runs or before its first run. */
+    /**
+     * When the loop runs the job next, from its last end and [every]; null while it runs, and before its first run
+     * since the server started.
+     */
     val nextDueAt: Instant?,
     /** Whether the portal can start it now. */
     val canRunNow: Boolean,
@@ -88,6 +91,17 @@ class Jobs(private val clock: Clock) {
         @Volatile var alerted = false
 
         @Volatile var seeded = false
+
+        /** Whether the last run shown is one an earlier process finished, which says nothing about this one's loop. */
+        @Volatile var fromEarlierProcess = false
+
+        fun show(run: LastRun) {
+            lastStartedAt = Instant.ofEpochMilli(run.startedAtMs)
+            lastEndedAt = Instant.ofEpochMilli(run.endedAtMs)
+            lastOk = run.ok
+            lastNote = run.note
+            fromEarlierProcess = true
+        }
     }
 
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -110,7 +124,23 @@ class Jobs(private val clock: Clock) {
         const val FAILURES_BEFORE_ALERT = 3
     }
 
-    private fun entry(id: String): Entry = entries.computeIfAbsent(id) { Entry(id, sequence.getAndIncrement()) }
+    @Volatile private var runs: JobRuns? = null
+
+    @Volatile private var earlier: Map<String, LastRun> = emptyMap()
+
+    private fun entry(id: String): Entry = entries.computeIfAbsent(id) {
+        Entry(id, sequence.getAndIncrement()).also { entry -> earlier[id]?.let(entry::show) }
+    }
+
+    /**
+     * Keeps each job's last run in [runs] from here on, and shows the ones an earlier process left for every job
+     * that has not finished a run in this one. A store that cannot be read shows none.
+     */
+    suspend fun keepRuns(runs: JobRuns) {
+        earlier = runCatchingCancellable { runs.all() }.getOrDefault(emptyMap())
+        this.runs = runs
+        entries.values.filter { it.lastEndedAt == null }.forEach { entry -> earlier[entry.id]?.let(entry::show) }
+    }
 
     /** Names the job [id] as [label], says how often its loop runs it, and gives the kick that starts it on request. */
     fun register(id: String, label: String, every: Duration? = null, runNow: (() -> Unit)? = null) {
@@ -148,6 +178,11 @@ class Jobs(private val clock: Clock) {
         entry.lastNote = outcome.note
         entry.runningSince = null
         entry.progress = null
+        entry.fromEarlierProcess = false
+        runs?.let { runs ->
+            val run = LastRun(started.toEpochMilli(), clock.millis(), outcome.ok, outcome.note)
+            withContext(NonCancellable) { runCatchingCancellable { runs.remember(entry.id, run) } }
+        }
         val alerts = alerts
         if (!entry.seeded) {
             entry.alerted = alerts != null && entry.id in withContext(NonCancellable) { remembered(alerts) }
@@ -199,7 +234,7 @@ class Jobs(private val clock: Clock) {
             entry.id, entry.label, entry.every, running, started,
             if (started != null && ended != null) Duration.between(started, ended).toMillis() else null,
             entry.lastOk, entry.lastNote,
-            if (running == null && ended != null) entry.every?.let(ended::plus) else null,
+            if (running == null && ended != null && !entry.fromEarlierProcess) entry.every?.let(ended::plus) else null,
             entry.runNow != null,
             if (running != null) entry.progress else null,
         )

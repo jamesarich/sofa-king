@@ -65,7 +65,7 @@ The Backup page copies the database while the server runs, with SQLite's `VACUUM
 
 To chase a problem, use Debug for 30 minutes on the Events page, reproduce the problem, then Download the log. The DEBUG lines go to stderr and the log file, not to the Events page, and the level saved in Settings comes back when the half hour ends or on Stop debug logging. A level finer than DEBUG stays as it is. The download is the current file, the lines since midnight UTC or since it last reached 20 MB; the older files are gzipped beside it in `logs/`.
 
-On the Jobs page, Run now starts an import or a guide import at once, and a policy run or a Plex sync without the usual quiet time. A job's result is its own summary, such as the channels and sources an import found, or the error class when it failed; the Events page has the lines it logged. A job's last run is kept in the database, so a restart or an update still shows it; its next due time is blank until it has run once since the server started. The Events page keeps its lines in memory, so a restart empties it; the container's log has everything.
+On the Jobs page, Run now starts an import or a guide import at once, and a policy run or a Plex sync without the usual quiet time. A job's result is its own summary, such as the channels and sources an import found, or the error class when it failed; the Events page has the lines it logged. A job's last run is kept in the database, so a restart or an update still shows it; its next due time reads "soon" until it has run once since the server started. The Events page keeps its lines in memory, so a restart empties it; the container's log has everything.
 
 ## Crashes
 

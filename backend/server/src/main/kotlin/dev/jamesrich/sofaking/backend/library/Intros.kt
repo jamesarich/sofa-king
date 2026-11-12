@@ -141,7 +141,7 @@ class IntroDetector(
     private val pending = ConcurrentHashMap.newKeySet<String>()
 
     init {
-        jobs.register(INTRO_JOB, "Intro and credits detection", runNow = { request(null) })
+        jobs.register(INTRO_JOB, "Intro and credits detection", stoppable = true, runNow = { request(null) })
     }
 
     /** Queues a pass over the library [id], or over every TV shows library when null. */
@@ -158,14 +158,15 @@ class IntroDetector(
                 val libraries = store.libraries().filter {
                     it.kind == LibraryKind.SHOWS && (ALL in wanted || it.id in wanted)
                 }
-                for (library in libraries) run(library)
+                // A stopped pass ends the libraries still waiting too.
+                for (library in libraries) run(library) ?: break
             }.onFailure { e ->
                 log.warn("intro detection failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
             }
         }
     }
 
-    /** One pass over [library], recorded on the Jobs page. */
+    /** One pass over [library], recorded on the Jobs page; null when it was stopped there. */
     suspend fun run(library: LibraryRecord): IntroResult? {
         if (library.kind != LibraryKind.SHOWS) return null
         var result: IntroResult? = null

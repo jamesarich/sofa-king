@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.notify.NotifyEvent
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -161,6 +162,63 @@ class JobsTest {
         assertNull(jobs.snapshot().single().lastStartedAt)
         jobs.record("import:a") { JobOutcome(true, "2 channels") }
         assertEquals("2 channels", kept.runs.getValue("import:a").note)
+    }
+
+    @Test fun `stopping a run ends it, records it as stopped and leaves its caller running`() = runTest {
+        val jobs = Jobs(MutableClock())
+        jobs.register("library-scrub", "Scrub thumbnails", stoppable = true)
+        assertFalse(jobs.stop("library-scrub"), "nothing is running yet")
+        var cleaned = false
+        var went = ""
+        val caller = launch {
+            val finished = jobs.record("library-scrub") {
+                try {
+                    awaitCancellation()
+                } finally {
+                    cleaned = true
+                }
+            }
+            went = if (finished) "finished" else "stopped, and the loop goes on"
+        }
+        runCurrent()
+        assertTrue(jobs.snapshot().single().canStop)
+        assertTrue(jobs.stop("library-scrub"))
+        caller.join()
+        assertTrue(cleaned)
+        assertEquals("stopped, and the loop goes on", went)
+        val job = jobs.snapshot().single()
+        assertFalse(job.running)
+        assertFalse(job.canStop)
+        assertEquals(true, job.lastOk)
+        assertEquals(Jobs.STOPPED, job.lastNote)
+        assertTrue(jobs.record("library-scrub") { JobOutcome(true, "3 files") }, "the next run is its own")
+        assertEquals("3 files", jobs.snapshot().single().lastNote)
+    }
+
+    @Test fun `only a job registered as stoppable can be stopped`() = runTest {
+        val jobs = Jobs(MutableClock())
+        jobs.register("import:a", "Import a")
+        val caller = launch { jobs.record("import:a") { awaitCancellation() } }
+        runCurrent()
+        assertFalse(jobs.snapshot().single().canStop)
+        assertFalse(jobs.stop("import:a"))
+        assertTrue(jobs.snapshot().single().running)
+        caller.cancel()
+    }
+
+    @Test fun `a stoppable job's caller being canceled is still a cancellation, and its failure a failure`() = runTest {
+        val jobs = Jobs(MutableClock())
+        jobs.register("library-scrub", "Scrub thumbnails", stoppable = true)
+        jobs.record("library-scrub") { JobOutcome(true, "1 file") }
+        val caller = launch { jobs.record("library-scrub") { awaitCancellation() } }
+        runCurrent()
+        caller.cancel()
+        caller.join()
+        assertTrue(caller.isCancelled)
+        assertEquals("1 file", jobs.snapshot().single().lastNote, "shutdown is no outcome")
+        assertFailsWith<IllegalStateException> { jobs.record("library-scrub") { error("boom") } }
+        assertEquals(false, jobs.snapshot().single().lastOk)
+        assertEquals("IllegalStateException", jobs.snapshot().single().lastNote)
     }
 
     @Test fun `a canceled run is neither a failure nor an outcome`() = runTest {

@@ -87,7 +87,14 @@ private fun TR.jobRow(chrome: Chrome, job: JobStatus) {
     jobResult(job, chrome.now)
     jobNextDue(job, chrome.now)
     td {
-        if (job.canRunNow) {
+        if (job.canStop) {
+            postForm("/admin/system/jobs/${job.id}/stop", chrome.session, keepScroll = true) {
+                button(type = ButtonType.submit, classes = "small") {
+                    attributes["aria-label"] = "Stop ${job.label}"
+                    +"Stop"
+                }
+            }
+        } else if (job.canRunNow) {
             postForm("/admin/system/jobs/${job.id}/run", chrome.session, keepScroll = true) {
                 button(type = ButtonType.submit, classes = "small") {
                     attributes["aria-label"] = "Run ${job.label} now"

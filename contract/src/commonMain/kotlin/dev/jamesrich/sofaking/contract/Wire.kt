@@ -28,6 +28,26 @@ object Wire {
         const val FAILED = "failed"
     }
 
+    /**
+     * `Recording.reason` values the DVR sets itself. Any other value is the code of the failure that ended the
+     * recording, most often an [ErrorCode] such as [ErrorCode.SOURCE_UNAVAILABLE]; a client reads one it does not
+     * know as its fallback.
+     */
+    object RecordingReason {
+        /** Its whole window passed before it started. */
+        const val MISSED = "MISSED"
+        const val DISK_FULL = "DISK_FULL"
+
+        /** The channel sent nothing to record. */
+        const val NO_MEDIA = "NO_MEDIA"
+
+        /** Someone stopped it, or the server shut down, before its end. */
+        const val STOPPED = "STOPPED"
+
+        /** A source another session shares stayed silent. */
+        const val SOURCE_STALLED = "SOURCE_STALLED"
+    }
+
     /** `RuleMatch.kind`: what a recording rule matches; a client reads an unknown kind as one it cannot edit. */
     object RuleMatchKind {
         const val TITLE = "title"
@@ -59,6 +79,19 @@ object Wire {
 
         /** A library file the server cannot read, as in an incomplete download; trying again will not help. */
         const val MEDIA_UNREADABLE = "MEDIA_UNREADABLE"
+
+        /** A 403 from a server that has no API token and answers only its own machine. */
+        const val LOOPBACK_ONLY = "LOOPBACK_ONLY"
+
+        /** Every source of the channel is down or quarantined. */
+        const val SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
+        const val SOURCE_NOT_FOUND = "SOURCE_NOT_FOUND"
+        const val NO_SOURCES = "NO_SOURCES"
+        const val NO_OTHER_SOURCE = "NO_OTHER_SOURCE"
+        const val LINEUP_ENTRY_NOT_FOUND = "LINEUP_ENTRY_NOT_FOUND"
+        const val SESSION_ENDED = "SESSION_ENDED"
+        const val UPSTREAM_UNAVAILABLE = "UPSTREAM_UNAVAILABLE"
+        const val UPSTREAM_STATUS = "UPSTREAM_STATUS"
     }
 
     /** What a library holds. */

@@ -127,7 +127,7 @@ class MediaRelay(
                 }
                 throw ApiFailure(
                     HttpStatusCode.BadGateway,
-                    "UPSTREAM_UNAVAILABLE",
+                    Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
                     "This channel isn't available right now",
                     true,
                 )
@@ -433,7 +433,7 @@ internal suspend fun relayResource(
     refused: (Int) -> Nothing = {
         throw ApiFailure(
             HttpStatusCode.BadGateway,
-            "UPSTREAM_UNAVAILABLE",
+            Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
             "This channel isn't available right now",
             true,
         )
@@ -511,7 +511,12 @@ private class RelayedBody(
     /** Answers with the inflated bytes, the ones a reader would decrypt with. */
     suspend fun encoded() {
         val raw = upTo(ENCODED_LIMIT) {
-            throw ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+            throw ApiFailure(
+                HttpStatusCode.BadGateway,
+                Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
+                "Encoded resource too large",
+                true,
+            )
         }
         val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
         sent(plain.size.toLong())
@@ -600,7 +605,7 @@ private suspend fun SessionMedia.startFailure(
     }
     return ApiFailure(
         HttpStatusCode.BadGateway,
-        "UPSTREAM_UNAVAILABLE",
+        Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
         "This channel isn't available right now",
         true,
     )

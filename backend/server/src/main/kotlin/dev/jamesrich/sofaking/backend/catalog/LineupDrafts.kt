@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import java.util.UUID
 
@@ -13,7 +14,7 @@ internal class LineupDrafts(private val feeds: FeedService, private val guides: 
     fun created(request: CreateLineupEntry, entries: List<LineupEntryRecord>): LineupEntryRecord {
         val candidate = request.channelId?.let {
             feeds.published.channel(it)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown feed channel")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown feed channel")
         }
         val id = entryId(request.id)
         if (entries.any { it.id == id }) {
@@ -94,7 +95,7 @@ internal class LineupDrafts(private val feeds: FeedService, private val guides: 
     private fun requireKnownOfferings(ids: List<String>) {
         if (ids.distinct().size != ids.size) invalid("Duplicate offering IDs")
         ids.firstOrNull { feeds.published.offering(it) == null }
-            ?.let { throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $it") }
+            ?.let { throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.SOURCE_NOT_FOUND, "Unknown source $it") }
     }
 
     private fun invalid(message: String): Nothing =

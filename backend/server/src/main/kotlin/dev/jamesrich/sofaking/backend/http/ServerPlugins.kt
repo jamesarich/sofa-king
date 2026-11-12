@@ -292,7 +292,7 @@ private suspend fun ApplicationCall.refusedApi(
         // name, no proxy.
         expected == null -> (
             HttpStatusCode.Forbidden to ApiError(
-                "LOOPBACK_ONLY",
+                Wire.ErrorCode.LOOPBACK_ONLY,
                 "Without a token the API answers only this machine",
                 false,
             )

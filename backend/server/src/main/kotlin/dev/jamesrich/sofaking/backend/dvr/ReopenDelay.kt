@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.dvr
 
+import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
 
 /**
@@ -16,10 +17,10 @@ internal class ReopenDelay(
 
     /** The wait after a read that ended as [outcome]: null when it wrote media and the source ended. */
     fun after(outcome: String?): Duration {
-        empty = if (outcome == "NO_MEDIA") empty + 1 else 0
+        empty = if (outcome == Wire.RecordingReason.NO_MEDIA) empty + 1 else 0
         return when (outcome) {
-            null, "SOURCE_STALLED" -> first
-            "NO_MEDIA" -> minOf(slowest, first.multipliedBy(1L shl minOf(empty - 1, MAX_DOUBLINGS)))
+            null, Wire.RecordingReason.SOURCE_STALLED -> first
+            Wire.RecordingReason.NO_MEDIA -> minOf(slowest, first.multipliedBy(1L shl minOf(empty - 1, MAX_DOUBLINGS)))
             else -> slowest
         }
     }

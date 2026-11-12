@@ -126,7 +126,7 @@ class MultiviewSessions(
         }
         if (request.audio !in channels.indices) invalid("audio is the index of one of the channels")
         channels.firstOrNull { lineup.entry(it)?.enabled != true }?.let {
-            throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "No such channel")
+            throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "No such channel")
         }
         val session = Session(UUID.randomUUID().toString(), secret(), channels, canvas)
         gate.withLock {

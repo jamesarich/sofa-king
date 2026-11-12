@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.parameters
@@ -104,7 +105,7 @@ internal class LineupPages(private val portal: Portal, editor: PolicyEditor) {
         val entry = runtime.lineup.entry(id)
             ?: throw ApiFailure(
                 HttpStatusCode.NotFound,
-                "LINEUP_ENTRY_NOT_FOUND",
+                Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND,
                 "That station is no longer in the lineup",
             )
         val update = request(entry)
@@ -114,7 +115,11 @@ internal class LineupPages(private val portal: Portal, editor: PolicyEditor) {
             runtime.lineup.update(id, update)
         } else {
             policy.edits.updateStation(id, update, null)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND,
+                    "The station left the lineup",
+                )
         }
     }
 

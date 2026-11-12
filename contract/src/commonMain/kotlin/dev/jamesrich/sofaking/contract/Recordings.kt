@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
 /**
  * One recording, scheduled, running or kept. The program fields are the guide's when it was scheduled;
  * [startsAt] and [endsAt] are the program's own times, and the recording runs from [startPaddingSeconds] before
- * to [endPaddingSeconds] after them. [state] is a [Wire.RecordingState] value and [reason] says why one failed.
+ * to [endPaddingSeconds] after them. [state] is a [Wire.RecordingState] value and [reason] says why one failed:
+ * a [Wire.RecordingReason] value or a [Wire.ErrorCode].
  * [path] is relative to the recordings folder once the file exists. [conflict] marks a scheduled recording that
  * overlaps more recordings than the server has playback slots. [ruleId] names the series rule that scheduled it.
  * [commercials] is a [Wire.CommercialScan] value once the server looks for commercial breaks, and [breaks] are the

@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.playback.ChannelTap
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import java.time.Instant
 
@@ -46,7 +47,11 @@ internal class LineupSlots(
 
     override suspend fun <T> reading(id: String, block: suspend (FfmpegSource) -> T): T {
         // A virtual channel playing a virtual channel could end up reading itself.
-        if (id !in choices()) throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "No such live channel")
+        if (id !in
+            choices()
+        ) {
+            throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "No such live channel")
+        }
         return tap.reading(id, CLIENT, block)
     }
 

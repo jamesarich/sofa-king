@@ -45,19 +45,25 @@ enum class RecordingFailure {
 
     internal companion object {
         fun of(reason: String?): RecordingFailure = when (reason) {
-            "MISSED" -> MISSED
+            Wire.RecordingReason.MISSED -> MISSED
 
-            "DISK_FULL" -> DISK_FULL
+            Wire.RecordingReason.DISK_FULL -> DISK_FULL
 
-            "NO_MEDIA" -> NO_MEDIA
+            Wire.RecordingReason.NO_MEDIA -> NO_MEDIA
 
-            "SOURCE_UNAVAILABLE", "SESSION_ENDED", "UPSTREAM_UNAVAILABLE", "UPSTREAM_STATUS", "NO_SOURCES",
-            "SOURCE_NOT_FOUND", "NO_OTHER_SOURCE",
+            Wire.RecordingReason.SOURCE_STALLED,
+            Wire.ErrorCode.SOURCE_UNAVAILABLE,
+            Wire.ErrorCode.SESSION_ENDED,
+            Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
+            Wire.ErrorCode.UPSTREAM_STATUS,
+            Wire.ErrorCode.NO_SOURCES,
+            Wire.ErrorCode.SOURCE_NOT_FOUND,
+            Wire.ErrorCode.NO_OTHER_SOURCE,
             -> SOURCE
 
-            "CHANNEL_NOT_FOUND", "LINEUP_ENTRY_NOT_FOUND" -> CHANNEL_GONE
+            Wire.ErrorCode.CHANNEL_NOT_FOUND, Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND -> CHANNEL_GONE
 
-            "STOPPED" -> STOPPED
+            Wire.RecordingReason.STOPPED -> STOPPED
 
             else -> OTHER
         }

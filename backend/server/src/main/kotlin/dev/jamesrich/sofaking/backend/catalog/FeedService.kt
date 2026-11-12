@@ -25,6 +25,7 @@ import dev.jamesrich.sofaking.backend.store.snapshots
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpStatusCode
@@ -341,7 +342,8 @@ class FeedService(
 
     suspend fun updateSource(id: String, update: UpdateSource): SourceStatus {
         val source =
-            published.offering(id) ?: throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source")
+            published.offering(id)
+                ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.SOURCE_NOT_FOUND, "Unknown source")
         store.setManuallyDisabled(id, update.manuallyDisabled)
         val state = checkNotNull(store.allHealth()[id])
         return SourceStatus(

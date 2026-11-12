@@ -33,6 +33,7 @@ class RecordingFailureTest {
         assertEquals(RecordingFailure.DISK_FULL, RecordingFailure.of("DISK_FULL"))
         assertEquals(RecordingFailure.NO_MEDIA, RecordingFailure.of("NO_MEDIA"))
         assertEquals(RecordingFailure.SOURCE, RecordingFailure.of("SOURCE_UNAVAILABLE"))
+        assertEquals(RecordingFailure.SOURCE, RecordingFailure.of("SOURCE_STALLED"))
         assertEquals(RecordingFailure.SOURCE, RecordingFailure.of("SESSION_ENDED"))
         assertEquals(RecordingFailure.SOURCE, RecordingFailure.of("NO_SOURCES"))
         assertEquals(RecordingFailure.CHANNEL_GONE, RecordingFailure.of("CHANNEL_NOT_FOUND"))

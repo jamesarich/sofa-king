@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.library.ServiceFailure
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -123,7 +124,11 @@ class SetupService(
             )
         }
         if (starterPolicy && document.providers.isEmpty()) {
-            throw ApiFailure(HttpStatusCode.Conflict, "NO_SOURCES", "Add providers to build the starter lineup from")
+            throw ApiFailure(
+                HttpStatusCode.Conflict,
+                Wire.ErrorCode.NO_SOURCES,
+                "Add providers to build the starter lineup from",
+            )
         }
         try {
             validateSources(document, environment)
@@ -169,7 +174,7 @@ class SetupService(
         if (providers.isEmpty()) {
             throw ApiFailure(
                 HttpStatusCode.Conflict,
-                "NO_SOURCES",
+                Wire.ErrorCode.NO_SOURCES,
                 "Add providers to the source file first",
             )
         }

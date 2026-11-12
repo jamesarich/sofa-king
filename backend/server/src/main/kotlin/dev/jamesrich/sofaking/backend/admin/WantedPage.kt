@@ -116,9 +116,9 @@ private fun startOf(recording: Recording): Instant? = runCatching { Instant.pars
 
 /** Why a recording failed, in words, from its reason code. */
 internal fun missedWhy(reason: String?): String = when (reason) {
-    "MISSED" -> "It never started: the server was down, or every recording slot was taken"
+    Wire.RecordingReason.MISSED -> "It never started: the server was down, or every recording slot was taken"
     Dvr.DISK_FULL -> "The recordings disk filled up"
-    "NO_MEDIA" -> "The channel sent nothing to record"
+    Wire.RecordingReason.NO_MEDIA -> "The channel sent nothing to record"
     null -> "It failed"
     else -> "The channel's source failed ($reason)"
 }

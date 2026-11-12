@@ -99,6 +99,18 @@ class AdminPortalPagesTest : AdminPortalCase() {
         }
     }
 
+    @Test fun `stopping a job that is not running, or cannot be stopped, says so on the Jobs page`() = testApplication {
+        portal {
+            browser.signIn()
+            val page = browser.get("/admin/system/jobs").bodyAsText()
+            assertFalse(page.contains("/stop\""), "no idle job offers Stop")
+            val stop = browser.post("/admin/system/jobs/import:fixture/stop", "csrf" to field(page, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, stop.status)
+            assertEquals("/admin/system/jobs", stop.headers[HttpHeaders.Location])
+            assertTrue(browser.get("/admin/system/jobs").bodyAsText().contains("No such job is running."))
+        }
+    }
+
     @Test
     fun `watching now lists each session with its player, and Stop ends it after a confirmation`() = testApplication {
         portal {

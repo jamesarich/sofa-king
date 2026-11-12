@@ -109,6 +109,11 @@ internal class CommercialScanner(
                 "${recording.title}: " + if (breaks.size == 1) "1 break" else "${breaks.size} breaks",
             )
         }
+        return when (state) {
+            null -> JobOutcome(true, "${recording.title}: nothing to read it with")
+            Wire.CommercialScan.FAILED -> JobOutcome(false, "${recording.title}: every detector failed")
+            else -> JobOutcome(true, "${recording.title}: ${breaks.size} breaks")
+        }
     }
 
     /** What each source that ran made of [file], by name: the learned source only without markers. */

@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.MIB
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveStream
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 
@@ -24,8 +25,26 @@ internal fun tooLargeMessage(limit: Long): String =
  * through a String; `RequestBodyLimit` bounds the read, so an oversized body fails as 413 part way.
  */
 @OptIn(ExperimentalSerializationApi::class)
-internal suspend inline fun <reified T> ApplicationCall.body(): T = requestJson.decodeFromStream(receiveStream())
+internal suspend inline fun <reified T> ApplicationCall.body(): T {
+    val stream = receiveStream()
+    return decodingRequest { requestJson.decodeFromStream(stream) }
+}
 
 /** A request body from the app: guide queries and playback sessions. */
 @OptIn(ExperimentalSerializationApi::class)
-internal suspend inline fun <reified T> ApplicationCall.appBody(): T = appRequestJson.decodeFromStream(receiveStream())
+internal suspend inline fun <reified T> ApplicationCall.appBody(): T {
+    val stream = receiveStream()
+    return decodingRequest { appRequestJson.decodeFromStream(stream) }
+}
+
+/**
+ * Runs a request body's [decode]. kotlinx.serialization 1.13's streaming decoder reads past the end of a body cut off
+ * where a boolean should be (`{"protected":`) and throws an `ArrayIndexOutOfBoundsException` instead of a
+ * `SerializationException`; that is a malformed body, a 400, not a server error. Drop this once a release fixes it.
+ */
+@Suppress("TooGenericExceptionCaught") // Only the decoder's own bounds failure is turned into a SerializationException.
+internal inline fun <T> decodingRequest(decode: () -> T): T = try {
+    decode()
+} catch (e: IndexOutOfBoundsException) {
+    throw SerializationException("The request body ends early", e)
+}

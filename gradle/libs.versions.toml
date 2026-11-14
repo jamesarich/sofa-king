@@ -60,7 +60,7 @@ coil = "3.6.3"
 aboutlibraries = "15.3.0"
 exposed = "1.6.1"
 sqlite = "3.54.1.0"
-logback = "1.6.6"
+logback = "1.6.7"
 zxing = "3.5.4"
 jmdns = "3.6.5"
 # The official Model Context Protocol SDK the server answers /api/v1/mcp with.

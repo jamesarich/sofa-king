@@ -15,9 +15,11 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import sys
 import threading
 import time
+from urllib.parse import urlsplit
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
 
@@ -42,6 +44,25 @@ BLANK_BYTES = 4000
 # device with no saved preferences yet gets a 404 for them, and a stream's media is gone (410) once its session is
 # released, which a tune can do while the player still reads it.
 EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
+
+
+# What Chrome logs when the page's policy refuses a connection: the web app may connect to its own origin and to HTTPS.
+CSP_REFUSALS = (
+    re.compile(r"Connecting to '([^']+)' violates the following Content Security Policy"),
+    re.compile(r'Fetch API cannot load (.+?)\. Refused to connect because it violates'),
+)
+
+
+def refused_for_another_origin(text, page_url):
+    """True when `text` is the policy refusing an address other than the page's own origin, as the server does by design.
+
+    Backspace in Settings' Address field and then Enter on Save (the fuzz's keys) point the app at an address the page's
+    policy forbids, and every request after it is refused; a refusal of the page's own origin is a real break."""
+    for refusal in CSP_REFUSALS:
+        match = refusal.match(text)
+        if match:
+            return urlsplit(match.group(1))[:2] != urlsplit(page_url)[:2]
+    return False
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -84,7 +105,8 @@ def main():
 
         def logged(message):
             console.append(f'{message.type}: {message.text}')
-            if message.type == 'error' and not message.text.startswith('Failed to load resource'):
+            if (message.type == 'error' and not message.text.startswith('Failed to load resource')
+                    and not refused_for_another_origin(message.text, page_url)):
                 errors.append(f'console error: {message.text}')
         page.on('console', logged)
 

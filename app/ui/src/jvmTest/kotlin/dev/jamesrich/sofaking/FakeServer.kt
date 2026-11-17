@@ -51,12 +51,14 @@ import kotlin.time.Instant
  * false, a few finished recordings. Its playback sessions, live and library, point at streams that go nowhere, since
  * the tests have no decoder; it counts the guide queries and the sessions the app holds open. With [signedOut] it
  * pairs a device and then turns the device's token away with a 401 on every other route, as a server does once the
- * device was revoked.
+ * device was revoked. With [unreadableMovie] the first movie is a file the server cannot read: its item says so and a
+ * library session for it is refused with 422 MEDIA_UNREADABLE.
  */
 internal class FakeServer(
     private val recordings: Boolean = true,
     private val multiview: Boolean = false,
     private val signedOut: Boolean = false,
+    private val unreadableMovie: Boolean = false,
 ) {
     private val http = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
     val url = "http://127.0.0.1:${http.address.port}"
@@ -124,6 +126,7 @@ internal class FakeServer(
                                 GENRES.size,
                         ],
                     ),
+                    unreadable = unreadableMovie && i == 0,
                 ),
             )
         }
@@ -343,10 +346,14 @@ internal class FakeServer(
 
             path == "vod-sessions" -> {
                 val open = JSON.decodeFromString<OpenVodPlayback>(request.body)
-                val id = UUID.randomUUID().toString()
-                vodSessions[id] = open.itemId
-                sessionsOpened.incrementAndGet()
-                exchange.json(201, vod(id, open.itemId, open.startMs))
+                if (items[open.itemId]?.unreadable == true) {
+                    exchange.json(422, ApiError(Wire.ErrorCode.MEDIA_UNREADABLE, "No video or audio in the file"))
+                } else {
+                    val id = UUID.randomUUID().toString()
+                    vodSessions[id] = open.itemId
+                    sessionsOpened.incrementAndGet()
+                    exchange.json(201, vod(id, open.itemId, open.startMs))
+                }
             }
 
             path.startsWith("vod-sessions/") -> vodSession(exchange, path.removePrefix("vod-sessions/"), request)
@@ -504,6 +511,7 @@ internal class FakeServer(
         genres: List<String> = emptyList(),
         children: Int = 0,
         unwatched: Int = 0,
+        unreadable: Boolean = false,
     ) = LibraryItem(
         id = id,
         libraryId = library,
@@ -518,6 +526,7 @@ internal class FakeServer(
         durationMs = durationMs,
         addedAt = started.toString(),
         genres = genres,
+        unreadable = unreadable,
         children = children,
         unwatched = unwatched,
     )

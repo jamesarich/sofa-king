@@ -44,6 +44,9 @@ BLANK_BYTES = 4000
 # device with no saved preferences yet gets a 404 for them, and a stream's media is gone (410) once its session is
 # released, which a tune can do while the player still reads it.
 EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
+# What the app says once the server turns its token away: Backspace in Settings' API token field and Save leave a
+# token the server refuses (401), which the app must meet with this notice and not with a blank or broken screen.
+SIGNED_OUT = 'This device is signed out'
 
 
 # What Chrome logs when the page's policy refuses a connection: the web app may connect to its own origin and to HTTPS.
@@ -94,7 +97,7 @@ def main():
         page_url = f'http://127.0.0.1:{static.server_port}/'
         env = {'SOFA_CORS_ORIGINS': page_url.rstrip('/')}
 
-    errors, console = [], []
+    errors, console, refused = [], [], []
     pressed = []
     with serve(out, **env) as base, sync_playwright() as playwright:
         page_url = page_url or f'{base}/app/'
@@ -112,7 +115,9 @@ def main():
 
         def answered(response):
             expected = any(path in response.url and response.status == status for path, status in EXPECTED)
-            if response.status >= 400 and not expected:
+            if response.status == 401:
+                refused.append(f'{response.request.method} {response.url}')
+            elif response.status >= 400 and not expected:
                 errors.append(f'{response.request.method} {response.url} answered {response.status}')
         page.on('response', answered)
         # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
@@ -145,6 +150,12 @@ def main():
                 if blank >= 2:
                     errors.append(f'the screen stayed blank after key {index + 1}')
                     break
+        # A refused token is the keys' doing; the app must say so, wherever it was left.
+        if refused and not errors:
+            try:
+                page.get_by_text(SIGNED_OUT).first.wait_for(timeout=10_000)
+            except PlaywrightTimeout:
+                errors.append(f'the server refused the page\'s token ({refused[0]}) and the app did not say "{SIGNED_OUT}"')
         page.screenshot(path=str(out / 'screen.png'))
         open_before = [s for s in request(base, '/api/v1/admin/sessions') if not s['external']]
         page.close()

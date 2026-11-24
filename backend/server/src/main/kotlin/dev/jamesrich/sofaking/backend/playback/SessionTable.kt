@@ -69,9 +69,15 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
      * answers `SESSION_PREEMPTED`. Recordings, taps and other players outside the app are never taken.
      */
     fun makeRoom(preemptFor: String? = null, recording: String? = null) {
-        if (sessions.size < capacity) return
+        // Lowering the capacity at runtime leaves more sessions open than it allows, so one give does not make room:
+        // sessions go until the table is under the limit.
+        while (sessions.size >= capacity) end(victim(preemptFor, recording), HistoryReason.EVICTED)
+    }
+
+    /** The session that yields its slot, by the rules of [makeRoom]; fails when none can. */
+    private fun victim(preemptFor: String?, recording: String?): LiveSession {
         val now = clock.instant()
-        val victim = sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
+        return sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
             ?: sessions.values.filter { it.external && !it.busy && !it.held }.minByOrNull { it.expires }
             ?: preemptFor?.let { channel ->
                 sessions.values.filter { !it.external && it.intent == Wire.Intent.WATCH }
@@ -87,7 +93,6 @@ internal class SessionTable(private val clock: Clock, capacity: Int) {
                 "The server is at its playback limit; try again shortly",
                 true,
             )
-        end(victim, HistoryReason.EVICTED)
     }
 
     /**

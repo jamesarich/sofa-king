@@ -4,7 +4,7 @@ The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull reque
 
 ## Run without Docker
 
-You need JDK 21 and FFmpeg. Run the commands from `backend/`:
+You need JDK 21 or later and FFmpeg. Run the commands from `backend/`:
 
 1. Build the server:
 
@@ -67,7 +67,7 @@ Keep `data/` across restarts. It holds the database, the logo cache, the generat
 
 ## Build and test
 
-Use JDK 21 and FFmpeg on the path. Run every command from `backend/`:
+Use JDK 21 and FFmpeg on the path. The code compiles for 21, and the tests run on JDK 25, the Java the image ships; Gradle downloads one if the machine has none. Run every command from `backend/`:
 
 ```sh
 ./gradlew test :server:installDist

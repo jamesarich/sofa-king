@@ -53,6 +53,8 @@ abstract class WireFixtures : CommandLineArgumentProvider {
     override fun asArguments() = listOf("-Dsofaking.wireFixtures=${dir.get().asFile.absolutePath}")
 }
 tasks.test {
+    // The image runs the server on JRE 25 while the code compiles for 21, so the tests run on the JVM it ships.
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
     // JUnit Jupiter; src/test/resources/junit-platform.properties sets the default timeout.
     useJUnitPlatform()
     // Logback configures itself from the environment in the test JVM too; no log file in the source tree.

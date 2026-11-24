@@ -117,11 +117,12 @@ class VodModeTest {
         val file = media("matroska,webm", "h264", "dts")
         val command = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.AUDIO, 90_500, file, null)
         assertEquals(
-            listOf("-ss", "90.500", "-i", "/m/a.mkv"),
+            listOf("-noaccurate_seek", "-ss", "90.500", "-i", "/m/a.mkv"),
             command.subList(
-                command.indexOf("-ss"),
+                command.indexOf("-ss") - 1,
                 command.indexOf("-ss") + 4,
             ),
+            "copied video starts at a key frame, so the converted sound is not cut later than it",
         )
         assertEquals(
             listOf("0:v:0?", "0:1"),

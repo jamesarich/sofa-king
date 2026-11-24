@@ -120,6 +120,11 @@ final class RemoteTests: XCTestCase {
         try launchToList()
         _ = try playSofaSports()
         remote.press(.menu)
+        // AVKit takes the press once the item plays and the bar is up, hiding the bar rather than leaving, so a player
+        // that was done loading by the time Menu came gets a second press; one still loading must leave on the first.
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !server.watching().isEmpty { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
+        if !server.watching().isEmpty, app.activityIndicators.count == 0 { remote.press(.menu) }
         eventually("Menu to leave the loading player and release its session", timeout: 10) { server.watching().isEmpty }
         XCTAssertTrue(guide.waitForExistence(timeout: 5), "The channel list is not back\n\(playerReport)")
     }
@@ -409,8 +414,11 @@ final class RemoteTests: XCTestCase {
             + "buffering indicators: \(app.activityIndicators.count)\nfocused: \(focusedId)\n\(screen)"
     }
 
-    /// Shows the player's transport bar and moves focus to `element` in it: Up from the scrubber, then along the row.
-    /// No press is sent until a bar item has focus, since a press made before focus lands in the bar is dropped.
+    /// Shows the player's transport bar and moves focus to `element` in it. With no bar item focused, Up from the player
+    /// or its scrubber enters the bar; with one focused, the move is sideways, toward `element`'s place on screen. The bar
+    /// keeps focus on its first item when it rebuilds, as it does after a recording is scheduled, so a fixed run of
+    /// Up presses would leave the bar there. No press is sent until a bar item has focus or Up is due, since a press
+    /// made before focus lands in the bar is dropped.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
         waitForPlayerToSettle()
@@ -422,8 +430,7 @@ final class RemoteTests: XCTestCase {
             remote.press(.select)
             waitForFocusToSettle()
         }
-        let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
-        for move in moves {
+        for _ in 0..<16 {
             if !element.exists {
                 // A click shows the bar; the system hides it again after a few idle seconds.
                 remote.press(.select)
@@ -431,12 +438,26 @@ final class RemoteTests: XCTestCase {
             }
             // Focus found mid-travel counts only if it is still there after a moment, with no press left in flight.
             if settled(element.exists && element.hasFocus) && settled(element.exists && element.hasFocus) { return }
-            // Sideways moves need an item to have focus; Up is what gives one focus, and a hidden bar turns it into a zap.
-            if move == .up { waitForFocusToSettle() } else { _ = waitForBarItemFocus(timeout: 3) }
+            let move: XCUIRemote.Button
+            if element.exists, let item = focusedBarItem {
+                _ = waitForBarItemFocus(timeout: 3)
+                move = element.frame.midX > item.frame.midX ? .right : .left
+            } else {
+                // Up is what gives an item focus, and a hidden bar turns it into a zap.
+                waitForFocusToSettle()
+                move = .up
+            }
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
+    }
+
+    /// The transport bar item that has focus, if any.
+    @MainActor
+    private var focusedBarItem: XCUIElement? {
+        let item = app.cells.matching(NSPredicate(format: "hasFocus == true")).firstMatch
+        return item.exists ? item : nil
     }
 
     /// Whether a transport bar item, a cell to accessibility, has focus.

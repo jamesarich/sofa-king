@@ -1,6 +1,6 @@
 # Deploy with Docker
 
-The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on port 8080 unless `SOFA_PORT` says otherwise, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
+The image runs the server on Eclipse Temurin 25 (the `eclipse-temurin` JRE tag in `backend/Dockerfile`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on port 8080 unless `SOFA_PORT` says otherwise, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
 
 ## Start
 

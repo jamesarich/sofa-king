@@ -1,0 +1,97 @@
+# A multiview pane in a marked ad break (#712): with Settings > Live TV > During ads on "Logo, muted" the pane of the
+# fixture server's first channel, whose 30-second ad mark comes a minute apart under tv-monkey, has to say "Commercial
+# break" over its picture and clear when the break ends, while the other pane keeps playing. Starts on any tab (a player
+# left open is left first), tunes the marked channel by its link (the fixture numbers its channels from 2), opens
+# Multiview from the player's bar, ticks the next channel and puts the list away, waits through at most one gap between
+# breaks, then backs out. Ends back on a tab with During ads on "Show them" again.
+appId: dev.jamesrich.sofaking
+name: Multiview pane over a marked ad break
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Live TV"
+- scrollUntilVisible:
+    element: "During ads"
+- tapOn: "Logo, muted"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- openLink: "sofaking://live/2"
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+# Pausing holds the bar up, since Maestro reads the screen slower than the bar's 5 seconds while video plays. Right
+# then walks the bar's buttons to Multiview, whose name shows a second time under the row while it has focus.
+- pressKey: Remote Media Play Pause
+- extendedWaitUntil:
+    visible: "Multiview"
+    timeout: 5000
+- pressKey: Remote Dpad Right
+- repeat:
+    times: 10
+    while:
+      notVisible:
+        text: "Multiview"
+        index: 1
+    commands:
+      - pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: "multiview"
+    timeout: 15000
+# The list opens on the channel being watched, Down is the next one listed, and Right puts the list away once two are
+# ticked. A tap would bring up the on-screen keyboard, which the flows after this one cannot see past.
+- pressKey: Remote Dpad Down
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Watch 2 channels"
+    timeout: 15000
+- pressKey: Remote Dpad Right
+- extendedWaitUntil:
+    visible: ".*, playing sound"
+    timeout: 15000
+# The panes play about 15 s behind the newest segment and the marked channel's breaks come a minute apart, so a break
+# covers its pane within 90 s. Only that channel carries marks, so the text is on its pane alone.
+- extendedWaitUntil:
+    visible: "Commercial break"
+    timeout: 110000
+# The break is 30 s long, so the cover has to be gone well within a minute, with both panes still up.
+- extendedWaitUntil:
+    notVisible: "Commercial break"
+    timeout: 60000
+- assertVisible: ".*, playing sound"
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Watch 2 channels"
+    timeout: 15000
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000
+- tapOn: "Settings"
+- tapOn: "Live TV"
+- scrollUntilVisible:
+    element: "During ads"
+- tapOn: "Show them"
+- pressKey: Back
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 15000

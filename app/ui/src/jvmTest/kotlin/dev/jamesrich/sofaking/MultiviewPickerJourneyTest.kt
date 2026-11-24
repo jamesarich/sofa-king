@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onFirst
@@ -30,6 +31,19 @@ class MultiviewPickerJourneyTest {
         assertEquals(MAX_PANES, server.watchedChannels.size)
         assertEquals(sessions, server.sessionsOpened.get(), "a refused tick opens nothing")
         assertTrue(opened in server.watchedChannels)
+    }
+
+    @Test
+    fun `Watch stays off and Right leaves the list alone until a second channel is ticked`() = journey {
+        openPicker()
+        ui.onAllNodes(hasText("Watch 1 channel")).onFirst().assertIsNotEnabled()
+        keys("Right")
+        ui.onAllNodes(hasText("Watch 1 channel")).onFirst().assertIsDisplayed()
+        assertEquals(1, server.watchedChannels.size, "Right did not leave the list or open a pane")
+        keys("Down", "OK")
+        waitFor("server.watchedChannels.size == 2", WAIT_MS) { server.watchedChannels.size == 2 }
+        keys("Right")
+        assertFocused("the pane with the sound") { it?.endsWith("playing sound") == true }
     }
 
     @Test

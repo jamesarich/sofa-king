@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,7 @@ import dev.jamesrich.sofaking.resources.player_control_channel_up
 import dev.jamesrich.sofaking.resources.player_control_channels
 import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.resources.player_control_guide
+import dev.jamesrich.sofaking.resources.player_control_more
 import dev.jamesrich.sofaking.resources.player_control_multiview
 import dev.jamesrich.sofaking.resources.player_control_previous
 import dev.jamesrich.sofaking.resources.player_live
@@ -237,7 +239,6 @@ internal fun BoxScope.InfoBarPanel(
         canFavorite = favorite != null,
         hasPrevious = state.previousIndex != null,
         canWatchFromStart = record?.fromStart != null,
-        canMultiview = onMultiview != null,
     ).map { buttons.item(it) }
 
     InfoBar(state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen) {
@@ -253,10 +254,22 @@ internal fun BoxScope.InfoBarPanel(
         )
         if (pointerDriven) {
             PointerControls(state, controls, bar, paused) {
-                PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = false)
+                PlayerButtonRow(
+                    items,
+                    entry,
+                    onFocus = { state.buttonsFocused = it },
+                    showLabel = false,
+                    onMenuOpen = state::keepInfo,
+                )
             }
         } else {
-            PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = true)
+            PlayerButtonRow(
+                items,
+                entry,
+                onFocus = { state.buttonsFocused = it },
+                showLabel = true,
+                onMenuOpen = state::keepInfo,
+            )
         }
     }
 }
@@ -320,13 +333,6 @@ private class LiveBarButtons(
 
         LiveButton.STREAM_INFO -> streamInfoButtonItem(hasAudioChoice, state::openStreamCard)
 
-        LiveButton.ZOOM -> zoomButtonItem(zoom, bar.control { controls.zoom() })
-
-        LiveButton.SLEEP -> sleepButtonItem(sleep) {
-            sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
-            state.keepInfo()
-        }
-
         LiveButton.FROM_START -> PlayerButtonItem(
             SofaIcons.Replay,
             stringResource(Res.string.player_control_from_start),
@@ -337,16 +343,46 @@ private class LiveBarButtons(
 
         LiveButton.FAVORITE -> favorite()
 
-        LiveButton.MULTIVIEW -> PlayerButtonItem(
-            SofaIcons.Dashboard,
-            stringResource(Res.string.player_control_multiview),
-            { onMultiview?.invoke() },
-        )
+        LiveButton.MORE -> more()
 
         LiveButton.GUIDE -> PlayerButtonItem(
             SofaIcons.GridView,
             stringResource(Res.string.player_control_guide),
             onGuide,
+        )
+    }
+
+    /**
+     * The More menu: Multiview first where there is one, so OK twice from the button opens it; Zoom and Sleep step on
+     * with each press and leave the menu up, as their buttons did on the bar.
+     */
+    @Composable
+    private fun more(): PlayerButtonItem {
+        val zoomItem = zoomButtonItem(zoom, {})
+        val sleepItem = sleepButtonItem(sleep) {}
+        val multiview = onMultiview?.let {
+            PlayerMenuEntry(SofaIcons.Dashboard, stringResource(Res.string.player_control_multiview), it)
+        }
+        val entries = listOfNotNull(
+            multiview,
+            PlayerMenuEntry(zoomItem.icon, zoomItem.label, { controls.zoom() }, keepOpen = true),
+            PlayerMenuEntry(
+                sleepItem.icon,
+                sleepItem.label,
+                {
+                    sleep.step(
+                        Clock.System.now().toEpochMilliseconds(),
+                        programEndMs = programEnd?.toEpochMilliseconds(),
+                    )
+                },
+                keepOpen = true,
+            ),
+        )
+        return PlayerButtonItem(
+            Icons.Filled.MoreVert,
+            stringResource(Res.string.player_control_more),
+            {},
+            menu = entries,
         )
     }
 

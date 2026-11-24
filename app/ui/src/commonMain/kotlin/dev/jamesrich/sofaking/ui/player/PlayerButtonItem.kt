@@ -28,12 +28,24 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
 
-/** One button of the row: what it shows, what a screen reader says it is and its state, and what it does. */
+/**
+ * One button of the row: what it shows, what a screen reader says it is and its state, and what it does. A button
+ * with a [menu] opens it on a press instead, and [onClick] is not used.
+ */
 internal class PlayerButtonItem(
     val icon: ImageVector,
     val label: String,
     val onClick: () -> Unit,
     val state: String? = null,
+    val menu: List<PlayerMenuEntry>? = null,
+)
+
+/** One entry of a button's menu; [keepOpen] leaves the menu up after it acts, for one that steps a setting. */
+internal class PlayerMenuEntry(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit,
+    val keepOpen: Boolean = false,
 )
 
 /** What a [VideoZoom] is called on its button and in the note a press shows. */

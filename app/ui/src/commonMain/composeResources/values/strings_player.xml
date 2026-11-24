@@ -69,6 +69,7 @@
     <string name="player_zoom_stretch">Stretch</string>
     <string name="player_zoom_notice">Zoom: %1$s</string>
     <string name="player_control_sleep">Sleep timer</string>
+    <string name="player_control_more">More</string>
     <string name="player_sleep_minutes">Sleep in %1$d min</string>
     <string name="player_sleep_title">Sleep timer</string>
     <string name="player_sleep_card">Sleep in %1$d s</string>

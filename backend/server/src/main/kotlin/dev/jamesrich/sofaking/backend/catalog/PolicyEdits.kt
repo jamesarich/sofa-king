@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyWriteResult
 import dev.jamesrich.sofaking.backend.api.SourcePin
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -109,7 +110,11 @@ class PolicyEdits internal constructor(
         service.run().stations.firstOrNull { it.id == entryId }?.let { return it.key }
         val entry =
             lineup.entry(entryId)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND,
+                    "Unknown lineup entry",
+                )
         return stationKeys(service.policy.names).key(entry.name)
     }
 
@@ -117,7 +122,7 @@ class PolicyEdits internal constructor(
     private fun pinsOf(ids: List<String>): List<SourcePin> = ids.map { id ->
         val offering =
             feeds.published.offering(id)
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source $id")
+                ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.SOURCE_NOT_FOUND, "Unknown source $id")
         val channel = feeds.published.channel(offering.channelId)
         SourcePin(offering.providerId, channel?.legacyGuideId, channel?.name)
     }.distinctBy(::pinIdentity)

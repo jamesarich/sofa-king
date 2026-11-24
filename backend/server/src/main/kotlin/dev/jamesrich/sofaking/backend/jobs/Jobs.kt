@@ -3,7 +3,13 @@ package dev.jamesrich.sofaking.backend.jobs
 import dev.jamesrich.sofaking.backend.events.ServerEvents
 import dev.jamesrich.sofaking.backend.notify.NotifyEvent
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -46,10 +52,15 @@ class JobStatus(
     val lastDurationMs: Long?,
     val lastOk: Boolean?,
     val lastNote: String?,
-    /** When the loop runs the job next, from its last end and [every]; null while it runs or before its first run. */
+    /**
+     * When the loop runs the job next, from its last end and [every]; null while it runs, and before its first run
+     * since the server started.
+     */
     val nextDueAt: Instant?,
     /** Whether the portal can start it now. */
     val canRunNow: Boolean,
+    /** Whether it is running and the portal can stop the run. */
+    val canStop: Boolean = false,
     /** How far it has come while it runs; null when it is not running or says nothing. */
     val progress: JobProgress? = null,
 ) {
@@ -68,6 +79,13 @@ class Jobs(private val clock: Clock) {
         @Volatile var every: Duration? = null
 
         @Volatile var runNow: (() -> Unit)? = null
+
+        @Volatile var stoppable = false
+
+        /** The run in progress, for a job that can be stopped. */
+        @Volatile var run: Job? = null
+
+        @Volatile var stopRequested = false
 
         @Volatile var runningSince: Instant? = null
 
@@ -88,6 +106,17 @@ class Jobs(private val clock: Clock) {
         @Volatile var alerted = false
 
         @Volatile var seeded = false
+
+        /** Whether the last run shown is one an earlier process finished, which says nothing about this one's loop. */
+        @Volatile var fromEarlierProcess = false
+
+        fun show(run: LastRun) {
+            lastStartedAt = Instant.ofEpochMilli(run.startedAtMs)
+            lastEndedAt = Instant.ofEpochMilli(run.endedAtMs)
+            lastOk = run.ok
+            lastNote = run.note
+            fromEarlierProcess = true
+        }
     }
 
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -108,15 +137,45 @@ class Jobs(private val clock: Clock) {
     companion object {
         /** Failed runs in a row before `job.failed` is published. */
         const val FAILURES_BEFORE_ALERT = 3
+
+        /** The note of a run a person stopped. */
+        const val STOPPED = "Stopped"
     }
 
-    private fun entry(id: String): Entry = entries.computeIfAbsent(id) { Entry(id, sequence.getAndIncrement()) }
+    @Volatile private var runs: JobRuns? = null
 
-    /** Names the job [id] as [label], says how often its loop runs it, and gives the kick that starts it on request. */
-    fun register(id: String, label: String, every: Duration? = null, runNow: (() -> Unit)? = null) {
+    @Volatile private var earlier: Map<String, LastRun> = emptyMap()
+
+    private fun entry(id: String): Entry = entries.computeIfAbsent(id) {
+        Entry(id, sequence.getAndIncrement()).also { entry -> earlier[id]?.let(entry::show) }
+    }
+
+    /**
+     * Keeps each job's last run in [runs] from here on, and shows the ones an earlier process left for every job
+     * that has not finished a run in this one. A store that cannot be read shows none.
+     */
+    suspend fun keepRuns(runs: JobRuns) {
+        earlier = runCatchingCancellable { runs.all() }.getOrDefault(emptyMap())
+        this.runs = runs
+        entries.values.filter { it.lastEndedAt == null }.forEach { entry -> earlier[entry.id]?.let(entry::show) }
+    }
+
+    /**
+     * Names the job [id] as [label], says how often its loop runs it, and gives the kick that starts it on request.
+     * A [stoppable] job's run can be ended through [stop]: its work is kept as far as it came, and its service goes
+     * on after [record] returns false.
+     */
+    fun register(
+        id: String,
+        label: String,
+        every: Duration? = null,
+        stoppable: Boolean = false,
+        runNow: (() -> Unit)? = null,
+    ) {
         entry(id).apply {
             this.label = label
             this.every = every
+            this.stoppable = stoppable
             this.runNow = runNow
         }
     }
@@ -124,21 +183,47 @@ class Jobs(private val clock: Clock) {
     /**
      * Runs [block] as one run of [id], recording its start, end and outcome; an exception records a
      * failed run by class and is rethrown. A run that is canceled is no outcome: the job keeps its last one.
+     * False when the run was ended through [stop], which records it as stopped; true otherwise.
      */
-    suspend fun record(id: String, block: suspend () -> JobOutcome) {
+    suspend fun record(id: String, block: suspend () -> JobOutcome): Boolean {
         val entry = entry(id)
         val started = clock.instant()
         entry.runningSince = started
         entry.progress = null
+        entry.stopRequested = false
         val outcome = try {
-            runCatchingCancellable { block() }
+            runCatchingCancellable { if (entry.stoppable) untilStopped(entry, block) else block() }
                 .onFailure { finish(entry, started, JobOutcome(false, it.javaClass.simpleName)) }
                 .getOrThrow()
         } finally {
+            entry.run = null
             entry.runningSince = null
             entry.progress = null
         }
-        finish(entry, started, outcome)
+        finish(entry, started, outcome ?: JobOutcome(true, STOPPED))
+        return outcome != null
+    }
+
+    /** [block] as a job of its own, so [stop] can cancel it and leave the caller running; null when it did. */
+    private suspend fun untilStopped(entry: Entry, block: suspend () -> JobOutcome): JobOutcome? = coroutineScope {
+        val run = async { block() }
+        entry.run = run
+        try {
+            run.await()
+        } catch (e: CancellationException) {
+            // The caller's own cancellation, such as shutdown, goes on up; only a stop ends here.
+            currentCoroutineContext().ensureActive()
+            if (entry.stopRequested) null else throw e
+        }
+    }
+
+    /** Ends the run of [id] in progress; false when it is not running or cannot be stopped. */
+    fun stop(id: String): Boolean {
+        val entry = entries[id]?.takeIf { it.stoppable } ?: return false
+        val run = entry.run ?: return false
+        entry.stopRequested = true
+        run.cancel()
+        return true
     }
 
     private suspend fun finish(entry: Entry, started: Instant, outcome: JobOutcome) {
@@ -148,6 +233,11 @@ class Jobs(private val clock: Clock) {
         entry.lastNote = outcome.note
         entry.runningSince = null
         entry.progress = null
+        entry.fromEarlierProcess = false
+        runs?.let { runs ->
+            val run = LastRun(started.toEpochMilli(), clock.millis(), outcome.ok, outcome.note)
+            withContext(NonCancellable) { runCatchingCancellable { runs.remember(entry.id, run) } }
+        }
         val alerts = alerts
         if (!entry.seeded) {
             entry.alerted = alerts != null && entry.id in withContext(NonCancellable) { remembered(alerts) }
@@ -199,8 +289,9 @@ class Jobs(private val clock: Clock) {
             entry.id, entry.label, entry.every, running, started,
             if (started != null && ended != null) Duration.between(started, ended).toMillis() else null,
             entry.lastOk, entry.lastNote,
-            if (running == null && ended != null) entry.every?.let(ended::plus) else null,
+            if (running == null && ended != null && !entry.fromEarlierProcess) entry.every?.let(ended::plus) else null,
             entry.runNow != null,
+            entry.stoppable && entry.run != null,
             if (running != null) entry.progress else null,
         )
     }

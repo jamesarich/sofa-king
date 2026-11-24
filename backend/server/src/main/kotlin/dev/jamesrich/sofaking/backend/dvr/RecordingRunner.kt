@@ -140,7 +140,7 @@ internal class RecordingRunner(
         val bytes = withContext(Dispatchers.IO) { partial?.takeIf(Files::exists)?.let(Files::size) ?: 0L }
         val reason = stopReason ?: take?.lastFailure
         if (partial == null || bytes == 0L) {
-            fail(latest, partial, reason ?: "NO_MEDIA", now)
+            fail(latest, partial, reason ?: Wire.RecordingReason.NO_MEDIA, now)
         } else {
             complete(latest, partial, bytes, reason, now, take?.breaks.orEmpty())
         }
@@ -184,7 +184,7 @@ internal class RecordingRunner(
         }
         val completed = latest.copy(
             state = Wire.RecordingState.COMPLETED,
-            reason = if (short) reason ?: "STOPPED" else null,
+            reason = if (short) reason ?: Wire.RecordingReason.STOPPED else null,
             path = final.toString(),
             bytes = bytes,
             commercials = commercials,

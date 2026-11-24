@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.sameSecret
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -124,7 +125,7 @@ internal val SESSION = AttributeKey<AdminSession>("AdminSession")
 
 /** The signed-in session [AdminPortal.admit] put on this call. */
 internal fun ApplicationCall.session(): AdminSession = attributes.getOrNull(SESSION)
-    ?: throw ApiFailure(HttpStatusCode.Unauthorized, "AUTH_REQUIRED", "Sign in required")
+    ?: throw ApiFailure(HttpStatusCode.Unauthorized, Wire.ErrorCode.AUTH_REQUIRED, "Sign in required")
 
 /**
  * The posted form; a body that is not a form reads as an empty one, so it fails the

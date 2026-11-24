@@ -44,7 +44,7 @@ class SessionMedia internal constructor(
                 session.cancel()
                 throw ApiFailure(
                     HttpStatusCode.ServiceUnavailable,
-                    "SOURCE_UNAVAILABLE",
+                    Wire.ErrorCode.SOURCE_UNAVAILABLE,
                     "Source is no longer eligible",
                     true,
                 )
@@ -177,7 +177,11 @@ class SessionMedia internal constructor(
         val states = store.allHealth()
         val next = sources.choose(candidates.filter { it.id !in session.switchedFrom }, states)
             ?: sources.choose(candidates, states)?.also { session.switchedFrom.clear() }
-            ?: throw ApiFailure(HttpStatusCode.Conflict, "NO_OTHER_SOURCE", "The channel has no other eligible source")
+            ?: throw ApiFailure(
+                HttpStatusCode.Conflict,
+                Wire.ErrorCode.NO_OTHER_SOURCE,
+                "The channel has no other eligible source",
+            )
         session.switchedFrom += current
         session.restart()
         session.offering = next

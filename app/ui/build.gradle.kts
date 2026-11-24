@@ -243,3 +243,11 @@ tasks.withType<AbstractJPackageTask>().configureEach {
 tasks.withType<Test>().configureEach {
     timeout.set(Duration.ofMinutes(15))
 }
+
+// PackageCyclesTest and WireLiteralsTest read the Kotlin sources of every source set of ui and core, and the task's
+// own inputs hold only the JVM's.
+tasks.named<Test>("jvmTest") {
+    inputs.files(fileTree("src") { include("**/*.kt") }, fileTree("../core/src") { include("**/*.kt") })
+        .withPropertyName("scannedSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}

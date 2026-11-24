@@ -28,7 +28,7 @@ import dev.jamesrich.sofaking.resources.vod_unreadable_hint
 import org.jetbrains.compose.resources.StringResource
 
 /** The server's answer when every source of a channel is down or quarantined. */
-internal const val SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
+internal const val SOURCE_UNAVAILABLE = Wire.ErrorCode.SOURCE_UNAVAILABLE
 
 /** The [failureCode] of a failure that came with no server error code, such as a dropped network at session open. */
 internal const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"

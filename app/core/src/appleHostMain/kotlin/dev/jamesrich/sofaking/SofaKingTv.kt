@@ -17,6 +17,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import platform.CoreMedia.kCMVideoCodecType_AV1
+import platform.VideoToolbox.VTIsHardwareDecodeSupported
 
 /** A running subscription from [SofaKingTv]; Swift cancels it when its view goes away. */
 class Watch internal constructor(private val job: Job) {
@@ -124,11 +126,11 @@ internal class TvParts {
 }
 
 /**
- * What AVPlayer plays as it is, as the iOS app asks for: H.264 and HEVC tagged `hvc1` in MP4, which the server
- * copies HEVC into for HLS, HEVC Main 10, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise. The
- * system scrubber seeks only within the playlist, so a converted item comes as a playlist of all of it.
+ * What AVPlayer plays as it is on every device, as the iOS app asks for: H.264 and HEVC tagged `hvc1` in MP4, which
+ * the server copies HEVC into for HLS, HEVC Main 10, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps
+ * otherwise. The system scrubber seeks only within the playlist, so a converted item comes as a playlist of all of it.
  */
-internal val appleTvProfile = PlaybackProfile(
+internal val appleBaseProfile = PlaybackProfile(
     containers = listOf("mp4"),
     videoCodecs = listOf("h264", "hevc"),
     audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
@@ -137,3 +139,9 @@ internal val appleTvProfile = PlaybackProfile(
     deepColor = listOf("hevc"),
     wholePlaylist = true,
 )
+
+/** [appleBaseProfile], with AV1 on a device whose chip decodes it: AVPlayer plays AV1 only in hardware. */
+internal val appleTvProfile: PlaybackProfile by lazy { appleBaseProfile.alsoDecoding(hardwareDecoded()) }
+
+private fun hardwareDecoded(): List<String> =
+    if (VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)) listOf("av1") else emptyList()

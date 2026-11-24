@@ -115,7 +115,7 @@ class ScrubSheets(
     private val pending = ConcurrentHashMap.newKeySet<String>()
 
     init {
-        jobs.register(SCRUB_JOB, "Scrub thumbnails", runNow = { request(null) })
+        jobs.register(SCRUB_JOB, "Scrub thumbnails", stoppable = true, runNow = { request(null) })
     }
 
     /** Queues a pass over the library [id], or over every library when null. */
@@ -138,7 +138,8 @@ class ScrubSheets(
             val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
             runCatchingCancellable {
                 val libraries = store.libraries().filter { ALL in wanted || it.id in wanted }
-                for (library in libraries) run(library)
+                // A stopped pass ends the libraries still waiting too.
+                for (library in libraries) run(library) ?: break
                 if (libraries.isEmpty()) deleteOrphans()
             }.onFailure { e ->
                 log.warn("scrub thumbnails failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
@@ -146,11 +147,14 @@ class ScrubSheets(
         }
     }
 
-    /** One pass over [library], recorded on the Jobs page: how many files got sheets, and how many could not. */
-    suspend fun run(library: LibraryRecord): Pair<Int, Int> {
+    /**
+     * One pass over [library], recorded on the Jobs page: how many files got sheets, and how many could not; null
+     * when it was stopped there.
+     */
+    suspend fun run(library: LibraryRecord): Pair<Int, Int>? {
         var made = 0
         var failed = 0
-        jobs.record(SCRUB_JOB) {
+        val finished = jobs.record(SCRUB_JOB) {
             val items = store.libraryItems(library.id)
                 .filter {
                     it.missingSince == null && it.path != null && it.kind in PLAYABLE &&
@@ -166,7 +170,7 @@ class ScrubSheets(
             deleteOrphans()
             JobOutcome(true, "${library.name}: $made files" + if (failed > 0) ", $failed without video" else "")
         }
-        return made to failed
+        return if (finished) made to failed else null
     }
 
     /** [item]'s file under [root] when the sheets [had] are not of the file as it is now; else null. */

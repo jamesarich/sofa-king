@@ -14,6 +14,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SkikoComposeUiTest
@@ -87,7 +88,11 @@ internal fun runSofaKing(
                 )
             }
             val driver = AppDriver(this, server, backInput, uncaught, out, link, pairing)
-            waitUntil("the app settles", timeoutMillis = 20_000) { driver.ready() }
+            try {
+                waitUntil("the app settles", timeoutMillis = 20_000) { driver.ready() }
+            } catch (e: ComposeTimeoutException) {
+                driver.failWith("the app did not settle within 20 s", e)
+            }
             driver.block()
         }
     } finally {
@@ -142,6 +147,19 @@ internal class AppDriver(
         if (!reached) failWith("expected focus on $expected, found \"${focusedLabel()}\"")
     }
 
+    /**
+     * Waits up to [timeoutMillis] for [condition], and fails with the screen and the app's state saved, as
+     * [assertFocused] does, when it does not hold by then: a bare `waitUntil` timeout says nothing of where the app
+     * was.
+     */
+    fun waitFor(what: String, timeoutMillis: Long, condition: () -> Boolean) {
+        try {
+            ui.waitUntil(what, timeoutMillis, condition)
+        } catch (e: ComposeTimeoutException) {
+            failWith("timed out after $timeoutMillis ms waiting for $what", e)
+        }
+    }
+
     /** Saves the screen and the semantics tree to [out], then fails with [reason]. */
     fun failWith(reason: String, cause: Throwable? = null): Nothing {
         val _ = runCatching {
@@ -176,6 +194,7 @@ internal class AppDriver(
             "server: ${server.openSessions} open sessions, ${server.sessionsOpened.get()} opened, " +
                 "${server.guideQueries.get()} guide queries",
         )
+        appendLine("watching: ${server.watching}, watched channels: ${server.watchedChannels}")
         appendLine("uncaught: ${uncaught.toList().map { it.toString() }}")
         appendLine("last requests:")
         server.recentRequests(REQUEST_TRAIL).forEach { appendLine("    $it") }

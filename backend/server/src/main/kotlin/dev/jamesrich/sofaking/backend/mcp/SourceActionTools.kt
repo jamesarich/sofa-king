@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.http.queueProbe
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
@@ -95,7 +96,7 @@ private fun Server.switchTool(runtime: LiveRuntime) {
         try {
             runtime.sessions.media.switchSource(id)
         } catch (failure: ApiFailure) {
-            throw if (failure.code == "NO_OTHER_SOURCE") {
+            throw if (failure.code == Wire.ErrorCode.NO_OTHER_SOURCE) {
                 ApiFailure(
                     failure.status,
                     failure.code,
@@ -107,7 +108,11 @@ private fun Server.switchTool(runtime: LiveRuntime) {
             }
         }
         val session = runtime.sessions.snapshot().firstOrNull { it.id == id }
-            ?: throw ApiFailure(HttpStatusCode.Gone, "SESSION_ENDED", "The session ended; call watching_now")
+            ?: throw ApiFailure(
+                HttpStatusCode.Gone,
+                Wire.ErrorCode.SESSION_ENDED,
+                "The session ended; call watching_now",
+            )
         SessionSwitched(id, session.channelId, session.providerId, session.offeringId, session.sourceSwitches)
     }
 }

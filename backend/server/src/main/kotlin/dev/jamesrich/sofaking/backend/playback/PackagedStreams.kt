@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.library.VodRunner
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
@@ -288,8 +289,12 @@ internal class PackagedStreams(
         if (Files.exists(file)) Files.readAllLines(file).count { SEGMENT.matches(it) } else 0
     }
 
-    private fun unavailable() =
-        ApiFailure(HttpStatusCode.BadGateway, "UPSTREAM_UNAVAILABLE", "This channel isn't available right now", true)
+    private fun unavailable() = ApiFailure(
+        HttpStatusCode.BadGateway,
+        Wire.ErrorCode.UPSTREAM_UNAVAILABLE,
+        "This channel isn't available right now",
+        true,
+    )
 
     companion object {
         /** What a packaged segment's URL starts with among a session's resources, before the segment's file name. */

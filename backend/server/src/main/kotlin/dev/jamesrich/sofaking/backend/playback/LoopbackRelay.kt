@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.RELAY_CREDENTIAL_HEADER
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -247,7 +248,7 @@ class LoopbackRelay(
                         } else {
                             HttpStatusCode.BadGateway
                         }
-                        throw ApiFailure(answer, "UPSTREAM_STATUS", "Upstream answered $status")
+                        throw ApiFailure(answer, Wire.ErrorCode.UPSTREAM_STATUS, "Upstream answered $status")
                     },
                 )
             }

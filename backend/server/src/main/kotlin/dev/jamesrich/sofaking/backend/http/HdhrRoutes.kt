@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.stableId
 import dev.jamesrich.sofaking.backend.hash
 import dev.jamesrich.sofaking.backend.store.IdentityStore
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -178,7 +179,7 @@ private class HdhrDevices(
     /** Streams channel [number] as MPEG-TS on one of the device's tuners, or answers that they are all in use. */
     suspend fun tune(call: ApplicationCall, number: String) {
         val entry = runtime.lineup.entries().firstOrNull { it.enabled && it.number == number }
-            ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown channel number")
+            ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel number")
         val tuners = tuners[device(call)]
         try {
             if (tuners.incrementAndGet() > runtime.settings.current.hdhrTuners) {

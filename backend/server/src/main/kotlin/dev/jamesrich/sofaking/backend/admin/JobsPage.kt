@@ -75,7 +75,7 @@ private fun TR.jobRow(chrome: Chrome, job: JobStatus) {
         attributes["scope"] = "row"
         +job.label
     }
-    td("muted") { +(job.every?.let(::period) ?: "on request") }
+    td("muted") { +(job.every?.let(::period) ?: if (job.canRunNow) "on request" else "as needed") }
     td("nowrap") {
         if (job.lastStartedAt == null) {
             span("muted") { +"not yet" }
@@ -87,7 +87,14 @@ private fun TR.jobRow(chrome: Chrome, job: JobStatus) {
     jobResult(job, chrome.now)
     jobNextDue(job, chrome.now)
     td {
-        if (job.canRunNow) {
+        if (job.canStop) {
+            postForm("/admin/system/jobs/${job.id}/stop", chrome.session, keepScroll = true) {
+                button(type = ButtonType.submit, classes = "small") {
+                    attributes["aria-label"] = "Stop ${job.label}"
+                    +"Stop"
+                }
+            }
+        } else if (job.canRunNow) {
             postForm("/admin/system/jobs/${job.id}/run", chrome.session, keepScroll = true) {
                 button(type = ButtonType.submit, classes = "small") {
                     attributes["aria-label"] = "Run ${job.label} now"
@@ -124,7 +131,7 @@ private fun TR.jobNextDue(job: JobStatus, now: Instant) = td("nowrap") {
     when {
         job.running -> span("muted") { +"after this run" }
         job.nextDueAt != null -> ago(job.nextDueAt.toString(), now)
-        job.every == null -> span("muted") { +"when asked" }
+        job.every == null -> span("muted") { +(if (job.canRunNow) "when asked" else "when needed") }
         else -> span("muted") { +"soon" }
     }
 }

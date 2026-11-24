@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.sameSecret
 import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -67,7 +68,7 @@ fun Route.outputRoutes(
             val id = call.parameters["id"]!!.substringBefore('.')
             val entry =
                 runtime.lineup.entry(id)?.takeIf { it.enabled }
-                    ?: throw ApiFailure(HttpStatusCode.NotFound, "CHANNEL_NOT_FOUND", "Unknown channel")
+                    ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
             val base = publicBase(call)
             if (call.request.queryParameters["format"] == "ts") {
                 // A player that takes one stream format for the whole playlist, such as Channels DVR's MPEG-TS
@@ -215,7 +216,7 @@ internal fun authorizeOutput(
         if (call.request.fromThisMachine() || (adminToken != null && sameSecret(bearer, adminToken))) return
         throw ApiFailure(
             HttpStatusCode.Forbidden,
-            "LOOPBACK_ONLY",
+            Wire.ErrorCode.LOOPBACK_ONLY,
             "Without a token the outputs answer only this machine",
         )
     }
@@ -226,7 +227,7 @@ internal fun authorizeOutput(
             (adminToken != null && sameSecret(bearer, adminToken))
     if (!authorized) {
         call.authFailed()
-        throw ApiFailure(HttpStatusCode.Unauthorized, "AUTH_REQUIRED", "Output token required")
+        throw ApiFailure(HttpStatusCode.Unauthorized, Wire.ErrorCode.AUTH_REQUIRED, "Output token required")
     }
 }
 

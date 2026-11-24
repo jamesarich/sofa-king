@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import { button, h } from './dom';
 import { setKeyHandler } from './focus';
 import { sendRelease, toggleFullScreen } from './liveView';
+import { startPlaying } from './media';
 import { StatusLine } from './status';
 import type { Context, View } from './view';
 
@@ -157,7 +158,7 @@ export function vodView(ctx: Context, itemId: string, fromStart: boolean): View 
         if (event.target instanceof HTMLButtonElement && event.key === ' ') return false;
         switch (event.key) {
             case ' ':
-                if (video.paused) void video.play();
+                if (video.paused) startPlaying(video, () => status.set(PRESS_TO_PLAY));
                 else video.pause();
                 return true;
             case 'ArrowLeft':

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -14,7 +15,7 @@ internal fun Throwable.describe(): String = when (this) {
 }
 
 /** The code of a 403 from a server that has no API token and answers only its own machine. */
-const val LOOPBACK_ONLY = "LOOPBACK_ONLY"
+const val LOOPBACK_ONLY = Wire.ErrorCode.LOOPBACK_ONLY
 
 /**
  * True when the server answered 401, or 403 with any code but [LOOPBACK_ONLY]: it no longer accepts this device's

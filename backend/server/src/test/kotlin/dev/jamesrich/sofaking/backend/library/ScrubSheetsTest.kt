@@ -6,10 +6,15 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryScrub
 import dev.jamesrich.sofaking.backend.store.openStore
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.imageio.ImageIO
 import kotlin.math.abs
 import kotlin.test.Test
@@ -111,6 +116,39 @@ class ScrubSheetsTest {
             offered.sheets.map { it.substringBefore('?') },
         )
         assertNull(s.service.catalog.item(broken).scrub)
+    }
+
+    @Test fun `a stopped pass keeps the sheets it made, and the next pass makes only the rest`() = runBlocking {
+        val reads = CopyOnWriteArrayList<String>()
+        val second = CompletableDeferred<Unit>()
+        val hold = AtomicBoolean(true)
+        val s = setup({ file, into ->
+            reads += file.fileName.toString()
+            if (hold.get() && reads.size == 2) {
+                second.complete(Unit)
+                awaitCancellation()
+            }
+            Files.write(into.resolve("0.jpg"), byteArrayOf(1))
+            SheetSize(240, 136, 1)
+        })
+        movie(s.root, "Alpha (2001)")
+        movie(s.root, "Beta (2002)")
+        val library = s.service.create("Movies", LibraryKind.MOVIES, s.root.resolve("movies").toString())
+        s.service.scan(library.id)
+
+        val pass = async { s.scrub.run(library) }
+        second.await()
+        assertTrue(s.jobs.snapshot().single { it.id == SCRUB_JOB }.canStop)
+        assertTrue(s.jobs.stop(SCRUB_JOB))
+        assertNull(pass.await(), "a stopped pass has no count")
+        val stopped = s.jobs.snapshot().single { it.id == SCRUB_JOB }
+        assertFalse(stopped.running)
+        assertEquals(Jobs.STOPPED, stopped.lastNote)
+
+        hold.set(false)
+        assertEquals(1 to 0, s.scrub.run(library), "only the file the stop interrupted is left")
+        assertEquals(listOf(reads[0], reads[1], reads[1]), reads.toList())
+        assertEquals(0 to 0, s.scrub.run(library))
     }
 
     @Test fun `sheets are made once, and again only when deleted by hand`() = runBlocking {

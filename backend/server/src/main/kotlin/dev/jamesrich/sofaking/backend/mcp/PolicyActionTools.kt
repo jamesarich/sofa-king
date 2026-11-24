@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.Impact
 import dev.jamesrich.sofaking.backend.catalog.Moved
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import dev.jamesrich.sofaking.backend.catalog.applyAt
+import dev.jamesrich.sofaking.contract.Wire
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import kotlinx.serialization.Serializable
@@ -249,7 +250,7 @@ private suspend fun <T> hinted(block: suspend () -> T): T = try {
 } catch (failure: ApiFailure) {
     val hint = when (failure.code) {
         "POLICY_CHANGED" -> "call preview_policy again for the current revision"
-        "LINEUP_ENTRY_NOT_FOUND" -> "call lineup for entry ids"
+        Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND -> "call lineup for entry ids"
         else -> throw failure
     }
     throw ApiFailure(failure.status, failure.code, "${failure.message}; $hint", failure.retryable, failure)

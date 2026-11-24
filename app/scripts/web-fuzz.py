@@ -15,9 +15,11 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import sys
 import threading
 import time
+from urllib.parse import urlsplit
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
 
@@ -42,6 +44,28 @@ BLANK_BYTES = 4000
 # device with no saved preferences yet gets a 404 for them, and a stream's media is gone (410) once its session is
 # released, which a tune can do while the player still reads it.
 EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
+# What the app says once the server turns its token away: Backspace in Settings' API token field and Save leave a
+# token the server refuses (401), which the app must meet with this notice and not with a blank or broken screen.
+SIGNED_OUT = 'This device is signed out'
+
+
+# What Chrome logs when the page's policy refuses a connection: the web app may connect to its own origin and to HTTPS.
+CSP_REFUSALS = (
+    re.compile(r"Connecting to '([^']+)' violates the following Content Security Policy"),
+    re.compile(r'Fetch API cannot load (.+?)\. Refused to connect because it violates'),
+)
+
+
+def refused_for_another_origin(text, page_url):
+    """True when `text` is the policy refusing an address other than the page's own origin, as the server does by design.
+
+    Backspace in Settings' Address field and then Enter on Save (the fuzz's keys) point the app at an address the page's
+    policy forbids, and every request after it is refused; a refusal of the page's own origin is a real break."""
+    for refusal in CSP_REFUSALS:
+        match = refusal.match(text)
+        if match:
+            return urlsplit(match.group(1))[:2] != urlsplit(page_url)[:2]
+    return False
 
 
 class Static(http.server.SimpleHTTPRequestHandler):
@@ -73,7 +97,7 @@ def main():
         page_url = f'http://127.0.0.1:{static.server_port}/'
         env = {'SOFA_CORS_ORIGINS': page_url.rstrip('/')}
 
-    errors, console = [], []
+    errors, console, refused = [], [], []
     pressed = []
     with serve(out, **env) as base, sync_playwright() as playwright:
         page_url = page_url or f'{base}/app/'
@@ -84,13 +108,16 @@ def main():
 
         def logged(message):
             console.append(f'{message.type}: {message.text}')
-            if message.type == 'error' and not message.text.startswith('Failed to load resource'):
+            if (message.type == 'error' and not message.text.startswith('Failed to load resource')
+                    and not refused_for_another_origin(message.text, page_url)):
                 errors.append(f'console error: {message.text}')
         page.on('console', logged)
 
         def answered(response):
             expected = any(path in response.url and response.status == status for path, status in EXPECTED)
-            if response.status >= 400 and not expected:
+            if response.status == 401:
+                refused.append(f'{response.request.method} {response.url}')
+            elif response.status >= 400 and not expected:
                 errors.append(f'{response.request.method} {response.url} answered {response.status}')
         page.on('response', answered)
         # Paired as a build before DataStore kept its settings: the app moves them over on its first read.
@@ -123,6 +150,12 @@ def main():
                 if blank >= 2:
                     errors.append(f'the screen stayed blank after key {index + 1}')
                     break
+        # A refused token is the keys' doing; the app must say so, wherever it was left.
+        if refused and not errors:
+            try:
+                page.get_by_text(SIGNED_OUT).first.wait_for(timeout=10_000)
+            except PlaywrightTimeout:
+                errors.append(f'the server refused the page\'s token ({refused[0]}) and the app did not say "{SIGNED_OUT}"')
         page.screenshot(path=str(out / 'screen.png'))
         open_before = [s for s in request(base, '/api/v1/admin/sessions') if not s['external']]
         page.close()

@@ -14,7 +14,7 @@ class MultiviewJourneyTest {
         openPicker()
         val opened = server.watchedChannels.single()
         keys("Down", "OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        waitFor("server.watchedChannels.size == 2", WAIT_MS) { server.watchedChannels.size == 2 }
         val other = server.watchedChannels.single { it != opened }
         keys("Right")
         assertFocused("the first pane, with the sound") { it?.endsWith("playing sound") == true }
@@ -25,7 +25,7 @@ class MultiviewJourneyTest {
         assertEquals(sessions, server.sessionsOpened.get(), "moving the sound opens nothing")
         assertEquals(setOf(opened, other), server.watchedChannels.toSet())
         keys("OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(other) }
+        waitFor("server.watchedChannels == listOf(other)", WAIT_MS) { server.watchedChannels == listOf(other) }
     }
 
     @Test
@@ -33,7 +33,7 @@ class MultiviewJourneyTest {
         openPicker()
         val opened = server.watchedChannels.single()
         keys("Down", "OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        waitFor("server.watchedChannels.size == 2", WAIT_MS) { server.watchedChannels.size == 2 }
         keys("Up", "Up")
         if (focusedLabel() != "Watch 2 channels") keys("Right")
         assertFocused("Watch 2 channels")
@@ -42,7 +42,7 @@ class MultiviewJourneyTest {
         keys("Back")
         assertFocused("the first channel") { it?.contains("Channel") == true }
         keys("Back")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(opened) }
+        waitFor("server.watchedChannels == listOf(opened)", WAIT_MS) { server.watchedChannels == listOf(opened) }
     }
 
     @Test
@@ -50,16 +50,16 @@ class MultiviewJourneyTest {
         openPicker()
         val opened = server.watchedChannels.single()
         keys("Down", "OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        waitFor("server.watchedChannels.size == 2", WAIT_MS) { server.watchedChannels.size == 2 }
         keys("OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels == listOf(opened) }
+        waitFor("server.watchedChannels == listOf(opened)", WAIT_MS) { server.watchedChannels == listOf(opened) }
     }
 
     @Test
     fun `a click on a row ticks its channel as OK does`() = journey {
         openPicker()
         ui.onAllNodes(hasText("Channel", substring = true) and hasClickAction())[1].performClick()
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 2 }
+        waitFor("server.watchedChannels.size == 2", WAIT_MS) { server.watchedChannels.size == 2 }
     }
 
     @Test
@@ -79,7 +79,7 @@ class MultiviewJourneyTest {
     private fun AppDriver.openPicker() {
         assertFocused("a guide cell") { it?.startsWith("Show at") == true }
         keys("OK")
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watching }
+        waitFor("server.watching", WAIT_MS) { server.watching }
         // Down zaps on live TV; Right brings the bar up, and Right again enters its buttons.
         keys("Right")
         if (focusedLabel() != "Channels") keys("Right")
@@ -89,7 +89,7 @@ class MultiviewJourneyTest {
         assertFocused("Multiview")
         keys("OK")
         assertFocused("the channel watched") { it?.contains("Channel") == true }
-        ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannels.size == 1 }
+        waitFor("server.watchedChannels.size == 1", WAIT_MS) { server.watchedChannels.size == 1 }
     }
 
     private fun journey(block: AppDriver.() -> Unit) =

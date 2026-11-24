@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.recentObservations
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 
@@ -133,7 +134,7 @@ private suspend fun channel(context: McpContext, id: String?, number: String?): 
     }
     val row = matches.firstOrNull() ?: throw ApiFailure(
         HttpStatusCode.NotFound,
-        "CHANNEL_NOT_FOUND",
+        Wire.ErrorCode.CHANNEL_NOT_FOUND,
         "No lineup entry has that number or id, and no entry uses a provider channel with it; call lineup",
     )
     return detail(runtime, row, from, matches.drop(1).map { it.entry.id })

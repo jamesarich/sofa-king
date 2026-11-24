@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.allHealth
 import dev.jamesrich.sofaking.backend.store.recentObservations
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 
@@ -86,7 +87,7 @@ private suspend fun entryIdsBySource(runtime: LiveRuntime): Map<String, List<Str
 private suspend fun sourceHealth(runtime: LiveRuntime, id: String): SourceHealthDetail {
     val offering = runtime.feeds.published.offering(id) ?: throw ApiFailure(
         HttpStatusCode.NotFound,
-        "SOURCE_NOT_FOUND",
+        Wire.ErrorCode.SOURCE_NOT_FOUND,
         "No source has that id; call source_problems or channel for source ids",
     )
     val state = runtime.store.allHealth()[id] ?: HealthState()

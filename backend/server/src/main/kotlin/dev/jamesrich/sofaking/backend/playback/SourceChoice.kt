@@ -40,7 +40,7 @@ class SourceChoice internal constructor(private val catalog: CatalogService, pri
         return choose(candidates.filter { it.id !in except }, store.allHealth())
             ?: throw ApiFailure(
                 HttpStatusCode.ServiceUnavailable,
-                "SOURCE_UNAVAILABLE",
+                Wire.ErrorCode.SOURCE_UNAVAILABLE,
                 "No source for this channel is working right now",
                 true,
             )

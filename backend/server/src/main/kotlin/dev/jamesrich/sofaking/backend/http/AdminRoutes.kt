@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.store.allHealth
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -31,7 +32,7 @@ import java.time.Instant
 /** Puts source [id] at the front of the probe queue; the source's health updates when its probe ends. */
 internal suspend fun queueProbe(runtime: LiveRuntime, id: String): ProbeQueued {
     if (runtime.feeds.published.offering(id) == null) {
-        throw ApiFailure(HttpStatusCode.NotFound, "SOURCE_NOT_FOUND", "Unknown source")
+        throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.SOURCE_NOT_FOUND, "Unknown source")
     }
     val probes = runtime.probes
         ?: throw ApiFailure(HttpStatusCode.Conflict, "PROBES_OFF", "Probes are off on this server")
@@ -188,7 +189,7 @@ private fun Route.lineupRoutes(api: LineupApi) {
     }
     get("/lineup/{id}") {
         val entry = lineup.entry(call.parameters["id"]!!)
-            ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+            ?: throw ApiFailure(HttpStatusCode.NotFound, Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND, "Unknown lineup entry")
         call.respond(api.info(entry))
     }
     patch("/lineup/{id}") {
@@ -198,7 +199,11 @@ private fun Route.lineupRoutes(api: LineupApi) {
             lineup.update(id, request)
         } else {
             policy.edits.updateStation(id, request, call.ifMatch())
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")
+                ?: throw ApiFailure(
+                    HttpStatusCode.NotFound,
+                    Wire.ErrorCode.LINEUP_ENTRY_NOT_FOUND,
+                    "The station left the lineup",
+                )
         }
         call.respond(api.info(updated))
     }

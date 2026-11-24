@@ -52,6 +52,16 @@ internal class SystemPages(private val portal: Portal, private val events: Event
             // A run comes back to the panel that asked for it, from a fixed list; every other run to the Jobs page.
             seeOther(call, form["back"]?.takeIf { it in JOB_RETURNS } ?: "/admin/system/jobs")
         }
+        route.action("/system/jobs/{id}/stop") { session, form ->
+            val id = call.parameters["id"]!!
+            val job = runtime.jobs.snapshot().firstOrNull { it.id == id }
+            if (job == null || !runtime.jobs.stop(id)) {
+                session.flash.set(Flash("No such job is running.", Tone.BAD, id))
+            } else {
+                session.flash.set(Flash("Stopped ${job.label}.", Tone.OK, id))
+            }
+            seeOther(call, form["back"]?.takeIf { it in JOB_RETURNS } ?: "/admin/system/jobs")
+        }
         route.get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
         route.get("/system/crashes") {
             call.html(crashesPage(chrome(), runtime.store.clientCrashes(CRASHES_SHOWN)))

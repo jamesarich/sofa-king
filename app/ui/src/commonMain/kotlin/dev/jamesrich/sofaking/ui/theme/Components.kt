@@ -4,14 +4,18 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -20,14 +24,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusRequesterModifierNode
 import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.requestFocus
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -49,7 +57,9 @@ import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -58,8 +68,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.rememberMotionEnabled
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -312,5 +324,63 @@ internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifi
             label = { Text(label, style = MaterialTheme.typography.labelLarge) },
             modifier = ringed,
         )
+    }
+}
+
+/**
+ * A chip that opens a menu of [options] and says which one is chosen, as Plex's filter bar does, so a long list (a
+ * library's genres) costs one chip instead of a row of them. [label] is the chosen option's words; picking an entry
+ * closes the menu and hands focus back to the chip, which keeps its place while the list behind it reloads. The menu
+ * opens on the chosen entry, so a D-pad's first press lands where the viewer already is. [focusRequester] reaches
+ * the chip, for a row that restores focus to it.
+ */
+@Composable
+internal fun <T> SofaMenuChip(
+    label: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+) {
+    var open by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Box(modifier) {
+        TvFocusControl(AssistChipDefaults.shape, Modifier.focusRequester(focusRequester)) { ringed ->
+            AssistChip(
+                onClick = { open = true },
+                label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                trailingIcon = {
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(AssistChipDefaults.IconSize),
+                    )
+                },
+                modifier = ringed.semantics { role = Role.DropdownList },
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.arrowKeysMoveFocus()) {
+            val chosen = remember { FocusRequester() }
+            options.forEach { option ->
+                val isChosen = option == selected
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                        scope.launch { requestFocusWhenAttached(focusRequester) }
+                    },
+                    trailingIcon = if (isChosen) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                    modifier = if (isChosen) Modifier.focusRequester(chosen) else Modifier,
+                )
+            }
+            LaunchedEffect(Unit) { requestFocusWhenAttached(chosen) }
+        }
     }
 }

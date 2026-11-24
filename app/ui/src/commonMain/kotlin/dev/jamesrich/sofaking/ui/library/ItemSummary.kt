@@ -43,19 +43,15 @@ import dev.jamesrich.sofaking.data.fileFacts
 import dev.jamesrich.sofaking.data.hidesSpoilers
 import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.Res
-import dev.jamesrich.sofaking.resources.library_add_to_watchlist
 import dev.jamesrich.sofaking.resources.library_directors
 import dev.jamesrich.sofaking.resources.library_episodes
 import dev.jamesrich.sofaking.resources.library_go_to_artist
 import dev.jamesrich.sofaking.resources.library_go_to_show
-import dev.jamesrich.sofaking.resources.library_mark_unwatched
-import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play
 import dev.jamesrich.sofaking.resources.library_play_episode
 import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_radio
 import dev.jamesrich.sofaking.resources.library_rating
-import dev.jamesrich.sofaking.resources.library_remove_from_watchlist
 import dev.jamesrich.sofaking.resources.library_resume
 import dev.jamesrich.sofaking.resources.library_resume_episode
 import dev.jamesrich.sofaking.resources.library_seasons
@@ -181,25 +177,11 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         }
         MusicButtons(item, actions, afterPlay = action != null)
         if (!item.kind.music) {
-            SofaButton(
-                onClick = { actions.onSetWatched(item, !watched) },
-                modifier = (if (action == null) Modifier.focusRequester(primaryFocus) else Modifier).announcesChanges(),
-            ) {
-                Text(
-                    stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched),
-                )
-            }
+            val focus = if (action == null) Modifier.focusRequester(primaryFocus) else Modifier
+            WatchedAction(item, watched, actions, focus)
         }
         val listed = actions.watchlisted(item)?.takeIf { item.kind in WATCHLIST_KINDS }
-        if (listed != null) {
-            SofaButton(onClick = { actions.onToggleWatchlist(item) }, modifier = Modifier.announcesChanges()) {
-                Text(
-                    stringResource(
-                        if (listed) Res.string.library_remove_from_watchlist else Res.string.library_add_to_watchlist,
-                    ),
-                )
-            }
-        }
+        if (listed != null) WatchlistAction(item, listed, actions)
         val showId = item.showId?.takeIf { item.kind == ItemKind.EPISODE || item.kind == ItemKind.SEASON }
         if (showId != null) {
             SofaButton(onClick = { actions.onOpenShow(showId) }) { Text(stringResource(Res.string.library_go_to_show)) }

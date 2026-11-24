@@ -332,6 +332,11 @@ internal object SofaIcons {
         )
     }
 
+    /** A bookmark, on the watchlist toggle. */
+    val Bookmark: ImageVector by lazy {
+        pathIcon("Filled.Bookmark", "M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z")
+    }
+
     /** Next episode. */
     val SkipNext: ImageVector by lazy { pathIcon("Filled.SkipNext", "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z") }
 

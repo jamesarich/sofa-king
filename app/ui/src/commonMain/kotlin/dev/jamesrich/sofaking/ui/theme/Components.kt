@@ -12,12 +12,19 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -36,6 +43,7 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -312,5 +320,34 @@ internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifi
             label = { Text(label, style = MaterialTheme.typography.labelLarge) },
             modifier = ringed,
         )
+    }
+}
+
+/**
+ * A Material 3 tonal icon toggle with the D-pad focus cue, for a yes-or-no action a page offers beside its main one
+ * (watched, on the watchlist) where a text button would take a line of its own on a phone. [label] names the action
+ * for a screen reader and for the tooltip a mouse hover or a long touch shows; the toggle's state is [checked], read
+ * as a filled button, so the label stays the action's name.
+ */
+@Composable
+internal fun SofaIconToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        FilledTonalIconToggleButton(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = modifier.tvFocus(IconButtonDefaults.filledShape),
+        ) {
+            Icon(icon, contentDescription = label)
+        }
     }
 }

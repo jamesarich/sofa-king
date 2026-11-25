@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -417,6 +418,20 @@ internal fun SofaIconToggle(
             onCheckedChange = onCheckedChange,
             modifier = modifier.tvFocus(IconButtonDefaults.filledShape),
         ) {
+            Icon(icon, contentDescription = label)
+        }
+    }
+}
+
+/** A tonal icon button with [SofaIconToggle]'s tooltip and D-pad focus cue, for a one-shot action. */
+@Composable
+internal fun SofaIconAction(onClick: () -> Unit, icon: ImageVector, label: String, modifier: Modifier = Modifier) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        FilledTonalIconButton(onClick = onClick, modifier = modifier.tvFocus(IconButtonDefaults.filledShape)) {
             Icon(icon, contentDescription = label)
         }
     }

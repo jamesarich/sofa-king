@@ -49,7 +49,6 @@ import dev.jamesrich.sofaking.resources.library_go_to_artist
 import dev.jamesrich.sofaking.resources.library_go_to_show
 import dev.jamesrich.sofaking.resources.library_play
 import dev.jamesrich.sofaking.resources.library_play_episode
-import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_radio
 import dev.jamesrich.sofaking.resources.library_rating
 import dev.jamesrich.sofaking.resources.library_resume
@@ -170,9 +169,7 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
                 Text(primaryLabel(action, playsItself = action.item.id == item.id))
             }
             if (action is PrimaryAction.Resume) {
-                SofaButton(onClick = {
-                    actions.onPlay(action.item, true)
-                }) { Text(stringResource(Res.string.library_play_from_start)) }
+                PlayFromStartAction { actions.onPlay(action.item, true) }
             }
         }
         MusicButtons(item, actions, afterPlay = action != null)

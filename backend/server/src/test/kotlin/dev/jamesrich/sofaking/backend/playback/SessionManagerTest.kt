@@ -185,6 +185,25 @@ class SessionManagerTest {
         sessions.close()
     }
 
+    @Test fun `lowering the capacity evicts down to it, not by one`() = withChannel("sofa-lower-") {
+            catalog,
+            store,
+            clock,
+            channel,
+        ->
+        val sessions = SessionManager(catalog, store, clock, 4)
+        val kept = sessions.open(OpenPlayback(channel, "watch", "kept"))
+        repeat(3) { sessions.open(OpenPlayback(channel, "preview", "preview-$it")) }
+        assertEquals(4, sessions.count())
+        sessions.capacity = 2
+        // Three sessions are over the new limit, so opening one more takes the previews, not one of them.
+        val next = sessions.open(OpenPlayback(channel, "preview", "next"))
+        assertEquals(2, sessions.count())
+        assertEquals(kept.id, sessions.get(kept.id).id)
+        assertEquals(next.id, sessions.get(next.id).id)
+        sessions.close()
+    }
+
     @Test fun `each ended session is a history row and an evicted preview says so`() = withChannel("sofa-history-") {
             catalog,
             store,

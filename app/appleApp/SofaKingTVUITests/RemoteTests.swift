@@ -26,10 +26,12 @@ final class RemoteTests: XCTestCase {
         eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
         let tuned = server.watching().first?["channelId"] as? String
 
-        let record = control("Record")
-        reachInTransportBar(record)
-        remote.press(.select)
-        eventually("the server to schedule the recording") { server.recordings() > 0 }
+        // A run's second try finds the first try's recording still on the server, and the bar offering Cancel instead.
+        if server.recordings() == 0 {
+            reachInTransportBar(control("Record"))
+            remote.press(.select)
+            eventually("the server to schedule the recording") { server.recordings() > 0 }
+        }
 
         // The bar's items change when the guide rolls over on the hour or half hour, and AVKit then closes an open
         // menu, so a walk the rollover cuts short opens Channels again.
@@ -430,18 +432,31 @@ final class RemoteTests: XCTestCase {
             remote.press(.select)
             waitForFocusToSettle()
         }
+        var absent = 0
         for _ in 0..<16 {
             if !element.exists {
-                // A click shows the bar; the system hides it again after a few idle seconds.
-                remote.press(.select)
-                _ = element.waitForExistence(timeout: 3)
+                // A click shows a hidden bar, but with an item focused it would press that item, so then the bar is up
+                // and the element is simply not in it (a rebuild renamed or dropped it); give a rebuild a moment, then stop.
+                if !barItemHasFocus { remote.press(.select) }
+                if !element.waitForExistence(timeout: 3) {
+                    absent += 1
+                    if absent >= 2 {
+                        XCTFail("\(element.description) is not in the transport bar\n\(playerReport)")
+                        return
+                    }
+                    continue
+                }
             }
+            absent = 0
             // Focus found mid-travel counts only if it is still there after a moment, with no press left in flight.
             if settled(element.exists && element.hasFocus) && settled(element.exists && element.hasFocus) { return }
             let move: XCUIRemote.Button
-            if element.exists, let item = focusedBarItem {
+            if let target = Self.midX(element), let item = focusedBarItem, let here = Self.midX(item) {
                 _ = waitForBarItemFocus(timeout: 3)
-                move = element.frame.midX > item.frame.midX ? .right : .left
+                move = target > here ? .right : .left
+            } else if barItemHasFocus {
+                // An item has focus but one of the two has gone since: look again before pressing.
+                continue
             } else {
                 // Up is what gives an item focus, and a hidden bar turns it into a zap.
                 waitForFocusToSettle()
@@ -451,6 +466,13 @@ final class RemoteTests: XCTestCase {
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
+    }
+
+    /// An element's horizontal center from a fresh snapshot, or nil when it is gone: reading `frame` of a query that
+    /// no longer matches fails the test.
+    @MainActor
+    private static func midX(_ element: XCUIElement) -> CGFloat? {
+        (try? element.snapshot())?.frame.midX
     }
 
     /// The transport bar item that has focus, if any.

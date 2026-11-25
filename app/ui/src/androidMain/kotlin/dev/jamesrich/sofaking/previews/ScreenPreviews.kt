@@ -214,9 +214,7 @@ fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
     val sleep = remember { SleepTimer() }
     val buttons = listOf(
         VodButton.CAPTIONS,
-        VodButton.ZOOM,
-        VodButton.SLEEP,
-        VodButton.SPEED,
+        VodButton.MORE,
         VodButton.START_OVER,
         VodButton.NEXT,
     ).map {

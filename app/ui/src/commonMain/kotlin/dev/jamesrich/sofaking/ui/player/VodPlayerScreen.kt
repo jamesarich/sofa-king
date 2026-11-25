@@ -154,7 +154,6 @@ fun VodPlayerScreen(
         inIntro = spots.intro != null && skips.intros != SkipMode.OFF,
         inCredits = spots.credits != null && skips.credits != SkipMode.OFF,
         creditsToNext = creditsToNext,
-        speedAdjustable = player.speedAdjustable,
         toLive = onBackToLive != null,
     )
     val captions = VodCaptions(captionsOn, onToggleCaptions, captionStyle, subtitleLook)
@@ -174,7 +173,9 @@ fun VodPlayerScreen(
                 creditsToNext = creditsToNext,
                 sleep = sleep,
                 speed = parts.vod.speed,
+                speedAdjustable = player.speedAdjustable,
                 onClick = { parts.press(button, spots, creditsToNext, controls, sleep) },
+                onMenuEntry = { parts.press(it, spots, creditsToNext, controls, sleep) },
             )
         }
         VodInfoBar(parts, title, stream?.mode, barVisible, items, controls)

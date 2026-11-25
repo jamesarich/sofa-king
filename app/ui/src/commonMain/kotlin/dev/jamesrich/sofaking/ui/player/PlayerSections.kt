@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +44,6 @@ import dev.jamesrich.sofaking.resources.player_control_channel_up
 import dev.jamesrich.sofaking.resources.player_control_channels
 import dev.jamesrich.sofaking.resources.player_control_from_start
 import dev.jamesrich.sofaking.resources.player_control_guide
-import dev.jamesrich.sofaking.resources.player_control_more
 import dev.jamesrich.sofaking.resources.player_control_multiview
 import dev.jamesrich.sofaking.resources.player_control_previous
 import dev.jamesrich.sofaking.resources.player_live
@@ -358,31 +356,18 @@ private class LiveBarButtons(
      */
     @Composable
     private fun more(): PlayerButtonItem {
-        val zoomItem = zoomButtonItem(zoom, {})
-        val sleepItem = sleepButtonItem(sleep) {}
         val multiview = onMultiview?.let {
             PlayerMenuEntry(SofaIcons.Dashboard, stringResource(Res.string.player_control_multiview), it)
         }
-        val entries = listOfNotNull(
-            multiview,
-            PlayerMenuEntry(zoomItem.icon, zoomItem.label, { controls.zoom() }, keepOpen = true),
-            PlayerMenuEntry(
-                sleepItem.icon,
-                sleepItem.label,
-                {
-                    sleep.step(
-                        Clock.System.now().toEpochMilliseconds(),
-                        programEndMs = programEnd?.toEpochMilliseconds(),
-                    )
-                },
-                keepOpen = true,
+        val stepSleep = {
+            sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
+        }
+        return moreButtonItem(
+            listOfNotNull(
+                multiview,
+                zoomButtonItem(zoom, {}).asMenuEntry { controls.zoom() },
+                sleepButtonItem(sleep, {}).asMenuEntry { stepSleep() },
             ),
-        )
-        return PlayerButtonItem(
-            Icons.Filled.MoreVert,
-            stringResource(Res.string.player_control_more),
-            {},
-            menu = entries,
         )
     }
 

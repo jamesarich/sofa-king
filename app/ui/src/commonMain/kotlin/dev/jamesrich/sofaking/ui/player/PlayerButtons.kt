@@ -55,13 +55,16 @@ internal enum class VodButton {
     /** A recording's captions, on or off. */
     CAPTIONS,
 
-    /** The picture's [VideoZoom], one step on. */
+    /** A menu of the picture's [VideoZoom], the [SleepTimer] and, where the engine allows it, the speed. */
+    MORE,
+
+    /** The picture's [VideoZoom], one step on; an entry of More's menu. */
     ZOOM,
 
-    /** The [SleepTimer], one step on. */
+    /** The [SleepTimer], one step on; an entry of More's menu. */
     SLEEP,
 
-    /** The playback speed, one step along [PLAYBACK_SPEEDS]. */
+    /** The playback speed, one step along [PLAYBACK_SPEEDS]; an entry of More's menu. */
     SPEED,
     START_OVER,
 
@@ -75,9 +78,9 @@ internal enum class VodButton {
 /**
  * The library and recordings player's buttons, in the bar's order. A break, an intro or the credits being played
  * leads, so Down and OK skip it; a library item with tracks to pick offers them and a recording its captions; then
- * Zoom and the sleep timer; Start over once [pastStart]; the next episode when there is one, unless the credits
- * button already leads to it ([creditsToNext]); and Back to live for a recording still being written ([toLive]). A
- * failed stream offers none: OK retries it.
+ * More (Zoom, the sleep timer and, where the engine changes it, the speed); Start over once [pastStart]; the next
+ * episode when there is one, unless the credits button already leads to it ([creditsToNext]); and Back to live for a
+ * recording still being written ([toLive]). A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -89,7 +92,6 @@ internal fun vodButtons(
     inIntro: Boolean = false,
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
-    speedAdjustable: Boolean = false,
     toLive: Boolean = false,
 ): List<VodButton> = if (failed) {
     emptyList()
@@ -100,9 +102,7 @@ internal fun vodButtons(
         if (inCredits) add(VodButton.SKIP_CREDITS)
         if (tracksPickable) add(VodButton.TRACKS)
         if (captions) add(VodButton.CAPTIONS)
-        add(VodButton.ZOOM)
-        add(VodButton.SLEEP)
-        if (speedAdjustable) add(VodButton.SPEED)
+        add(VodButton.MORE)
         if (pastStart) add(VodButton.START_OVER)
         if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
         if (toLive) add(VodButton.BACK_TO_LIVE)

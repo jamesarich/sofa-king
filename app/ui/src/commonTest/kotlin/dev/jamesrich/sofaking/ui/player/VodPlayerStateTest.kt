@@ -362,6 +362,20 @@ class VodPlayerStateTest {
     }
 
     @Test
+    fun `a skip button waits while a button's menu is open`() {
+        val state = playing()
+        val credits = VodMarker(330_000L, 360_000L, VodMarkerKind.CREDITS)
+        state.menuOpen = true
+        state.inIntro(credits, autoSkip = true, nowMs = 0L)
+        assertFalse(state.focusSkip)
+        assertNull(state.autoSkipSeconds)
+        state.menuOpen = false
+        state.inIntro(credits, autoSkip = true, nowMs = 1_000L)
+        assertTrue(state.focusSkip)
+        assertEquals(5, state.autoSkipSeconds)
+    }
+
+    @Test
     fun `an end short of the item reopens it twice and then fails`() {
         val state = playing(positionMs = 120_000L)
         state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)

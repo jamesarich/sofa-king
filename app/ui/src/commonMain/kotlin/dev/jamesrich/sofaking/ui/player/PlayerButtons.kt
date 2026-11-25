@@ -216,6 +216,7 @@ internal fun PlayerButtonRow(
     showLabel: Boolean,
     modifier: Modifier = Modifier,
     onMenuOpen: () -> Unit = {},
+    onMenuOpenChange: (Boolean) -> Unit = {},
 ) {
     // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
@@ -239,7 +240,13 @@ internal fun PlayerButtonRow(
                 // coming to the front as the credits start), so its open menu does not close with the reorder.
                 key(if (item.menu != null) MENU_BUTTON_KEY else position) {
                     if (item.menu != null) {
-                        MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
+                        MenuControl(
+                            item,
+                            item.menu,
+                            onMenuOpen,
+                            buttonModifier = place,
+                            onOpenChange = onMenuOpenChange,
+                        )
                     } else {
                         ControlIcon(item.icon, item.label, item.onClick, modifier = place)
                     }

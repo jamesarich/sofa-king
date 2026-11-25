@@ -29,6 +29,9 @@ internal interface VodPanels {
     /** True while a button on the bar has focus, so the D-pad moves along the row instead of seeking. */
     var buttonsFocused: Boolean
 
+    /** True while a button's menu (More) is open, which keeps the remote: a skip button does not take focus then. */
+    var menuOpen: Boolean
+
     fun showInfo()
 
     /** The track card stands in for the bar, which would otherwise run under it; the next key brings the bar back. */
@@ -54,6 +57,8 @@ internal class VodPanelState : VodPanels {
     override var transportPulse: Int by mutableIntStateOf(0)
 
     override var buttonsFocused: Boolean by mutableStateOf(false)
+
+    override var menuOpen: Boolean by mutableStateOf(false)
 
     override fun showInfo() {
         overlayVisible = true

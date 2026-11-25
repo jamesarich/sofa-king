@@ -335,7 +335,7 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
         ) {
             PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = {
                 state.buttonsFocused = it
-            }, showLabel = false, onMenuOpen = state::showInfo)
+            }, showLabel = false, onMenuOpen = state::showInfo, onMenuOpenChange = { state.menuOpen = it })
         }
     } else if (buttons.isNotEmpty()) {
         PlayerButtonRow(
@@ -344,6 +344,7 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
             onFocus = { state.buttonsFocused = it },
             showLabel = true,
             onMenuOpen = state::showInfo,
+            onMenuOpenChange = { state.menuOpen = it },
         )
         if (!state.buttonsFocused) {
             Text(

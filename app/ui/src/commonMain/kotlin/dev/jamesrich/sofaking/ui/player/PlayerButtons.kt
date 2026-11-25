@@ -123,12 +123,6 @@ internal enum class LiveButton {
     /** The stream card, which lists the audio tracks. */
     STREAM_INFO,
 
-    /** The picture's [VideoZoom], one step on. */
-    ZOOM,
-
-    /** The [SleepTimer], one step on. */
-    SLEEP,
-
     /** Plays the recording of the program on now from its start, while it is still being written. */
     FROM_START,
 
@@ -136,17 +130,17 @@ internal enum class LiveButton {
     RECORD,
     FAVORITE,
 
-    /** Several channels at once, each in a pane of its own. */
-    MULTIVIEW,
+    /** A menu of what is used less: Multiview where there is one, the picture's [VideoZoom] and the [SleepTimer]. */
+    MORE,
     GUIDE,
 }
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Watch from start while the
- * program on now is recording ([canWatchFromStart]), Record where the server records and there is a program on, the
- * star where favorites can change, Multiview where there is one ([canMultiview]), and the guide. A finger or a
- * mouse has play and pause beside the channel buttons instead ([pointer]).
+ * ([hasPrevious]), then what the CC, Play/Pause and Info keys do, Watch from start while the program on now is
+ * recording ([canWatchFromStart]), Record where the server records and there is a program on, the star where
+ * favorites can change, More (Multiview, Zoom and the sleep timer, which the Zoom key and the bar's menu both reach)
+ * and the guide. A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(
     pointer: Boolean,
@@ -154,19 +148,16 @@ internal fun liveButtons(
     canFavorite: Boolean,
     hasPrevious: Boolean = false,
     canWatchFromStart: Boolean = false,
-    canMultiview: Boolean = false,
 ): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
     if (hasPrevious) add(LiveButton.PREVIOUS)
     if (!pointer) add(LiveButton.PLAY_PAUSE)
     add(LiveButton.CAPTIONS)
     add(LiveButton.STREAM_INFO)
-    add(LiveButton.ZOOM)
-    add(LiveButton.SLEEP)
     if (canWatchFromStart) add(LiveButton.FROM_START)
     if (canRecord) add(LiveButton.RECORD)
     if (canFavorite) add(LiveButton.FAVORITE)
-    if (canMultiview) add(LiveButton.MULTIVIEW)
+    add(LiveButton.MORE)
     add(LiveButton.GUIDE)
 }
 
@@ -223,6 +214,7 @@ internal fun PlayerButtonRow(
     onFocus: (Boolean) -> Unit,
     showLabel: Boolean,
     modifier: Modifier = Modifier,
+    onMenuOpen: () -> Unit = {},
 ) {
     // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
@@ -236,21 +228,17 @@ internal fun PlayerButtonRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { position, item ->
-                ControlIcon(
-                    item.icon,
-                    item.label,
-                    item.onClick,
-                    modifier = Modifier
-                        .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
-                        .onFocusChanged { if (it.isFocused) focusedIndex = position }
-                        .then(
-                            if (item.state != null) {
-                                Modifier.semantics { stateDescription = item.state }
-                            } else {
-                                Modifier
-                            },
-                        ),
-                )
+                val place = Modifier
+                    .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
+                    .onFocusChanged { if (it.isFocused) focusedIndex = position }
+                    .then(
+                        if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier,
+                    )
+                if (item.menu != null) {
+                    MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
+                } else {
+                    ControlIcon(item.icon, item.label, item.onClick, modifier = place)
+                }
             }
         }
         val label = focusedIndex?.let { items.getOrNull(it)?.label }

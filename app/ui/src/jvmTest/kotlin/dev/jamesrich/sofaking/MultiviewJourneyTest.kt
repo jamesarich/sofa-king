@@ -75,7 +75,7 @@ class MultiviewJourneyTest {
         assertEquals(1, server.watchedChannels.size, "Back shut the search, not multiview")
     }
 
-    /** From the guide, the focused channel full screen, then its bar's Multiview button pressed. */
+    /** From the guide, the focused channel full screen, then Multiview pressed in its bar's More menu. */
     private fun AppDriver.openPicker() {
         assertFocused("a guide cell") { it?.startsWith("Show at") == true }
         keys("OK")
@@ -85,7 +85,10 @@ class MultiviewJourneyTest {
         if (focusedLabel() != "Channels") keys("Right")
         assertFocused("Channels")
         var presses = 0
-        while (focusedLabel() != "Multiview" && presses++ < BAR_BUTTONS) keys("Right")
+        while (focusedLabel() != "More" && presses++ < BAR_BUTTONS) keys("Right")
+        assertFocused("More")
+        // The menu opens on its first entry, which is Multiview where the server draws it or panes can play.
+        keys("OK")
         assertFocused("Multiview")
         keys("OK")
         assertFocused("the channel watched") { it?.contains("Channel") == true }

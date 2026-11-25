@@ -58,7 +58,7 @@ internal fun WatchlistAction(item: MediaItem, listed: Boolean, actions: ItemDeta
         SofaIconToggle(
             checked = listed,
             onCheckedChange = { actions.onToggleWatchlist(item) },
-            icon = SofaIcons.Bookmark,
+            icon = if (listed) SofaIcons.Bookmark else SofaIcons.BookmarkBorder,
             label = label,
             modifier = Modifier.announcesChanges(),
         )

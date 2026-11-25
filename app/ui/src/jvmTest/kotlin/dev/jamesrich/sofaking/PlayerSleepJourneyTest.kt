@@ -5,8 +5,9 @@ import java.io.File
 import kotlin.test.Test
 
 /**
- * The sleep timer in the live player on the TV (#701): the bar's Sleep button steps 15, 30 then 60 minutes with OK, the
- * timer lasts through a zap, and leaving the player turns it off, so the next channel opened starts with it off.
+ * The sleep timer in the live player on the TV (#701): the Sleep entry of the bar's More menu steps 15, 30 then 60
+ * minutes with OK, the timer lasts through a zap, and leaving the player turns it off, so the next channel opened
+ * starts with it off.
  */
 @OptIn(ExperimentalTestApi::class)
 class PlayerSleepJourneyTest {
@@ -23,11 +24,11 @@ class PlayerSleepJourneyTest {
             assertFocused("Sleep in 30 min")
             keys("OK")
             assertFocused("Sleep in 60 min")
-            keys("ChannelUp")
+            keys("Back", "ChannelUp")
             ui.waitUntil(timeoutMillis = WAIT_MS) { server.watchedChannel == "ch1" }
             reachSleep()
             assertFocused("Sleep in 60 min")
-            keys("Back", "Back")
+            keys("Back", "Back", "Back")
             assertFocused("a guide cell") { it?.startsWith("Show at") == true }
             keys("OK")
             ui.waitUntil(timeoutMillis = WAIT_MS) { server.watching }
@@ -35,16 +36,22 @@ class PlayerSleepJourneyTest {
             assertFocused("Sleep timer")
         }
 
-    /** Presses Right through the bar's buttons until the Sleep button has focus. */
+    /** Presses Right through the bar's buttons to More, opens its menu and presses Down to the Sleep entry. */
     private fun AppDriver.reachSleep() {
         repeat(MAX_BUTTONS) {
-            if (focusedLabel()?.startsWith("Sleep") != true) keys("Right")
+            if (focusedLabel() != "More") keys("Right")
         }
-        if (focusedLabel()?.startsWith("Sleep") != true) failWith("Right through the bar never reached Sleep")
+        if (focusedLabel() != "More") failWith("Right through the bar never reached More")
+        keys("OK")
+        repeat(MAX_ENTRIES) {
+            if (focusedLabel()?.startsWith("Sleep") != true) keys("Down")
+        }
+        if (focusedLabel()?.startsWith("Sleep") != true) failWith("Down through the menu never reached Sleep")
     }
 
     private companion object {
         const val WAIT_MS = 10_000L
         const val MAX_BUTTONS = 12
+        const val MAX_ENTRIES = 3
     }
 }

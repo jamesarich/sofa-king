@@ -115,7 +115,7 @@ class PlayerButtonsTest {
     @Test
     fun `the live bar offers Watch from start before Record while the program on now records`() {
         val buttons = liveButtons(pointer = false, canRecord = true, canFavorite = false, canWatchFromStart = true)
-        assertEquals(listOf(LiveButton.SLEEP, LiveButton.FROM_START, LiveButton.RECORD), buttons.subList(5, 8))
+        assertEquals(listOf(LiveButton.FROM_START, LiveButton.RECORD), buttons.subList(4, 6))
     }
 
     @Test
@@ -134,15 +134,14 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `the live bar keeps zoom and sleep by the stream card and Previous and Record only where they apply`() {
+    fun `the live bar puts zoom, sleep and multiview behind More and offers Previous and Record where they apply`() {
         assertEquals(
             listOf(
                 LiveButton.CHANNELS,
                 LiveButton.PLAY_PAUSE,
                 LiveButton.CAPTIONS,
                 LiveButton.STREAM_INFO,
-                LiveButton.ZOOM,
-                LiveButton.SLEEP,
+                LiveButton.MORE,
                 LiveButton.GUIDE,
             ),
             liveButtons(pointer = false, canRecord = false, canFavorite = false),
@@ -153,20 +152,13 @@ class PlayerButtonsTest {
                 LiveButton.PREVIOUS,
                 LiveButton.CAPTIONS,
                 LiveButton.STREAM_INFO,
-                LiveButton.ZOOM,
-                LiveButton.SLEEP,
                 LiveButton.RECORD,
                 LiveButton.FAVORITE,
+                LiveButton.MORE,
                 LiveButton.GUIDE,
             ),
             liveButtons(pointer = true, canRecord = true, canFavorite = true, hasPrevious = true),
         )
-    }
-
-    @Test
-    fun `multiview sits just before the guide`() {
-        val buttons = liveButtons(pointer = false, canRecord = false, canFavorite = true, canMultiview = true)
-        assertEquals(listOf(LiveButton.FAVORITE, LiveButton.MULTIVIEW, LiveButton.GUIDE), buttons.takeLast(3))
     }
 
     @Test

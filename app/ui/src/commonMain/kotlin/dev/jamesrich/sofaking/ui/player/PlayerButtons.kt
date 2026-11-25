@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -234,10 +235,14 @@ internal fun PlayerButtonRow(
                     .then(
                         if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier,
                     )
-                if (item.menu != null) {
-                    MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
-                } else {
-                    ControlIcon(item.icon, item.label, item.onClick, modifier = place)
+                // The menu button keeps its place in the composition when the buttons around it change (Next
+                // coming to the front as the credits start), so its open menu does not close with the reorder.
+                key(if (item.menu != null) MENU_BUTTON_KEY else position) {
+                    if (item.menu != null) {
+                        MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
+                    } else {
+                        ControlIcon(item.icon, item.label, item.onClick, modifier = place)
+                    }
                 }
             }
         }
@@ -247,6 +252,8 @@ internal fun PlayerButtonRow(
         }
     }
 }
+
+private const val MENU_BUTTON_KEY = "menu"
 
 /** Leaves the player, for a finger or a mouse; a remote has its Back key. */
 @Composable

@@ -18,6 +18,9 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
  *   `gradle/detekt-compose.yml` where the Compose compiler is applied: `detekt` fails on any finding.
  *
  * Both versions come from the version catalog; the Compose rules are built against one detekt version.
+ *
+ * Android lint's own tool classpath, which AGP resolves apart from the build's plugins, gets the same advisory pins as
+ * the root `buildscript` block of `app/build.gradle.kts`: [LINT_TOOL_PINS].
  */
 class LintConventionPlugin : Plugin<Project> {
     override fun apply(project: Project): Unit = with(project) {
@@ -36,6 +39,15 @@ class LintConventionPlugin : Plugin<Project> {
             spotless.kotlinGradle {
                 it.target("*.gradle.kts")
                 it.ktlint(ktlint).setEditorConfigPath(editorConfig)
+            }
+        }
+
+        configurations.matching { it.name == "androidLintTool" }.configureEach { lintTool ->
+            lintTool.resolutionStrategy.eachDependency { details ->
+                LINT_TOOL_PINS["${details.requested.group}:${details.requested.name}"]?.let {
+                    details.useVersion(it)
+                    details.because("Android lint's tool classpath ships a version with a published advisory")
+                }
             }
         }
 
@@ -61,3 +73,15 @@ class LintConventionPlugin : Plugin<Project> {
         }
     }
 }
+
+/** Versions past a published advisory for what Android lint brings in; only `lint` runs them, not the app or server. */
+private val LINT_TOOL_PINS = mapOf(
+    "org.bouncycastle:bcprov-jdk18on" to "1.87",
+    "org.bouncycastle:bcpkix-jdk18on" to "1.87",
+    "org.bouncycastle:bcutil-jdk18on" to "1.87",
+    "org.jdom:jdom2" to "2.0.6.1",
+    "org.apache.commons:commons-lang3" to "3.22.0",
+    "org.apache.httpcomponents:httpclient" to "4.5.14",
+    "org.apache.httpcomponents:httpmime" to "4.5.14",
+    "com.google.guava:guava" to "33.7.2-jre",
+)

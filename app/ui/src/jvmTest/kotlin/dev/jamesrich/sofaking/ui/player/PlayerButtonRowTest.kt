@@ -77,4 +77,22 @@ class PlayerButtonRowTest {
             waitForIdle()
             onNodeWithContentDescription("More").assertIsFocused()
         }
+
+    @Test
+    fun `the caption under the bar follows More when the row reorders`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            var items by mutableStateOf(listOf(more, button("Captions"), button("Start over"), button("Next")))
+            setContent {
+                SofaKingTheme {
+                    PlayerButtonRow(items, remember { FocusRequester() }, onFocus = {}, showLabel = true)
+                }
+            }
+            onNodeWithContentDescription("More").requestFocus()
+            waitForIdle()
+            onNodeWithText("More").assertIsDisplayed()
+
+            items = listOf(button("Next"), button("Captions"), more, button("Start over"))
+            waitForIdle()
+            onNodeWithText("More").assertIsDisplayed()
+        }
 }

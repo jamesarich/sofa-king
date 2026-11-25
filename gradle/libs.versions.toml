@@ -39,6 +39,7 @@ profileinstaller = "1.4.1"
 tvprovider = "1.1.0"
 # Google TV's Continue watching row (the Engage SDK), which replaces the Watch Next API that tvprovider writes.
 engage-tv = "1.1.0"
+guava = "33.7.2-android"
 # Play services (through engage-tv) brings Fragment 1.1.0, whose activity results lint refuses; this raises it.
 androidx-fragment = "1.9.1"
 # engage-tv brings WorkManager 2.7.0 and Room 2.2.5, whose R8 rules drop WorkDatabase_Impl's constructor, so a minified
@@ -135,6 +136,7 @@ androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref =
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "androidx-fragment" }
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "androidx-work" }
 engage-tv = { module = "com.google.android.engage:engage-tv", version.ref = "engage-tv" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }

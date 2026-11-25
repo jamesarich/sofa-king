@@ -27,6 +27,8 @@ The open-source licenses page comes from [AboutLibraries](https://github.com/mik
 
 Google TV's Continue watching row comes from the Engage SDK (`engage-tv`), Google's closed-source library, which brings Play services' Tasks and basement, WorkManager and Joda-Time. It writes the Watch Next row itself on an Android TV launcher that reads it, so it overrides `tvprovider`'s minimum SDK. Play services pins Fragment 1.1.0, whose activity results Android lint refuses, so the app depends on a current `androidx-fragment`.
 
+Media3 brings Guava 33.3.1, before the fix for GHSA-xxph-c9ww-hj94, so `androidApp` constrains `guava` (`guava` in the catalog) to a fixed version; delete the constraint once Media3's own version is past it.
+
 The visualizer's classic pack, `ui/src/commonMain/composeResources/files/presets.txt`, is 1,089 MilkDrop presets from the [projectM classic pack](https://github.com/projectM-visualizer/presets-projectm-classic) (`.milk` files by many authors, in folders such as bltc201, eyetune, tryptonaut and yin), stripped to the values and equations the engine uses and written in one text file. The pack carries no license text. Its maintainers' stance, which the sister Cream of the Crop pack states, is that the authors released their presets without a license and it is safe to assume they are public domain; Sofa King bundles them on that footing, and the presets stay their authors' work. An author who wants a preset out of the app opens an issue naming it, and the next release drops it. [Development](development.md#classic-visualizer-pack) says how the file is made.
 
 The Kotlin/JS and Kotlin/Wasm Yarn lockfiles are not kept: Kotlin writes them to the ignored `kotlin-js-store` on each build.

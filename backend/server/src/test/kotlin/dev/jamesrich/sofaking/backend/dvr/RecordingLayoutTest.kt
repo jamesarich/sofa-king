@@ -3,11 +3,13 @@ package dev.jamesrich.sofaking.backend.dvr
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.nio.file.Path
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class RecordingLayoutTest {
     private val zone = ZoneId.of("America/Chicago")
@@ -92,5 +94,38 @@ class RecordingLayoutTest {
             Path.of(".inprogress/TV/a/Season 01/a - S01E01.ts"),
             RecordingLayout.inProgress(Path.of("TV/a/Season 01/a - S01E01.ts")),
         )
+    }
+
+    /** Every folder and the file name of the busiest case: the name, the start time and a counter all taken. */
+    private fun assertFits(title: RecordingTitle): Path {
+        val taken = mutableSetOf<Path>()
+        repeat(120) { taken.add(RecordingLayout.path(title, start, zone) { it in taken }) }
+        val path = RecordingLayout.path(title, start, zone) { it in taken }
+        for (part in RecordingLayout.inProgress(path)) {
+            val bytes = part.toString().toByteArray(Charsets.UTF_8).size
+            assertTrue(bytes <= 255, "$bytes bytes in $part")
+        }
+        return path
+    }
+
+    @Test fun `a long show and episode title still make a name a file system takes`() {
+        val path = assertFits(RecordingTitle("x".repeat(300), "y".repeat(300), SeasonEpisode(1, 2)))
+        // Only the episode's title gives way, so two episodes of a long-titled show never share a name.
+        assertTrue(path.fileName.toString().startsWith("x".repeat(120) + " - S01E02 - y"), path.toString())
+        assertFits(RecordingTitle("z".repeat(300), "w".repeat(300)))
+        assertFits(RecordingTitle("m".repeat(300), movie = true, year = 1999))
+    }
+
+    @Test fun `a title in another script is cut by bytes, on a whole character`() {
+        // A file name takes the platform's encoding; one that is not UTF-8 cannot hold these titles at all.
+        assumeTrue(System.getProperty("sun.jnu.encoding").equals("UTF-8", ignoreCase = true))
+        assertFits(RecordingTitle("ж".repeat(300), "д".repeat(300), SeasonEpisode(1, 2)))
+        assertFits(RecordingTitle("番組".repeat(150), "回".repeat(300)))
+        val tv = "\uD83D\uDCFA"
+        assertFits(RecordingTitle(tv.repeat(200), movie = true, year = 1999))
+        val numbered = assertFits(RecordingTitle(tv.repeat(50), "z".repeat(300), SeasonEpisode(1, 2)))
+        val text = numbered.fileName.toString().removeSuffix(".ts")
+        assertEquals(text, String(text.toByteArray(Charsets.UTF_8), Charsets.UTF_8), "no lone surrogate survives")
+        assertTrue(text.startsWith(tv.repeat(50) + " - S01E02 - z"), text)
     }
 }

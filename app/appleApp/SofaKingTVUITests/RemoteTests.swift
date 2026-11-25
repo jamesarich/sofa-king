@@ -26,10 +26,12 @@ final class RemoteTests: XCTestCase {
         eventually("Sofa Sports to open a playback session", timeout: 30) { !server.watching().isEmpty }
         let tuned = server.watching().first?["channelId"] as? String
 
-        let record = control("Record")
-        reachInTransportBar(record)
-        remote.press(.select)
-        eventually("the server to schedule the recording") { server.recordings() > 0 }
+        // A run's second try finds the first try's recording still on the server, and the bar offering Cancel instead.
+        if server.recordings() == 0 {
+            reachInTransportBar(control("Record"))
+            remote.press(.select)
+            eventually("the server to schedule the recording") { server.recordings() > 0 }
+        }
 
         // The bar's items change when the guide rolls over on the hour or half hour, and AVKit then closes an open
         // menu, so a walk the rollover cuts short opens Channels again.
@@ -120,6 +122,11 @@ final class RemoteTests: XCTestCase {
         try launchToList()
         _ = try playSofaSports()
         remote.press(.menu)
+        // AVKit takes the press once the item plays and the bar is up, hiding the bar rather than leaving, so a player
+        // that was done loading by the time Menu came gets a second press; one still loading must leave on the first.
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !server.watching().isEmpty { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
+        if !server.watching().isEmpty, app.activityIndicators.count == 0 { remote.press(.menu) }
         eventually("Menu to leave the loading player and release its session", timeout: 10) { server.watching().isEmpty }
         XCTAssertTrue(guide.waitForExistence(timeout: 5), "The channel list is not back\n\(playerReport)")
     }
@@ -409,8 +416,11 @@ final class RemoteTests: XCTestCase {
             + "buffering indicators: \(app.activityIndicators.count)\nfocused: \(focusedId)\n\(screen)"
     }
 
-    /// Shows the player's transport bar and moves focus to `element` in it: Up from the scrubber, then along the row.
-    /// No press is sent until a bar item has focus, since a press made before focus lands in the bar is dropped.
+    /// Shows the player's transport bar and moves focus to `element` in it. With no bar item focused, Up from the player
+    /// or its scrubber enters the bar; with one focused, the move is sideways, toward `element`'s place on screen. The bar
+    /// keeps focus on its first item when it rebuilds, as it does after a recording is scheduled, so a fixed run of
+    /// Up presses would leave the bar there. No press is sent until a bar item has focus or Up is due, since a press
+    /// made before focus lands in the bar is dropped.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
         waitForPlayerToSettle()
@@ -422,21 +432,54 @@ final class RemoteTests: XCTestCase {
             remote.press(.select)
             waitForFocusToSettle()
         }
-        let moves: [XCUIRemote.Button] = [.up, .up] + Array(repeating: XCUIRemote.Button.right, count: 5) + Array(repeating: XCUIRemote.Button.left, count: 8)
-        for move in moves {
+        var absent = 0
+        for _ in 0..<16 {
             if !element.exists {
-                // A click shows the bar; the system hides it again after a few idle seconds.
-                remote.press(.select)
-                _ = element.waitForExistence(timeout: 3)
+                // A click shows a hidden bar, but with an item focused it would press that item, so then the bar is up
+                // and the element is simply not in it (a rebuild renamed or dropped it); give a rebuild a moment, then stop.
+                if !barItemHasFocus { remote.press(.select) }
+                if !element.waitForExistence(timeout: 3) {
+                    absent += 1
+                    if absent >= 2 {
+                        XCTFail("\(element.description) is not in the transport bar\n\(playerReport)")
+                        return
+                    }
+                    continue
+                }
             }
+            absent = 0
             // Focus found mid-travel counts only if it is still there after a moment, with no press left in flight.
             if settled(element.exists && element.hasFocus) && settled(element.exists && element.hasFocus) { return }
-            // Sideways moves need an item to have focus; Up is what gives one focus, and a hidden bar turns it into a zap.
-            if move == .up { waitForFocusToSettle() } else { _ = waitForBarItemFocus(timeout: 3) }
+            let move: XCUIRemote.Button
+            if let target = Self.midX(element), let item = focusedBarItem, let here = Self.midX(item) {
+                _ = waitForBarItemFocus(timeout: 3)
+                move = target > here ? .right : .left
+            } else if barItemHasFocus {
+                // An item has focus but one of the two has gone since: look again before pressing.
+                continue
+            } else {
+                // Up is what gives an item focus, and a hidden bar turns it into a zap.
+                waitForFocusToSettle()
+                move = .up
+            }
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
+    }
+
+    /// An element's horizontal center from a fresh snapshot, or nil when it is gone: reading `frame` of a query that
+    /// no longer matches fails the test.
+    @MainActor
+    private static func midX(_ element: XCUIElement) -> CGFloat? {
+        (try? element.snapshot())?.frame.midX
+    }
+
+    /// The transport bar item that has focus, if any.
+    @MainActor
+    private var focusedBarItem: XCUIElement? {
+        let item = app.cells.matching(NSPredicate(format: "hasFocus == true")).firstMatch
+        return item.exists ? item : nil
     }
 
     /// Whether a transport bar item, a cell to accessibility, has focus.

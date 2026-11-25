@@ -4,11 +4,11 @@
 # The one version of Sofa King: the app on every platform (About row, Android versionName, the desktop packages, the
 # Swift hosts' MARKETING_VERSION), the contract and the server's jars.
 sofaking = "0.1.0"
-agp = "9.5.1"
-kotlin = "2.5.0-Beta2"
-compose-multiplatform = "1.13.0-beta02"
+agp = "9.5.2"
+kotlin = "2.5.0-RC"
+compose-multiplatform = "1.13.0-rc01"
 # Compose bundles an older Hot Reload plugin that still calls a Gradle API removed in Gradle 10; this one is clean.
-compose-hot-reload = "1.3.0-rc01"
+compose-hot-reload = "1.3.0"
 # The window size classes; its own track, released alongside Compose Multiplatform.
 compose-material3-adaptive = "1.4.0-alpha01"
 # The core icon set is published apart from the rest of Compose Multiplatform and stopped at 1.7.3. The extended set
@@ -60,7 +60,7 @@ coil = "3.6.3"
 aboutlibraries = "15.3.0"
 exposed = "1.6.1"
 sqlite = "3.54.1.0"
-logback = "1.6.7"
+logback = "1.6.8"
 zxing = "3.5.4"
 jmdns = "3.6.5"
 # The official Model Context Protocol SDK the server answers /api/v1/mcp with.

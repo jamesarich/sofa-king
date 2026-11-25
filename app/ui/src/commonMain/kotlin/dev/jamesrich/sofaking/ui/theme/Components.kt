@@ -4,30 +4,46 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusEventModifierNode
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusRequesterModifierNode
 import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.requestFocus
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -36,6 +52,7 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -49,7 +66,9 @@ import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -58,8 +77,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.rememberIsTelevision
 import dev.jamesrich.sofaking.ui.rememberMotionEnabled
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -312,5 +333,106 @@ internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifi
             label = { Text(label, style = MaterialTheme.typography.labelLarge) },
             modifier = ringed,
         )
+    }
+}
+
+/**
+ * A chip that opens a menu of [options] and says which one is chosen, as Plex's filter bar does, so a long list (a
+ * library's genres) costs one chip instead of a row of them. [label] is the chosen option's words; picking an entry
+ * closes the menu and hands focus back to the chip, which keeps its place while the list behind it reloads. The menu
+ * opens on the chosen entry, so a D-pad's first press lands where the viewer already is. [focusRequester] reaches
+ * the chip, for a row that restores focus to it.
+ */
+@Composable
+internal fun <T> SofaMenuChip(
+    label: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+) {
+    var open by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Box(modifier) {
+        TvFocusControl(AssistChipDefaults.shape, Modifier.focusRequester(focusRequester)) { ringed ->
+            AssistChip(
+                onClick = { open = true },
+                label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+                trailingIcon = {
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(AssistChipDefaults.IconSize),
+                    )
+                },
+                modifier = ringed.semantics { role = Role.DropdownList },
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.arrowKeysMoveFocus()) {
+            val chosen = remember { FocusRequester() }
+            options.forEach { option ->
+                val isChosen = option == selected
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                        scope.launch { requestFocusWhenAttached(focusRequester) }
+                    },
+                    trailingIcon = if (isChosen) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
+                    modifier = if (isChosen) Modifier.focusRequester(chosen) else Modifier,
+                )
+            }
+            LaunchedEffect(Unit) { requestFocusWhenAttached(chosen) }
+        }
+    }
+}
+
+/**
+ * A Material 3 tonal icon toggle with the D-pad focus cue, for a yes-or-no action a page offers beside its main one
+ * (watched, on the watchlist) where a text button would take a line of its own on a phone. [label] names the action
+ * for a screen reader and for the tooltip a mouse hover or a long touch shows; the toggle's state is [checked], read
+ * as a filled button, so the label stays the action's name.
+ */
+@Composable
+internal fun SofaIconToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        FilledTonalIconToggleButton(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = modifier.tvFocus(IconButtonDefaults.filledShape),
+        ) {
+            Icon(icon, contentDescription = label)
+        }
+    }
+}
+
+/** A tonal icon button with [SofaIconToggle]'s tooltip and D-pad focus cue, for a one-shot action. */
+@Composable
+internal fun SofaIconAction(onClick: () -> Unit, icon: ImageVector, label: String, modifier: Modifier = Modifier) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        FilledTonalIconButton(onClick = onClick, modifier = modifier.tvFocus(IconButtonDefaults.filledShape)) {
+            Icon(icon, contentDescription = label)
+        }
     }
 }

@@ -60,6 +60,18 @@ object RecordingLayout {
     const val EXTENSION = "ts"
     const val IN_PROGRESS = ".inprogress"
     private const val NAME_LIMIT = 120
+
+    /**
+     * The most a title may take as a folder or a name part, in UTF-8 bytes: file systems refuse a name past 255 bytes,
+     * which 120 characters of Cyrillic or Chinese pass, so the characters are not the whole limit.
+     */
+    private const val PART_BYTES = 200
+
+    /** A file name's limit on ext4, XFS and the shares on them. */
+    private const val FILE_NAME_BYTES = 255
+
+    /** What [path] adds to a name: ` (HH.mm) (999)` and the extension. */
+    private val ADDED_BYTES = " (HH.mm) (999).$EXTENSION".length
     private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
     private val TIME = DateTimeFormatter.ofPattern("HH.mm", Locale.ROOT)
 
@@ -69,7 +81,9 @@ object RecordingLayout {
      */
     fun path(title: RecordingTitle, start: Instant, zone: ZoneId, taken: (Path) -> Boolean = { false }): Path {
         val local = start.atZone(zone)
-        val (folder, name) = folderAndName(title, local.toLocalDate())
+        val (folder, full) = folderAndName(title, local.toLocalDate())
+        // Cut the end, which is the episode's title, so the numbering and the date stay and the names stay distinct.
+        val name = cut(full, FILE_NAME_BYTES - ADDED_BYTES)
         val candidates =
             sequenceOf(name, "$name (${TIME.format(local)})") +
                 generateSequence(2) { it + 1 }.map { "$name (${TIME.format(local)}) ($it)" }
@@ -117,6 +131,20 @@ object RecordingLayout {
             }
         }.joinToString("")
         val collapsed = replaced.replace(Regex("\\s+"), " ").trim().trimEnd('.', ' ').trimStart('.', ' ')
-        return if (collapsed.length <= NAME_LIMIT) collapsed else collapsed.take(NAME_LIMIT).trimEnd('.', ' ')
+        val shortened = if (collapsed.length <= NAME_LIMIT) collapsed else collapsed.take(NAME_LIMIT).trimEnd('.', ' ')
+        return cut(shortened, PART_BYTES)
+    }
+
+    /** [text] cut to at most [limit] UTF-8 bytes on a whole character, without a separator or dot left hanging. */
+    internal fun cut(text: String, limit: Int): String {
+        var end = 0
+        var bytes = 0
+        while (end < text.length) {
+            val point = text.codePointAt(end)
+            bytes += Character.toString(point).toByteArray(Charsets.UTF_8).size
+            if (bytes > limit) return text.substring(0, end).trimEnd('.', ' ', '-')
+            end += Character.charCount(point)
+        }
+        return text
     }
 }

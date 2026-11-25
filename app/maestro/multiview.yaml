@@ -1,7 +1,7 @@
 # Multiview: two channels in panes of their own, and the sound moved between them. Starts on any tab (a player left
 # open is left first), tunes Sofa Sports by its link (the fixture numbers its channels from 2), opens Multiview from the
-# player's bar, ticks the next channel in the list, which must start a second pane, and puts the list away. Right must
-# move the sound to that channel with both panes still up. Ends in the live player on Sofa Sports.
+# More menu on the player's bar, ticks the next channel in the list, which must start a second pane, and puts the list
+# away. Right must move the sound to that channel with both panes still up. Ends in the live player on Sofa Sports.
 appId: dev.jamesrich.sofaking
 name: Multiview panes and the sound
 ---
@@ -17,21 +17,25 @@ name: Multiview panes and the sound
       id: "player"
     timeout: 30000
 # Pausing holds the bar up, since Maestro reads the screen slower than the bar's 5 seconds while video plays. Right
-# then moves into the bar's buttons and along them to Multiview, whose name shows a second time under the row while it
-# has focus.
+# then moves into the bar's buttons and along them to More, whose name shows a second time under the row while it has
+# focus. OK opens its menu on Multiview, its first entry, and OK again opens the list.
 - pressKey: Remote Media Play Pause
 - extendedWaitUntil:
-    visible: "Multiview"
+    visible: "More"
     timeout: 5000
 - pressKey: Remote Dpad Right
 - repeat:
     times: 10
     while:
       notVisible:
-        text: "Multiview"
+        text: "More"
         index: 1
     commands:
       - pressKey: Remote Dpad Right
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Multiview"
+    timeout: 5000
 - pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible:

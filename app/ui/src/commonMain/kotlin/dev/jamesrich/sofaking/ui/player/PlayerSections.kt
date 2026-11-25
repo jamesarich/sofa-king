@@ -237,7 +237,6 @@ internal fun BoxScope.InfoBarPanel(
         canFavorite = favorite != null,
         hasPrevious = state.previousIndex != null,
         canWatchFromStart = record?.fromStart != null,
-        canMultiview = onMultiview != null,
     ).map { buttons.item(it) }
 
     InfoBar(state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen) {
@@ -253,10 +252,22 @@ internal fun BoxScope.InfoBarPanel(
         )
         if (pointerDriven) {
             PointerControls(state, controls, bar, paused) {
-                PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = false)
+                PlayerButtonRow(
+                    items,
+                    entry,
+                    onFocus = { state.buttonsFocused = it },
+                    showLabel = false,
+                    onMenuOpen = state::keepInfo,
+                )
             }
         } else {
-            PlayerButtonRow(items, entry, onFocus = { state.buttonsFocused = it }, showLabel = true)
+            PlayerButtonRow(
+                items,
+                entry,
+                onFocus = { state.buttonsFocused = it },
+                showLabel = true,
+                onMenuOpen = state::keepInfo,
+            )
         }
     }
 }
@@ -320,13 +331,6 @@ private class LiveBarButtons(
 
         LiveButton.STREAM_INFO -> streamInfoButtonItem(hasAudioChoice, state::openStreamCard)
 
-        LiveButton.ZOOM -> zoomButtonItem(zoom, bar.control { controls.zoom() })
-
-        LiveButton.SLEEP -> sleepButtonItem(sleep) {
-            sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
-            state.keepInfo()
-        }
-
         LiveButton.FROM_START -> PlayerButtonItem(
             SofaIcons.Replay,
             stringResource(Res.string.player_control_from_start),
@@ -337,16 +341,33 @@ private class LiveBarButtons(
 
         LiveButton.FAVORITE -> favorite()
 
-        LiveButton.MULTIVIEW -> PlayerButtonItem(
-            SofaIcons.Dashboard,
-            stringResource(Res.string.player_control_multiview),
-            { onMultiview?.invoke() },
-        )
+        LiveButton.MORE -> more()
 
         LiveButton.GUIDE -> PlayerButtonItem(
             SofaIcons.GridView,
             stringResource(Res.string.player_control_guide),
             onGuide,
+        )
+    }
+
+    /**
+     * The More menu: Multiview first where there is one, so OK twice from the button opens it; Zoom and Sleep step on
+     * with each press and leave the menu up, as their buttons did on the bar.
+     */
+    @Composable
+    private fun more(): PlayerButtonItem {
+        val multiview = onMultiview?.let {
+            PlayerMenuEntry(SofaIcons.Dashboard, stringResource(Res.string.player_control_multiview), it)
+        }
+        val stepSleep = {
+            sleep.step(Clock.System.now().toEpochMilliseconds(), programEndMs = programEnd?.toEpochMilliseconds())
+        }
+        return moreButtonItem(
+            listOfNotNull(
+                multiview,
+                zoomButtonItem(zoom, {}).asMenuEntry { controls.zoom() },
+                sleepButtonItem(sleep, {}).asMenuEntry { stepSleep() },
+            ),
         )
     }
 

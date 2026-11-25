@@ -6,9 +6,9 @@ import kotlin.test.assertEquals
 
 class PlayerButtonsTest {
     @Test
-    fun `a library episode offers its tracks and zoom and start over and the next episode`() {
+    fun `a library episode offers its tracks, More, start over and the next episode`() {
         assertEquals(
-            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.NEXT),
+            listOf(VodButton.TRACKS, VodButton.MORE, VodButton.START_OVER, VodButton.NEXT),
             vodButtons(
                 failed = false,
                 inBreak = false,
@@ -16,22 +16,6 @@ class PlayerButtonsTest {
                 captions = false,
                 pastStart = true,
                 hasNext = true,
-            ),
-        )
-    }
-
-    @Test
-    fun `an engine that changes speed adds Speed after Sleep`() {
-        assertEquals(
-            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.START_OVER),
-            vodButtons(
-                failed = false,
-                inBreak = false,
-                tracksPickable = true,
-                captions = false,
-                pastStart = true,
-                hasNext = false,
-                speedAdjustable = true,
             ),
         )
     }
@@ -46,7 +30,7 @@ class PlayerButtonsTest {
     @Test
     fun `a recording in a break leads with Skip break and offers its captions`() {
         assertEquals(
-            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP),
+            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.MORE),
             vodButtons(
                 failed = false,
                 inBreak = true,
@@ -61,7 +45,7 @@ class PlayerButtonsTest {
     @Test
     fun `an episode in its intro leads with Skip intro`() {
         assertEquals(
-            listOf(VodButton.SKIP_INTRO, VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.NEXT),
+            listOf(VodButton.SKIP_INTRO, VodButton.TRACKS, VodButton.MORE, VodButton.NEXT),
             vodButtons(
                 failed = false,
                 inBreak = false,
@@ -87,11 +71,11 @@ class PlayerButtonsTest {
             creditsToNext = toNext,
         )
         assertEquals(
-            listOf(VodButton.SKIP_CREDITS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER),
+            listOf(VodButton.SKIP_CREDITS, VodButton.MORE, VodButton.START_OVER),
             buttons(toNext = true),
         )
         assertEquals(
-            listOf(VodButton.SKIP_CREDITS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.NEXT),
+            listOf(VodButton.SKIP_CREDITS, VodButton.MORE, VodButton.START_OVER, VodButton.NEXT),
             buttons(toNext = false),
         )
     }
@@ -99,7 +83,7 @@ class PlayerButtonsTest {
     @Test
     fun `a recording still being written ends the bar with Back to live`() {
         assertEquals(
-            listOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.BACK_TO_LIVE),
+            listOf(VodButton.CAPTIONS, VodButton.MORE, VodButton.START_OVER, VodButton.BACK_TO_LIVE),
             vodButtons(
                 failed = false,
                 inBreak = false,
@@ -115,7 +99,7 @@ class PlayerButtonsTest {
     @Test
     fun `the live bar offers Watch from start before Record while the program on now records`() {
         val buttons = liveButtons(pointer = false, canRecord = true, canFavorite = false, canWatchFromStart = true)
-        assertEquals(listOf(LiveButton.SLEEP, LiveButton.FROM_START, LiveButton.RECORD), buttons.subList(5, 8))
+        assertEquals(listOf(LiveButton.FROM_START, LiveButton.RECORD), buttons.subList(4, 6))
     }
 
     @Test
@@ -134,15 +118,14 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `the live bar keeps zoom and sleep by the stream card and Previous and Record only where they apply`() {
+    fun `the live bar puts zoom, sleep and multiview behind More and offers Previous and Record where they apply`() {
         assertEquals(
             listOf(
                 LiveButton.CHANNELS,
                 LiveButton.PLAY_PAUSE,
                 LiveButton.CAPTIONS,
                 LiveButton.STREAM_INFO,
-                LiveButton.ZOOM,
-                LiveButton.SLEEP,
+                LiveButton.MORE,
                 LiveButton.GUIDE,
             ),
             liveButtons(pointer = false, canRecord = false, canFavorite = false),
@@ -153,20 +136,13 @@ class PlayerButtonsTest {
                 LiveButton.PREVIOUS,
                 LiveButton.CAPTIONS,
                 LiveButton.STREAM_INFO,
-                LiveButton.ZOOM,
-                LiveButton.SLEEP,
                 LiveButton.RECORD,
                 LiveButton.FAVORITE,
+                LiveButton.MORE,
                 LiveButton.GUIDE,
             ),
             liveButtons(pointer = true, canRecord = true, canFavorite = true, hasPrevious = true),
         )
-    }
-
-    @Test
-    fun `multiview sits just before the guide`() {
-        val buttons = liveButtons(pointer = false, canRecord = false, canFavorite = true, canMultiview = true)
-        assertEquals(listOf(LiveButton.FAVORITE, LiveButton.MULTIVIEW, LiveButton.GUIDE), buttons.takeLast(3))
     }
 
     @Test

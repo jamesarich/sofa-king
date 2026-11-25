@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
@@ -10,6 +11,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.captions_off
 import dev.jamesrich.sofaking.resources.captions_on
 import dev.jamesrich.sofaking.resources.player_control_captions
+import dev.jamesrich.sofaking.resources.player_control_more
 import dev.jamesrich.sofaking.resources.player_control_pause
 import dev.jamesrich.sofaking.resources.player_control_play
 import dev.jamesrich.sofaking.resources.player_control_retry
@@ -28,13 +30,38 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
 
-/** One button of the row: what it shows, what a screen reader says it is and its state, and what it does. */
+/**
+ * One button of the row: what it shows, what a screen reader says it is and its state, and what it does. A button
+ * with a [menu] opens it on a press instead, and [onClick] is not used.
+ */
 internal class PlayerButtonItem(
     val icon: ImageVector,
     val label: String,
     val onClick: () -> Unit,
     val state: String? = null,
+    val menu: List<PlayerMenuEntry>? = null,
 )
+
+/** One entry of a button's menu; [keepOpen] leaves the menu up after it acts, for one that steps a setting. */
+internal class PlayerMenuEntry(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit,
+    val keepOpen: Boolean = false,
+)
+
+/** The More button on either bar, which opens [entries]; a press on the button itself is the menu opening. */
+@Composable
+internal fun moreButtonItem(entries: List<PlayerMenuEntry>): PlayerButtonItem = PlayerButtonItem(
+    Icons.Filled.MoreVert,
+    stringResource(Res.string.player_control_more),
+    {},
+    menu = entries,
+)
+
+/** This button as an entry of a menu, with the same icon and name; [keepOpen] as [PlayerMenuEntry] says. */
+internal fun PlayerButtonItem.asMenuEntry(keepOpen: Boolean = true, onClick: () -> Unit): PlayerMenuEntry =
+    PlayerMenuEntry(icon, label, onClick, keepOpen)
 
 /** What a [VideoZoom] is called on its button and in the note a press shows. */
 internal val VideoZoom.label: StringResource

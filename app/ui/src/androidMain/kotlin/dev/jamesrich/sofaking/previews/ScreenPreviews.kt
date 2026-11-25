@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -170,14 +171,13 @@ fun PlayerInfoPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
 @Composable
 fun LiveBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
     val entry = remember { FocusRequester() }
-    val sleep = remember { SleepTimer() }
     val items = listOf(
         PlayerButtonItem(Icons.AutoMirrored.Filled.List, "Channels", {}),
         playPauseButtonItem(paused = false, failed = false, onPlayPause = {}, onRetry = {}),
         captionsButtonItem(captionsOn = true, onClick = {}),
         streamInfoButtonItem(hasAudioChoice = true, onClick = {}),
-        zoomButtonItem(VideoZoom.FIT, {}),
-        sleepButtonItem(sleep, {}),
+        PlayerButtonItem(Icons.Filled.MoreVert, "More", {}, menu = emptyList()),
+        PlayerButtonItem(SofaIcons.GridView, "Guide", {}),
     )
     Box(modifier.fillMaxSize()) {
         InfoBar(visible = true) {
@@ -214,9 +214,7 @@ fun VodBarPreview(tv: Boolean, modifier: Modifier = Modifier) = Frame(tv) {
     val sleep = remember { SleepTimer() }
     val buttons = listOf(
         VodButton.CAPTIONS,
-        VodButton.ZOOM,
-        VodButton.SLEEP,
-        VodButton.SPEED,
+        VodButton.MORE,
         VodButton.START_OVER,
         VodButton.NEXT,
     ).map {

@@ -100,7 +100,8 @@ private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?, 
 
 /**
  * The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the
- * [sleep] timer and the [speed].
+ * [sleep] timer and the [speed]. More's menu holds Zoom, Sleep and, when [speedAdjustable], Speed; [onMenuEntry] runs
+ * the one chosen.
  */
 @Composable
 internal fun vodButtonItem(
@@ -112,6 +113,8 @@ internal fun vodButtonItem(
     sleep: SleepTimer,
     speed: Float,
     onClick: () -> Unit,
+    speedAdjustable: Boolean = false,
+    onMenuEntry: (VodButton) -> Unit = {},
 ): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(
         SofaIcons.FastForward,
@@ -141,6 +144,14 @@ internal fun vodButtonItem(
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
 
     VodButton.CAPTIONS -> captionsButtonItem(captionsOn, onClick)
+
+    VodButton.MORE -> moreButtonItem(
+        listOfNotNull(
+            zoomButtonItem(zoom, {}).asMenuEntry { onMenuEntry(VodButton.ZOOM) },
+            sleepButtonItem(sleep, {}).asMenuEntry { onMenuEntry(VodButton.SLEEP) },
+            if (speedAdjustable) speedButtonItem(speed, {}).asMenuEntry { onMenuEntry(VodButton.SPEED) } else null,
+        ),
+    )
 
     VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
 
@@ -324,10 +335,16 @@ private fun VodBarButtons(parts: VodParts, buttons: List<PlayerButtonItem>, cont
         ) {
             PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = {
                 state.buttonsFocused = it
-            }, showLabel = false)
+            }, showLabel = false, onMenuOpen = state::showInfo)
         }
     } else if (buttons.isNotEmpty()) {
-        PlayerButtonRow(buttons, entry = parts.focus.buttons, onFocus = { state.buttonsFocused = it }, showLabel = true)
+        PlayerButtonRow(
+            buttons,
+            entry = parts.focus.buttons,
+            onFocus = { state.buttonsFocused = it },
+            showLabel = true,
+            onMenuOpen = state::showInfo,
+        )
         if (!state.buttonsFocused) {
             Text(
                 stringResource(Res.string.vod_options_hint),
@@ -356,6 +373,7 @@ internal fun VodParts.press(
         VodButton.SKIP_CREDITS -> if (creditsToNext) controls.playNext() else spots.credits?.endMs?.let(vod::seek)
         VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
         VodButton.CAPTIONS -> controls.toggleCaptions()
+        VodButton.MORE -> Unit
         VodButton.ZOOM -> controls.zoom()
         VodButton.SLEEP -> sleep.step(Clock.System.now().toEpochMilliseconds(), endOfItem = true)
         VodButton.SPEED -> vod.speed = nextSpeed(vod.speed)

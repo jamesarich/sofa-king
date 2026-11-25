@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,13 +56,16 @@ internal enum class VodButton {
     /** A recording's captions, on or off. */
     CAPTIONS,
 
-    /** The picture's [VideoZoom], one step on. */
+    /** A menu of the picture's [VideoZoom], the [SleepTimer] and, where the engine allows it, the speed. */
+    MORE,
+
+    /** The picture's [VideoZoom], one step on; an entry of More's menu. */
     ZOOM,
 
-    /** The [SleepTimer], one step on. */
+    /** The [SleepTimer], one step on; an entry of More's menu. */
     SLEEP,
 
-    /** The playback speed, one step along [PLAYBACK_SPEEDS]. */
+    /** The playback speed, one step along [PLAYBACK_SPEEDS]; an entry of More's menu. */
     SPEED,
     START_OVER,
 
@@ -75,9 +79,9 @@ internal enum class VodButton {
 /**
  * The library and recordings player's buttons, in the bar's order. A break, an intro or the credits being played
  * leads, so Down and OK skip it; a library item with tracks to pick offers them and a recording its captions; then
- * Zoom and the sleep timer; Start over once [pastStart]; the next episode when there is one, unless the credits
- * button already leads to it ([creditsToNext]); and Back to live for a recording still being written ([toLive]). A
- * failed stream offers none: OK retries it.
+ * More (Zoom, the sleep timer and, where the engine changes it, the speed); Start over once [pastStart]; the next
+ * episode when there is one, unless the credits button already leads to it ([creditsToNext]); and Back to live for a
+ * recording still being written ([toLive]). A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -89,7 +93,6 @@ internal fun vodButtons(
     inIntro: Boolean = false,
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
-    speedAdjustable: Boolean = false,
     toLive: Boolean = false,
 ): List<VodButton> = if (failed) {
     emptyList()
@@ -100,9 +103,7 @@ internal fun vodButtons(
         if (inCredits) add(VodButton.SKIP_CREDITS)
         if (tracksPickable) add(VodButton.TRACKS)
         if (captions) add(VodButton.CAPTIONS)
-        add(VodButton.ZOOM)
-        add(VodButton.SLEEP)
-        if (speedAdjustable) add(VodButton.SPEED)
+        add(VodButton.MORE)
         if (pastStart) add(VodButton.START_OVER)
         if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
         if (toLive) add(VodButton.BACK_TO_LIVE)
@@ -123,12 +124,6 @@ internal enum class LiveButton {
     /** The stream card, which lists the audio tracks. */
     STREAM_INFO,
 
-    /** The picture's [VideoZoom], one step on. */
-    ZOOM,
-
-    /** The [SleepTimer], one step on. */
-    SLEEP,
-
     /** Plays the recording of the program on now from its start, while it is still being written. */
     FROM_START,
 
@@ -136,17 +131,17 @@ internal enum class LiveButton {
     RECORD,
     FAVORITE,
 
-    /** Several channels at once, each in a pane of its own. */
-    MULTIVIEW,
+    /** A menu of what is used less: Multiview where there is one, the picture's [VideoZoom] and the [SleepTimer]. */
+    MORE,
     GUIDE,
 }
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Watch from start while the
- * program on now is recording ([canWatchFromStart]), Record where the server records and there is a program on, the
- * star where favorites can change, Multiview where there is one ([canMultiview]), and the guide. A finger or a
- * mouse has play and pause beside the channel buttons instead ([pointer]).
+ * ([hasPrevious]), then what the CC, Play/Pause and Info keys do, Watch from start while the program on now is
+ * recording ([canWatchFromStart]), Record where the server records and there is a program on, the star where
+ * favorites can change, More (Multiview, Zoom and the sleep timer, which the Zoom key and the bar's menu both reach)
+ * and the guide. A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(
     pointer: Boolean,
@@ -154,19 +149,16 @@ internal fun liveButtons(
     canFavorite: Boolean,
     hasPrevious: Boolean = false,
     canWatchFromStart: Boolean = false,
-    canMultiview: Boolean = false,
 ): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
     if (hasPrevious) add(LiveButton.PREVIOUS)
     if (!pointer) add(LiveButton.PLAY_PAUSE)
     add(LiveButton.CAPTIONS)
     add(LiveButton.STREAM_INFO)
-    add(LiveButton.ZOOM)
-    add(LiveButton.SLEEP)
     if (canWatchFromStart) add(LiveButton.FROM_START)
     if (canRecord) add(LiveButton.RECORD)
     if (canFavorite) add(LiveButton.FAVORITE)
-    if (canMultiview) add(LiveButton.MULTIVIEW)
+    add(LiveButton.MORE)
     add(LiveButton.GUIDE)
 }
 
@@ -223,6 +215,7 @@ internal fun PlayerButtonRow(
     onFocus: (Boolean) -> Unit,
     showLabel: Boolean,
     modifier: Modifier = Modifier,
+    onMenuOpen: () -> Unit = {},
 ) {
     // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
     var focusedIndex by remember { mutableStateOf<Int?>(null) }
@@ -236,21 +229,21 @@ internal fun PlayerButtonRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { position, item ->
-                ControlIcon(
-                    item.icon,
-                    item.label,
-                    item.onClick,
-                    modifier = Modifier
-                        .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
-                        .onFocusChanged { if (it.isFocused) focusedIndex = position }
-                        .then(
-                            if (item.state != null) {
-                                Modifier.semantics { stateDescription = item.state }
-                            } else {
-                                Modifier
-                            },
-                        ),
-                )
+                val place = Modifier
+                    .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
+                    .onFocusChanged { if (it.isFocused) focusedIndex = position }
+                    .then(
+                        if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier,
+                    )
+                // The menu button keeps its place in the composition when the buttons around it change (Next
+                // coming to the front as the credits start), so its open menu does not close with the reorder.
+                key(if (item.menu != null) MENU_BUTTON_KEY else position) {
+                    if (item.menu != null) {
+                        MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
+                    } else {
+                        ControlIcon(item.icon, item.label, item.onClick, modifier = place)
+                    }
+                }
             }
         }
         val label = focusedIndex?.let { items.getOrNull(it)?.label }
@@ -259,6 +252,8 @@ internal fun PlayerButtonRow(
         }
     }
 }
+
+private const val MENU_BUTTON_KEY = "menu"
 
 /** Leaves the player, for a finger or a mouse; a remote has its Back key. */
 @Composable

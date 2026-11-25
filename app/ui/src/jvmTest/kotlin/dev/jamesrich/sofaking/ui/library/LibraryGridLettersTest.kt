@@ -85,7 +85,7 @@ class LibraryGridLettersTest {
         }
 
     @Test
-    fun `the letters sit between the genres and the grid for every column`() =
+    fun `the letters sit between the filter bar and the grid for every column`() =
         runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
             val actions = LibraryGridActions(
                 onSort = {},
@@ -131,7 +131,7 @@ class LibraryGridLettersTest {
             move(FocusDirection.Up)
             onNodeWithContentDescription("Jump to #").assertIsFocused()
             move(FocusDirection.Up)
-            onNodeWithText("All genres").assertIsFocused()
+            onNodeWithText("Sort: Title").assertIsFocused()
             move(FocusDirection.Down)
             onNodeWithContentDescription("Jump to #").assertIsFocused()
 

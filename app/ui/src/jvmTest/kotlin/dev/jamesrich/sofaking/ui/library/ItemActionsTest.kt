@@ -14,6 +14,8 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.ui.LayoutProfile
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -37,8 +40,10 @@ class ItemActionsTest {
         listed: Boolean,
         watched: MutableList<Boolean>,
         onListed: () -> Unit,
+        item: MediaItem = movie,
+        widthPx: Float = 1920f,
         block: ComposeUiTest.() -> Unit,
-    ) = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+    ) = runSkikoComposeUiTest(Size(widthPx, 1080f), Density(2f)) {
         var onList by mutableStateOf(listed)
         val actions = ItemDetailsActions(
             onPlay = { _, _ -> },
@@ -64,7 +69,7 @@ class ItemActionsTest {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     CompositionLocalProvider(LocalLayoutProfile provides profile) {
-                        Summary(MediaItemDetail(movie), actions, FocusRequester(), hideSpoilers = false)
+                        Summary(MediaItemDetail(item), actions, FocusRequester(), hideSpoilers = false)
                     }
                 }
             }
@@ -92,6 +97,20 @@ class ItemActionsTest {
     }
 
     @Test
+    fun `a phone keeps Resume, Play from beginning, watched and the watchlist on one row`() {
+        val started = movie.copy(progress = PlayProgress(60_000, 600_000, watched = false))
+        show(tv = false, listed = false, mutableListOf(), {}, item = started, widthPx = PHONE_WIDTH_PX) {
+            val tops = listOf(
+                onNode(hasText("Resume", substring = true)),
+                onNodeWithContentDescription("Play from beginning"),
+                onNodeWithContentDescription("Mark watched"),
+                onNodeWithContentDescription("Add to watchlist"),
+            ).map { it.getBoundsInRoot().top }
+            assertEquals(1, tops.distinct().size, "the buttons' tops: $tops")
+        }
+    }
+
+    @Test
     fun `a TV keeps the text buttons its remote reads`() {
         val watched = mutableListOf<Boolean>()
         show(tv = true, listed = true, watched, {}) {
@@ -99,5 +118,10 @@ class ItemActionsTest {
             onNodeWithText("Mark watched").performClick()
         }
         assertEquals(listOf(true), watched)
+    }
+
+    private companion object {
+        /** A 393 dp wide phone at density 2. */
+        const val PHONE_WIDTH_PX = 786f
     }
 }

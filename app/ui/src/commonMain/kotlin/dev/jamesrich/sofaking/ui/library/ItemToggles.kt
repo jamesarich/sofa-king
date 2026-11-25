@@ -10,10 +10,12 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_add_to_watchlist
 import dev.jamesrich.sofaking.resources.library_mark_unwatched
 import dev.jamesrich.sofaking.resources.library_mark_watched
+import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_remove_from_watchlist
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaIconAction
 import dev.jamesrich.sofaking.ui.theme.SofaIconToggle
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
@@ -62,5 +64,19 @@ internal fun WatchlistAction(item: MediaItem, listed: Boolean, actions: ItemDeta
             label = label,
             modifier = Modifier.announcesChanges(),
         )
+    }
+}
+
+/**
+ * Play from the start of a partly watched item: a text button on a TV, an icon button elsewhere so Resume and the
+ * toggles beside it stay on one row of a phone.
+ */
+@Composable
+internal fun PlayFromStartAction(onClick: () -> Unit) {
+    val label = stringResource(Res.string.library_play_from_start)
+    if (LocalLayoutProfile.current.tv) {
+        SofaButton(onClick = onClick) { Text(label) }
+    } else {
+        SofaIconAction(onClick = onClick, icon = SofaIcons.Replay, label = label)
     }
 }

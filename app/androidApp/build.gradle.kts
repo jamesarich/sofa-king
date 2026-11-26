@@ -90,6 +90,12 @@ dependencies {
     implementation(libs.engage.tv)
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.work.runtime)
+    // Media3 brings Guava 33.3.1, before the fix for GHSA-xxph-c9ww-hj94 (Java deserialization of Guava's compact
+    // collections). The app deserializes nothing of the kind, but a current Guava costs nothing. Drop this once
+    // Media3 is past it.
+    constraints {
+        implementation(libs.guava)
+    }
     baselineProfile(project(":baselineprofile"))
     testImplementation(kotlin("test-junit"))
     androidTestImplementation(libs.androidx.test.junit)

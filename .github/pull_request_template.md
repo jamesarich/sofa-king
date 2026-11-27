@@ -26,5 +26,5 @@ Server (`backend/`):
 Contract (`contract/`):
 
 - [ ] The app and the server change together in this pull request
-- [ ] No fixture in `contract/src/jvmTest/resources/wire` is edited or deleted
+- [ ] No fixture in `contract/testResources@jvm/wire` is edited or deleted
 - [ ] `./gradlew jvmTest assemble` passes in `contract/`

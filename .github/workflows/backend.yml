@@ -28,6 +28,8 @@ on:
       - "!backend/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
+      - "kotlin"
+      - "project.yaml"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -42,6 +44,8 @@ on:
       - "!backend/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
+      - "kotlin"
+      - "project.yaml"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -214,6 +218,39 @@ jobs:
           name: comskip-test-reports
           path: "backend/**/build/reports/tests"
           retention-days: 14
+
+  # On trial beside Gradle: the Kotlin Toolchain (the kotlin wrapper and project.yaml at the repository root) builds and
+  # tests the contract from the same sources. The job reports and never fails the run; the Apple targets need a Mac and
+  # are left to Gradle's jobs.
+  toolchain:
+    name: Kotlin Toolchain (contract)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+    env:
+      KOTLIN_CLI_NO_WELCOME_BANNER: "1"
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The wrapper downloads the toolchain, its JDK and the Kotlin compilers on the first run.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/JetBrains/Kotlin
+          key: kotlin-toolchain-${{ runner.os }}-${{ hashFiles('kotlin', 'project.yaml', 'contract/module.yaml', 'gradle/libs.versions.toml') }}
+          restore-keys: kotlin-toolchain-${{ runner.os }}-
+
+      - name: Test the contract on the JVM
+        run: ./kotlin test -m contract -p jvm
+
+      - name: Build the contract's JVM, Linux, JS and Wasm targets
+        run: ./kotlin build -m contract
 
   # The web app the image serves at /app/: core's JS library, then esbuild over it and hls.js. It runs beside the
   # tests, and the remote build cache answers the Gradle task when core has not changed.

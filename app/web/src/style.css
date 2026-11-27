@@ -111,6 +111,9 @@ body.playing .page { padding: 0; }
 
 .detail { padding: 24px; border-radius: 16px; background-size: cover; background-position: center top; }
 .detail h1 { margin: 0 0 4px; }
+.summary { display: flex; gap: 24px; align-items: flex-start; }
+.summary .poster { flex: 0 0 200px; width: 200px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; background: var(--panel); }
+.summary-text { flex: 1; min-width: 0; }
 .facts { color: var(--dim); margin: 4px 0; }
 .tagline { font-style: italic; }
 .overview { max-width: 70ch; }
@@ -210,6 +213,8 @@ body.playing .page { padding: 0; }
 .break-pill { position: absolute; right: 16px; bottom: 16px; padding: 6px 12px; border-radius: 999px; background: #14111fe6; }
 
 @media (max-width: 640px) {
+    .summary { flex-direction: column; }
+    .summary .poster { flex-basis: auto; width: 140px; }
     .page { padding: 12px; }
     .channel { grid-template-columns: 40px 1fr; }
     .channel .number { display: none; }

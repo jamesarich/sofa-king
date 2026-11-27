@@ -46,6 +46,8 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
     const watched = button(item.watched ? 'Mark unwatched' : 'Mark watched', () => ctx.core.library.setWatched(item.id, !item.watched));
     watched.dataset.key = 'watched';
 
+    // An episode's picture is a wide still, which a poster's frame would crop.
+    const poster = item.kind === 'episode' ? null : item.poster;
     const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.kind === 'movie' ? '' : item.kind, item.unreadable ? 'Unreadable' : '']
         .filter(Boolean)
         .join(' · ');
@@ -57,14 +59,21 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
                 ? { 'background-image': `linear-gradient(#14111Fcc,#14111F),url("${item.backdrop}")` }
                 : {},
         },
-        h('h1', { text: item.showTitle ? `${item.showTitle}: ${item.title}` : item.title }),
-        h('p', { class: 'facts', text: facts }),
-        detail.tagline ? h('p', { class: 'tagline', text: detail.tagline }) : null,
-        h('div', { class: 'actions' }, play, again, watched),
-        item.overview ? h('p', { class: 'overview', text: item.overview }) : null,
-        detail.genres.length ? h('p', { class: 'facts', text: detail.genres.join(', ') }) : null,
-        detail.directors.length ? h('p', { class: 'facts', text: `Directed by ${detail.directors.join(', ')}` }) : null,
-        detail.cast.length ? h('p', { class: 'facts', text: `With ${detail.cast.slice(0, 8).join(', ')}` }) : null,
+        h(
+            'div',
+            { class: 'summary' },
+            poster ? h('img', { class: 'poster', attrs: { src: poster, alt: '' } }) : null,
+            h('div', { class: 'summary-text' },
+                h('h1', { text: item.showTitle ? `${item.showTitle}: ${item.title}` : item.title }),
+                h('p', { class: 'facts', text: facts }),
+                detail.tagline ? h('p', { class: 'tagline', text: detail.tagline }) : null,
+                h('div', { class: 'actions' }, play, again, watched),
+                item.overview ? h('p', { class: 'overview', text: item.overview }) : null,
+                detail.genres.length ? h('p', { class: 'facts', text: detail.genres.join(', ') }) : null,
+                detail.directors.length ? h('p', { class: 'facts', text: `Directed by ${detail.directors.join(', ')}` }) : null,
+                detail.cast.length ? h('p', { class: 'facts', text: `With ${detail.cast.slice(0, 8).join(', ')}` }) : null,
+            ),
+        ),
         detail.children.length
             ? h('div', { class: 'shelf' }, h('h2', { text: item.kind === 'show' ? 'Seasons' : 'Episodes' }), h('div', { class: 'cards' }, ...detail.children.map((child) => card(child, 'child'))))
             : null,

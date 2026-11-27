@@ -56,7 +56,8 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
         {
             class: 'detail',
             style: item.backdrop
-                ? { 'background-image': `linear-gradient(#14111Fcc,#14111F),url("${item.backdrop}")` }
+                ? // The page's own color over the backdrop, so the text reads in the dark and the light scheme.
+                  { 'background-image': `linear-gradient(color-mix(in srgb, var(--bg) 80%, transparent), var(--bg)),url("${item.backdrop}")` }
                 : {},
         },
         h(

@@ -1,1 +1,2 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: #14111F; }
+@media (prefers-color-scheme: light) { html, body { background: #F7F4FC; } }

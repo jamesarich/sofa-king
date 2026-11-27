@@ -59,7 +59,7 @@ function section(route: Route): string {
 
 function drawNav(route: Route): void {
     const here = section(route);
-    const links: Array<[string, string, string]> = [['guide', 'Guide', href({ page: 'guide' })]];
+    const links: Array<[string, string, string]> = [['guide', 'Live', href({ page: 'guide' })]];
     if (libraryOffered) links.push(['library', 'Library', href({ page: 'library' })]);
     links.push(['settings', 'Settings', href({ page: 'settings' })]);
     replaceChildren(

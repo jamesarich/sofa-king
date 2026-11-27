@@ -416,22 +416,15 @@ final class RemoteTests: XCTestCase {
             + "buffering indicators: \(app.activityIndicators.count)\nfocused: \(focusedId)\n\(screen)"
     }
 
-    /// Shows the player's transport bar and moves focus to `element` in it. With no bar item focused, Up from the player
-    /// or its scrubber enters the bar; with one focused, the move is sideways, toward `element`'s place on screen. The bar
-    /// keeps focus on its first item when it rebuilds, as it does after a recording is scheduled, so a fixed run of
-    /// Up presses would leave the bar there. No press is sent until a bar item has focus or Up is due, since a press
-    /// made before focus lands in the bar is dropped.
+    /// Shows the player's transport bar and moves focus to `element` in it. With no bar item focused, a click then Up
+    /// enters the bar (`enterTransportBar`); with one focused, the move is sideways, toward `element`'s place on screen.
+    /// The bar keeps focus on its first item when it rebuilds, as it does after a recording is scheduled, so a fixed run
+    /// of Up presses would leave the bar there. A sideways press waits until a bar item has focus, since a press made
+    /// before focus lands in the bar is dropped.
     @MainActor
     private func reachInTransportBar(_ element: XCUIElement) {
         waitForPlayerToSettle()
-        // Up and Down change channel while the bar is hidden, and its buttons stay in the accessibility tree, so a
-        // click brings the bar up first unless a button already has focus.
-        // The bar comes up with focus on the player itself, so only Up moves it into the bar; waiting here for an
-        // item to take focus would let the bar go idle and hide again.
-        if !barItemHasFocus {
-            remote.press(.select)
-            waitForFocusToSettle()
-        }
+        if !barItemHasFocus { enterTransportBar() }
         var absent = 0
         for _ in 0..<16 {
             if !element.exists {
@@ -458,14 +451,28 @@ final class RemoteTests: XCTestCase {
                 // An item has focus but one of the two has gone since: look again before pressing.
                 continue
             } else {
-                // Up is what gives an item focus, and a hidden bar turns it into a zap.
-                waitForFocusToSettle()
-                move = .up
+                // No item has focus: the entering Up was dropped, or the bar went idle and hid since.
+                print("[remote] looking for \(element.description), clicking and pressing Up next:\n\(outline())")
+                enterTransportBar()
+                continue
             }
             print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(playerReport)")
+    }
+
+    /// Clicks, which brings a hidden transport bar up with focus on the player, and presses Up a second later to move
+    /// focus into the bar. The bar's buttons stay in the accessibility tree while it is hidden, so nothing there says
+    /// whether it is up. Playing, it hides about five seconds after the last press, and Up with the bar hidden changes
+    /// channel, so Up goes out at a fixed short delay after the click: on a loaded runner, the queries a walk makes
+    /// between two presses can take longer than the bar stays up. Call it only with no bar item focused, where the
+    /// click cannot press one.
+    @MainActor
+    private func enterTransportBar() {
+        remote.press(.select)
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        remote.press(.up)
     }
 
     /// An element's horizontal center from a fresh snapshot, or nil when it is gone: reading `frame` of a query that

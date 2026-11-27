@@ -201,10 +201,23 @@ internal class LibraryGrids(
         }
     }
 
-    /** Another server: no grid is open. */
+    /** No server: no grid is open. */
     fun clear() {
         state.value = null
         job?.cancel()
+    }
+
+    /**
+     * A server arrived, the first or another: the grid that is open loads again from it, in the order and with the
+     * filters it was opened with. A page opened by its address, or restored, asks for its grid before the server is
+     * known, and nothing else would ask again.
+     */
+    fun restart() {
+        val grid = state.value ?: return
+        job?.cancel()
+        loadTarget = null
+        state.value = LibraryGrid(grid.libraryId, grid.sort, grid.unwatched, grid.genre, grid.view)
+        loadPage(null)
     }
 
     /** [item] takes its own place in the grid. */

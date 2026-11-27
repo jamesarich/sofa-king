@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.preview_hint
+import dev.jamesrich.sofaking.resources.preview_opens_in
 import dev.jamesrich.sofaking.resources.preview_unavailable
 import dev.jamesrich.sofaking.resources.tuning
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
@@ -194,8 +195,9 @@ private const val DETAIL_IMAGE_SETTLE_MS = 250L
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
  * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide
  * stays composed for a frame under the full screen it hands the player to, and its focus leaving the grid mutes the
- * rest timers, which must not silence the full screen. [failed] is the guide's record that the preview has no
- * picture, set through [onFailedChange].
+ * rest timers, which must not silence the full screen. [opensIn] is the seconds left before the guide opens the channel
+ * full screen by itself, shown over the picture so the cut is expected. [failed] is the guide's record that the preview
+ * has no picture, set through [onFailedChange].
  */
 @Composable
 internal fun PreviewVideo(
@@ -209,6 +211,7 @@ internal fun PreviewVideo(
     onFailedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     ownsVolume: Boolean = true,
+    opensIn: Int? = null,
 ) {
     val currentOnFailedChange by rememberUpdatedState(onFailedChange)
     val status by player.status.collectAsStateWithLifecycle()
@@ -255,6 +258,7 @@ internal fun PreviewVideo(
             PreviewCard(channel, failed = false)
         }
         TuningBadge(rememberSettled(buffering && !failed))
+        OpensInBadge(opensIn)
     }
 }
 
@@ -352,6 +356,28 @@ private fun BoxScope.TuningBadge(visible: Boolean) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             }
+        }
+    }
+}
+
+/** The seconds left before the preview opens full screen by itself, in the corner across from [TuningBadge]. */
+@Composable
+private fun BoxScope.OpensInBadge(seconds: Int?) {
+    // The last count stays through the badge's exit, so it never shows an empty number as it leaves.
+    var shown by remember { mutableIntStateOf(seconds ?: 0) }
+    if (seconds != null) shown = seconds
+    AnimatedVisibility(
+        seconds != null,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+        enter = PopIn,
+        exit = PopOut,
+    ) {
+        OverVideo {
+            Text(
+                stringResource(Res.string.preview_opens_in, shown),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.overlaySurface().padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }

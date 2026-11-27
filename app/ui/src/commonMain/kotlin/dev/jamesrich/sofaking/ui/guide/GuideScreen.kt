@@ -256,6 +256,7 @@ private fun ColumnScope.GuideTop(
             captionsEnabled = preview.captionsEnabled,
             captionStyle = preview.captionStyle,
             muted = state.previewMuted,
+            opensIn = state.previewOpensIn,
             ownsVolume = shown,
             failed = state.previewFailed,
             onFailedChange = { state.previewFailed = it },

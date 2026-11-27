@@ -21,9 +21,10 @@ The focused channel plays in a muted preview after 350 ms. Focus resting on it t
 | Rest | Happens |
 | --- | --- |
 | 5 s | Preview sound comes on |
+| 7 s | The preview counts down its last three seconds: Full screen in 3 |
 | 10 s | Channel opens full screen, continuing the preview's stream |
 
-Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds) and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
+Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds), with the countdown always its last three seconds, and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
 
 - A key press restarts both timers and mutes the preview. A touch, mouse press or scroll restarts them too, and the channel then stays closed until the next key press, so scrolling by hand never opens a channel under your finger.
 - OK opens the channel full screen at once.

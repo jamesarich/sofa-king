@@ -2,4 +2,5 @@
     <string name="preview_live">Live</string>
     <string name="preview_hint">Focus a program to preview its channel</string>
     <string name="preview_unavailable">Preview unavailable</string>
+    <string name="preview_opens_in">Full screen in %1$d</string>
 </resources>

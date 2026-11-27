@@ -128,7 +128,7 @@ private fun Details(
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = (heroHeight * 0.3f).coerceAtLeast(insets.calculateTopPadding()),
+                    top = summaryTop(item.heroArt() != null, heroHeight, insets.calculateTopPadding()),
                     bottom = insets.calculateBottomPadding() + 16.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -390,4 +390,5 @@ private fun seasonLabel(season: MediaItem): String = when (val number = season.s
 }
 
 private const val HERO_FRACTION = 0.6f
+
 private const val CAST_SHOWN = 6

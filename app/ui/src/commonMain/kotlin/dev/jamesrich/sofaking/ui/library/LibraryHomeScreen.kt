@@ -50,8 +50,11 @@ import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.cardOkFor
 import dev.jamesrich.sofaking.data.feedsSpotlight
+import dev.jamesrich.sofaking.data.libraryArtless
 import dev.jamesrich.sofaking.data.spotlightItem
+import dev.jamesrich.sofaking.data.spotlightPictured
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_artwork_hint
 import dev.jamesrich.sofaking.resources.library_empty
 import dev.jamesrich.sofaking.resources.library_empty_hint
 import dev.jamesrich.sofaking.resources.library_library_chip
@@ -149,15 +152,18 @@ private fun Shelves(
     LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     // The item returned to may sit in several rows; the first takes the requester.
     val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.key }
+    // Without pictures the spotlight is a title and a year: it takes its text's height, not a share of the page.
+    val pictured = remember(shelves) { spotlightPictured(shelves) }
+    val artless = remember(shelves) { libraryArtless(shelves) }
     Box(modifier.fillMaxSize()) {
         if (staysPut) SpotlightTint(shelves) { focused.value }
         Column(Modifier.fillMaxSize()) {
             if (staysPut) {
-                SpotlightSlot(shelves, {
-                    focused.value
-                }, actions, profile.tv, insets, false, Modifier.weight(SPOTLIGHT_HEIGHT_SHARE))
+                val share = if (pictured) Modifier.weight(SPOTLIGHT_HEIGHT_SHARE) else Modifier
+                SpotlightSlot(shelves, { focused.value }, actions, profile.tv, insets, false, pictured, share)
             }
-            RefreshBox(!profile.tv, actions.onRefresh, shelves, Modifier.weight(shelvesShare(staysPut))) {
+            val shelvesShare = if (pictured) shelvesShare(staysPut) else 1f
+            RefreshBox(!profile.tv, actions.onRefresh, shelves, Modifier.weight(shelvesShare)) {
                 LazyColumn(
                     // The remote's Search key opens the search by voice from anywhere on the page.
                     Modifier.fillMaxSize().searchKey { actions.onSearch(true) },
@@ -168,23 +174,20 @@ private fun Shelves(
                     // Without room to stay put, the spotlight is the list's first card and shows the first item.
                     if (!staysPut) {
                         item(key = "spotlight") {
-                            val card = Modifier.padding(insets.horizontalOnly()).height(COMPACT_SPOTLIGHT_HEIGHT)
-                            SpotlightSlot(shelves, {
-                                null
-                            }, actions, profile.tv, insets, true, card.clip(CardDefaults.shape))
+                            val height = if (pictured) Modifier.height(COMPACT_SPOTLIGHT_HEIGHT) else Modifier
+                            val card = Modifier.padding(insets.horizontalOnly()).then(height)
+                            val shape = card.clip(CardDefaults.shape)
+                            SpotlightSlot(shelves, { null }, actions, profile.tv, insets, true, pictured, shape)
                         }
                     }
                     item("chips") { LibraryChips(libraries, actions, returnedFrom, returnFocus, searchFocus, insets) }
+                    if (artless) item("artwork") { ArtworkHint(insets) }
                     items(shelves, key = { it.key }, contentType = { "shelf" }) { shelf ->
                         Shelf(
                             shelf,
                             actions,
                             insets,
-                            focusItem = if (shelf.key == returnShelf) {
-                                returnedFrom
-                            } else {
-                                null
-                            },
+                            focusItem = returnedFrom.takeIf { shelf.key == returnShelf },
                             focusRequester = returnFocus,
                             onFocus = if (staysPut && feedsSpotlight(shelf)) {
                                 { item -> focused.value = item.id }
@@ -208,6 +211,7 @@ private fun SpotlightSlot(
     tv: Boolean,
     insets: PaddingValues,
     compact: Boolean,
+    pictured: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Spotlight(
@@ -216,6 +220,18 @@ private fun SpotlightSlot(
         insets = insets,
         modifier = modifier,
         compact = compact,
+        pictured = pictured,
+    )
+}
+
+/** One line under the chips, while no title has a picture, on where posters and details come from. */
+@Composable
+private fun ArtworkHint(insets: PaddingValues) {
+    Text(
+        stringResource(Res.string.library_artwork_hint),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(insets.horizontalOnly()),
     )
 }
 

@@ -68,6 +68,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.OverVideo
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
@@ -339,7 +340,7 @@ private fun BoxScope.TuningBadge(visible: Boolean) {
         OverVideo {
             Row(
                 Modifier
-                    .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+                    .overlaySurface()
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),

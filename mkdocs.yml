@@ -106,6 +106,7 @@ nav:
       - Code of conduct: CODE_OF_CONDUCT.md
       - Server development: backend/docs/development.md
       - App development: app/docs/development.md
+      - App design system: app/docs/design-system.md
       - Server dependencies: backend/docs/dependencies.md
       - App dependencies: app/docs/dependencies.md
       - Server docs index: backend/docs/README.md

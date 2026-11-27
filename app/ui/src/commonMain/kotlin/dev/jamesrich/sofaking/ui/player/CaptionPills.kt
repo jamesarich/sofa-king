@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.resources.captions_timing_later
 import dev.jamesrich.sofaking.resources.captions_unavailable
 import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -60,7 +61,7 @@ internal fun captionTimingText(ms: Int): String = when (CaptionPolicy.timingDire
 internal fun CaptionToastPill(outcome: CaptionToggleOutcome, timingMs: Int?) {
     Column(
         Modifier
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(2.dp),

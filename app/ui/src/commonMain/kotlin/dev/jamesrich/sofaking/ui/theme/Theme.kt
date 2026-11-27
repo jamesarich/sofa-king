@@ -15,9 +15,11 @@ import dev.jamesrich.sofaking.ui.rememberIsTelevision
 
 /**
  * Surface and background share one color so a surface never differs from the window background.
- * Cards and focused rows use [SofaPlumRaised] instead.
+ * Cards and focused rows use [SofaPlumRaised] instead. Every role is set, the fixed ones too, so no component can
+ * fall back to Material's baseline purple; the fixed roles are the same tones in the dark and the light scheme, as
+ * Material defines them.
  */
-private val SofaKingDarkColors: ColorScheme = darkColorScheme(
+internal val SofaKingDarkColors: ColorScheme = darkColorScheme(
     primary = SofaAmber,
     onPrimary = SofaPlum,
     primaryContainer = SofaAmberDeep,
@@ -54,10 +56,22 @@ private val SofaKingDarkColors: ColorScheme = darkColorScheme(
     outline = SofaOutline,
     outlineVariant = SofaOutline,
     scrim = SofaScrim,
+    primaryFixed = SofaAmberSoft,
+    primaryFixedDim = SofaAmber,
+    onPrimaryFixed = SofaAmberDeep,
+    onPrimaryFixedVariant = SofaAmberDark,
+    secondaryFixed = SofaLavenderSoft,
+    secondaryFixedDim = SofaLavender,
+    onSecondaryFixed = SofaLavenderDark,
+    onSecondaryFixedVariant = SofaLavenderDeep,
+    tertiaryFixed = SofaLavenderSoft,
+    tertiaryFixedDim = SofaLavender,
+    onTertiaryFixed = SofaLavenderDark,
+    onTertiaryFixedVariant = SofaLavenderDeep,
 )
 
 /** The same roles in daylight tones; Color.kt has the contrast of each pair. */
-private val SofaKingLightColors: ColorScheme = lightColorScheme(
+internal val SofaKingLightColors: ColorScheme = lightColorScheme(
     primary = SofaAmberInk,
     onPrimary = SofaOnAccent,
     primaryContainer = SofaAmberPale,
@@ -94,6 +108,18 @@ private val SofaKingLightColors: ColorScheme = lightColorScheme(
     outline = SofaInkOutline,
     outlineVariant = SofaInkOutline,
     scrim = SofaScrim,
+    primaryFixed = SofaAmberSoft,
+    primaryFixedDim = SofaAmber,
+    onPrimaryFixed = SofaAmberDeep,
+    onPrimaryFixedVariant = SofaAmberDark,
+    secondaryFixed = SofaLavenderSoft,
+    secondaryFixedDim = SofaLavender,
+    onSecondaryFixed = SofaLavenderDark,
+    onSecondaryFixedVariant = SofaLavenderDeep,
+    tertiaryFixed = SofaLavenderSoft,
+    tertiaryFixedDim = SofaLavender,
+    onTertiaryFixed = SofaLavenderDark,
+    onTertiaryFixedVariant = SofaLavenderDeep,
 )
 
 /** The Prevue look's roles: blue grid, yellow text, gray column; Color.kt has the contrast of each pair. */
@@ -134,6 +160,18 @@ internal val SofaKingPrevueColors: ColorScheme = darkColorScheme(
     outline = PrevueOutline,
     outlineVariant = PrevueOutline,
     scrim = SofaScrim,
+    primaryFixed = PrevueYellowSoft,
+    primaryFixedDim = PrevueYellow,
+    onPrimaryFixed = PrevueBlue,
+    onPrimaryFixedVariant = PrevueBlueLow,
+    secondaryFixed = PrevueCyanSoft,
+    secondaryFixedDim = PrevueCyan,
+    onSecondaryFixed = PrevueBlue,
+    onSecondaryFixedVariant = PrevueCyanDeep,
+    tertiaryFixed = PrevueCyanSoft,
+    tertiaryFixedDim = PrevueCyan,
+    onTertiaryFixed = PrevueBlue,
+    onTertiaryFixedVariant = PrevueCyanDeep,
 )
 
 /** The dark scheme that goes with the surrounding one, so [OverVideo] keeps the chosen look. */

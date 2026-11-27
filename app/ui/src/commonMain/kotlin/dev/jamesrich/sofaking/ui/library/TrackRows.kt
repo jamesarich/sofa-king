@@ -49,7 +49,7 @@ internal fun TrackRow(
             .semantics(mergeDescendants = true) { contentDescription = label },
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

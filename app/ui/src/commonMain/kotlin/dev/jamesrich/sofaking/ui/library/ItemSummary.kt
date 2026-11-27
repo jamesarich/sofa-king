@@ -286,7 +286,7 @@ private fun MetaLine(detail: MediaItemDetail) {
         item.rating?.let { add(stringResource(Res.string.library_rating, oneDecimal(it))) }
         if (item.genres.isNotEmpty()) add(item.genres.take(3).joinToString(", "))
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             parts.joinToString(DETAIL_SEPARATOR),
             style = MaterialTheme.typography.bodyLarge,

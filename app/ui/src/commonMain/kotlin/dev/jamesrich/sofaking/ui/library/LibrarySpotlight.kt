@@ -47,6 +47,8 @@ import dev.jamesrich.sofaking.resources.library_spotlight_resume
 import dev.jamesrich.sofaking.ui.LayoutProfile
 import dev.jamesrich.sofaking.ui.rememberAmbientTint
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaOnPicture
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import org.jetbrains.compose.resources.stringResource
 import kotlin.coroutines.coroutineContext
 
@@ -95,13 +97,13 @@ private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, in
     val artModifier = if (item.backdrop == null) Modifier.fillMaxSize().blur(POSTER_BLUR) else Modifier.fillMaxSize()
     Box(Modifier.fillMaxSize()) {
         if (art != null) {
-            Box(Modifier.fillMaxSize().background(Color.Black))
+            Box(Modifier.fillMaxSize().background(SofaScrim))
             AsyncImage(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = artModifier)
             // Dark scrims keep the text readable on any artwork in both themes.
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, SCRIM_BOTTOM))))
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(SCRIM_START, Color.Transparent))))
         }
-        val ink = if (art != null) Color.White else MaterialTheme.colorScheme.onSurface
+        val ink = if (art != null) SofaOnPicture else MaterialTheme.colorScheme.onSurface
         val padding = if (compact) {
             Modifier.padding(
                 16.dp,
@@ -195,5 +197,5 @@ internal fun rememberMotionEnabled(): Boolean {
 private const val FADE_MS = 400
 private val POSTER_BLUR = 24.dp
 private val TEXT_MAX_WIDTH = 640.dp
-private val SCRIM_BOTTOM = Color.Black.copy(alpha = 0.85f)
-private val SCRIM_START = Color.Black.copy(alpha = 0.6f)
+private val SCRIM_BOTTOM = SofaScrim.copy(alpha = 0.85f)
+private val SCRIM_START = SofaScrim.copy(alpha = 0.6f)

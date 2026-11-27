@@ -59,6 +59,7 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
 
@@ -211,7 +212,7 @@ internal fun BoxScope.VodInfoBar(
                 .onSizeChanged { parts.barHeight = with(density) { it.height.toDp() } }
                 .widthIn(max = 1200.dp)
                 .fillMaxWidth()
-                .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+                .overlaySurface()
                 .padding(BAR_CARD_PADDING),
             verticalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
         ) {

@@ -43,7 +43,10 @@ import dev.jamesrich.sofaking.resources.vod_tracks_title
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaOnPicture
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -130,7 +133,7 @@ internal fun BoxScope.TracksCard(
             .align(Alignment.TopEnd)
             .screenPadding()
             .width(420.dp)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(24.dp)
             .onAnyPointer(onActivity)
             .verticalScroll(rememberScrollState()),
@@ -225,12 +228,12 @@ internal fun BoxScope.SubtitleText(text: String, bottom: Dp, look: SubtitleLook 
         lineHeight = base.lineHeight * look.size.scale,
         shadow = if (look.box) null else SUBTITLE_SHADOW,
     )
-    val surface = if (look.box) Modifier.background(SofaOverlayScrim, MaterialTheme.shapes.small) else Modifier
+    val surface = if (look.box) Modifier.overlaySurface() else Modifier
     Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = bottom)) {
         Text(
             text,
             style = style,
-            color = if (look.box) MaterialTheme.colorScheme.onSurface else Color.White,
+            color = if (look.box) MaterialTheme.colorScheme.onSurface else SofaOnPicture,
             textAlign = TextAlign.Center,
             modifier = surface.padding(horizontal = 16.dp, vertical = 6.dp),
         )
@@ -245,4 +248,4 @@ internal val SubtitleRaise.height: Dp
         SubtitleRaise.HIGH -> 156.dp
     }
 
-private val SUBTITLE_SHADOW = Shadow(Color.Black, Offset(2f, 2f), blurRadius = 6f)
+private val SUBTITLE_SHADOW = Shadow(SofaScrim, Offset(2f, 2f), blurRadius = 6f)

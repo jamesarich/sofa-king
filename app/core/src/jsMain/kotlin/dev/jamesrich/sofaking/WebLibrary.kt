@@ -26,6 +26,7 @@ class WebLibrary internal constructor(private val parts: WebParts) {
                     it.libraryId,
                     it.items.toWeb(parts),
                     it.genres.toTypedArray(),
+                    it.letters.map { jump -> WebLetter(jump.letter, jump.offset) }.toTypedArray(),
                     it.total,
                     it.next != null,
                     it.loading,
@@ -57,6 +58,9 @@ class WebLibrary internal constructor(private val parts: WebParts) {
     }
 
     fun loadMore() = library.loadMore()
+
+    /** Loads pages until the grid holds the item at [offset], for a jump to a letter. */
+    fun loadThrough(offset: Int) = library.loadThrough(offset)
 
     fun setWatched(itemId: String, watched: Boolean) = library.setWatched(parts.item(itemId), watched)
 }

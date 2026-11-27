@@ -1,0 +1,53 @@
+product: jvm/app
+layout: maven-like
+
+dependencies:
+  - //contract
+  - $libs.kotlinx.serialization.json
+  - $libs.kotlinx.coroutines.core
+  - $libs.ktor.server.core
+  - $libs.ktor.client.core
+  - $libs.ktor.client.cio
+  - $libs.ktor.server.netty
+  - $libs.ktor.serialization.kotlinx.json
+  - $libs.ktor.server.content.negotiation
+  - $libs.ktor.server.status.pages
+  - $libs.ktor.server.compression
+  - $libs.ktor.server.conditional.headers
+  - $libs.ktor.server.body.limit
+  - $libs.ktor.server.rate.limit
+  - $libs.ktor.server.call.id
+  - $libs.ktor.server.cors
+  - $libs.ktor.server.call.logging
+  - $libs.ktor.server.partial.content
+  - $libs.ktor.server.sse
+  - $libs.exposed.core
+  - $libs.exposed.jdbc
+  - $libs.sqlite.jdbc
+  - $libs.kotlinx.html
+  - $libs.zxing.core
+  - $libs.jmdns
+  - $libs.mcp.kotlin.sdk.server
+  - $libs.logback.classic
+
+test-dependencies:
+  - $libs.junit.jupiter
+  - $libs.junit.platform.launcher: runtime-only
+  - $libs.kotlinx.coroutines.test
+  - $libs.ktor.server.test.host
+  - $libs.ktor.client.mock
+
+settings:
+  kotlin:
+    version: 2.5.0-RC
+    serialization:
+      enabled: true
+      version: 1.13.0
+  jvm:
+    mainClass: dev.jamesrich.sofaking.backend.MainKt
+    jdk:
+      version: 25
+    release: 21
+    test:
+      extraEnvironment:
+        SOFA_LOG_DAYS: "0"

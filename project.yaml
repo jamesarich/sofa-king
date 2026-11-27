@@ -1,0 +1,4 @@
+# Kotlin Toolchain spike (0.15 dev): the contract and the server only. Gradle still builds everything.
+modules:
+  - backend/server
+  - contract

@@ -268,6 +268,26 @@ internal data class Navigation(
         return live.push(Route.Player(guideId))
     }
 
+    /** The library whose grid is open on the Library tab while that tab is the open one. */
+    val libraryOpen: String?
+        get() = if (tab ==
+            Tab.LIBRARY
+        ) {
+            stack(tab).filterIsInstance<Route.LibraryGrid>().lastOrNull()?.libraryId
+        } else {
+            null
+        }
+
+    /**
+     * Opens [libraryId]'s grid on the Library tab, over the tab's first page and in place of whatever was open there:
+     * a library picked in the rail, so Back from it lands on the Library home.
+     */
+    fun openLibrary(libraryId: String): Navigation = copy(
+        tab = Tab.LIBRARY,
+        stacks = stacks + (Tab.LIBRARY to listOf(Tab.LIBRARY.root, Route.LibraryGrid(libraryId))),
+        arrival = Arrival(),
+    )
+
     /**
      * Opens [tab] where the viewer left it. Picking the open tab again closes its pages back to its first one, as
      * Material's navigation bar does.

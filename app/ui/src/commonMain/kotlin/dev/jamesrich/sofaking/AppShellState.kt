@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
+import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.ui.player.AutoplayRun
@@ -191,8 +192,12 @@ internal fun rememberAppShellState(): AppShellState {
     return remember { AppShellState(nav, history, launchDecided, settingsUnlocked) }
 }
 
-/** Which of Library and Recordings the header offers. */
-internal data class TabsOffered(val library: Boolean, val recordings: Boolean)
+/** Which of Library and Recordings the header offers, and the [libraries] a rail lists under Library. */
+internal data class TabsOffered(
+    val library: Boolean,
+    val recordings: Boolean,
+    val libraries: List<MediaLibrary> = emptyList(),
+)
 
 /**
  * The Library tab shows when the server's bootstrap says it serves libraries and it has at least one, and the
@@ -212,4 +217,5 @@ internal fun tabsOffered(
     },
     recordings = !kids &&
         (capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable)),
+    libraries = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries.orEmpty(),
 )

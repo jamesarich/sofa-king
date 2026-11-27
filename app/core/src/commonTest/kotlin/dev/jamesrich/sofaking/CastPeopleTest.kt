@@ -13,7 +13,7 @@ class CastPeopleTest {
         """{"id":"m1","libraryId":"movies","kind":"movie","title":"Alien","addedAt":"2026-10-10T13:00:00Z"}"""
 
     @Test
-    fun `the cast carry their roles, and their photos at the server's address`() = runTest {
+    fun `the cast carry their roles and their photos at the server's address`() = runTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/items/m1" ->

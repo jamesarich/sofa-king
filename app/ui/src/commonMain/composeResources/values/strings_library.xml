@@ -44,6 +44,7 @@
     <string name="library_sort_plays">Most played</string>
     <string name="library_filter_unwatched">Unwatched</string>
     <string name="library_genre_all">All genres</string>
+    <string name="library_collection_all">All collections</string>
     <string name="library_letter_jump">Jump to %1$s</string>
     <string name="library_play">Play</string>
     <string name="library_shuffle">Shuffle</string>

@@ -80,6 +80,9 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
         detail.children.length
             ? h('div', { class: 'shelf' }, h('h2', { text: item.kind === 'show' ? 'Seasons' : 'Episodes' }), h('div', { class: 'cards' }, ...detail.children.map((child) => card(child, 'child'))))
             : null,
+        detail.collectionItems.length
+            ? h('div', { class: 'shelf' }, h('h2', { text: detail.collection ?? 'Collection' }), h('div', { class: 'cards' }, ...detail.collectionItems.map((other) => card(other, 'collection'))))
+            : null,
         detail.related.length
             ? h('div', { class: 'shelf' }, h('h2', { text: 'More like this' }), h('div', { class: 'cards' }, ...detail.related.map((related) => card(related, 'related'))))
             : null,

@@ -60,6 +60,7 @@ fun Route.libraryRoutes(libraries: LibraryService) {
                 call.showsMusic(),
                 query["kind"],
                 query["favorite"] == "true",
+                query["collection"],
             ),
         )
     }

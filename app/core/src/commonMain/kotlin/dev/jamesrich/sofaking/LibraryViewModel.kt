@@ -58,7 +58,10 @@ sealed interface LibraryHomeState {
     data class Failed(val message: String, val signedOut: Boolean = false) : LibraryHomeState
 }
 
-/** One library's grid as far as it is loaded, only [genre] when set; [next] is null once every page is in. */
+/**
+ * One library's grid as far as it is loaded, only [genre] and only the movies of [collection] when set; [next] is null
+ * once every page is in.
+ */
 data class LibraryGrid(
     val libraryId: String,
     val sort: LibrarySort,
@@ -69,6 +72,9 @@ data class LibraryGrid(
     val items: List<MediaItem> = emptyList(),
     /** Every genre in the library, from the first page. */
     val genres: List<String> = emptyList(),
+    val collection: String? = null,
+    /** The names of the library's collections, from the first page. */
+    val collections: List<String> = emptyList(),
     /** Where each first letter starts, in title order; empty in any other order. */
     val letters: List<LetterJump> = emptyList(),
     val total: Int = 0,
@@ -95,9 +101,10 @@ interface LibraryBrowsing {
     fun refreshHome()
 
     /**
-     * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set and only [genre] when given.
-     * The grid already open with the same choices is kept as it is, so returning from an item lands where the viewer
-     * was; one in another order keeps the genres it knows while the new page loads. A Music library lists its [view].
+     * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set, only [genre] and only the
+     * movies of [collection] when given. The grid already open with the same choices is kept as it is, so returning
+     * from an item lands where the viewer was; one in another order keeps the genres and collections it knows while
+     * the new page loads. A Music library lists its [view].
      */
     fun openGrid(
         libraryId: String,
@@ -105,6 +112,7 @@ interface LibraryBrowsing {
         unwatched: Boolean = false,
         genre: String? = null,
         view: MusicView = MusicView.ARTISTS,
+        collection: String? = null,
     )
 
     /** Loads the grid's next page, or retries the one that failed; nothing while a page loads or all are in. */
@@ -310,8 +318,14 @@ internal class LibraryBrowser(
 
     override fun refreshHome() = shelves.refresh()
 
-    override fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?, view: MusicView) =
-        grids.open(libraryId, sort, unwatched, genre, view)
+    override fun openGrid(
+        libraryId: String,
+        sort: LibrarySort,
+        unwatched: Boolean,
+        genre: String?,
+        view: MusicView,
+        collection: String?,
+    ) = grids.open(libraryId, sort, unwatched, genre, view, collection)
 
     override fun loadMore() = grids.loadMore()
 

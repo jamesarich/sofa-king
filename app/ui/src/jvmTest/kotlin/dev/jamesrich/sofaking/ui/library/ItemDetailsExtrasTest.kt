@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.data.ExtraKind
 import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.MediaCollection
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -89,6 +90,40 @@ class ItemDetailsExtrasTest {
         waitForIdle()
         onNode(hasContentDescription("Prometheus, 2012")).assertIsFocused()
     }
+
+    @Test
+    fun `a movie in a collection lists the collection's other movies, and back from one lands on it`() =
+        runSkikoComposeUiTest(Size(1920f, 3000f), Density(1f)) {
+            val opened = mutableListOf<String>()
+            val aliens = MediaItem("m3", "movies", ItemKind.MOVIE, "Aliens", year = 1986)
+            val inCollection = detail.copy(
+                collection = MediaCollection("Alien Collection", listOf(movie, aliens)),
+                // One that is also like it takes focus in the collection's row, the one above.
+                related = detail.related + aliens,
+            )
+            assertEquals(listOf(aliens), collectionRow(inCollection), "the movie itself is not listed again")
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        ItemDetailsScreen(
+                            ItemDetailState.Ready(inCollection),
+                            season = null,
+                            selectedSeasonId = null,
+                            actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}, onOpenItem = {
+                                opened += it.id
+                            }),
+                            returnedFrom = "m3",
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+            onAllNodesWithText("Alien Collection").assertCountEquals(1)
+            onAllNodes(hasContentDescription("Aliens, 1986")).assertCountEquals(2)
+            onAllNodes(hasContentDescription("Aliens, 1986"))[0].assertIsFocused()
+            onAllNodes(hasContentDescription("Aliens, 1986"))[0].performClick()
+            assertEquals(listOf("m3"), opened)
+        }
 
     @Test
     fun `a page with no extras or related titles shows neither row`() =

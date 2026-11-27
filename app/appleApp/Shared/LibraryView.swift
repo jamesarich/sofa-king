@@ -218,7 +218,8 @@ private struct SpotlightContent: View {
     }
 }
 
-/// One library as a grid of posters, with its sort order, an Unwatched filter and a genre; more load as it scrolls.
+/// One library as a grid of posters, with its sort order, an Unwatched filter, a genre and, where the library has
+/// any, a collection; more load as it scrolls.
 struct LibraryGridView: View {
     @Environment(AppModel.self) private var model
     let library: MediaLibrary
@@ -227,6 +228,7 @@ struct LibraryGridView: View {
     @State private var sort: LibrarySort = .title
     @State private var unwatched = false
     @State private var genre: String?
+    @State private var collection: String?
 
     private static let sorts: [(LibrarySort, String)] = [(.title, "Title"), (.added, "Added"), (.year, "Year"), (.rating, "Rating"), (.watched, "Watched")]
     /// A music library's artists, by name or by when they were added.
@@ -251,6 +253,14 @@ struct LibraryGridView: View {
                             Button("All genres") { genre = nil }
                             ForEach(genres, id: \.self) { option in
                                 Button(option) { genre = option }
+                            }
+                        }
+                    }
+                    if let collections = shown?.collections, !collections.isEmpty {
+                        Menu(collection ?? "All collections") {
+                            Button("All collections") { collection = nil }
+                            ForEach(collections, id: \.self) { option in
+                                Button(option) { collection = option }
                             }
                         }
                     }
@@ -291,10 +301,11 @@ struct LibraryGridView: View {
         .onChange(of: sort) { open() }
         .onChange(of: unwatched) { open() }
         .onChange(of: genre) { open() }
+        .onChange(of: collection) { open() }
     }
 
     private func open() {
-        model.core.openGrid(libraryId: library.id, sort: sort, unwatched: unwatched, genre: genre)
+        model.core.openGrid(libraryId: library.id, sort: sort, unwatched: unwatched, genre: genre, collection: collection)
     }
 }
 

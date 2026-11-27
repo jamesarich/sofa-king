@@ -138,6 +138,8 @@ class WebGrid(
     val hasMore: Boolean,
     val loading: Boolean,
     val error: String?,
+    /** The names of the library's collections, for a filter; empty in a library with none. */
+    val collections: Array<String>,
 )
 
 @JsExport
@@ -153,6 +155,9 @@ class WebItemDetail(
     val related: Array<WebItem>,
     /** The cast with their roles and photos, where the server knows any; empty when [cast] is all there is. */
     val people: Array<WebCastPerson>,
+    /** The name of the collection a movie is part of, and the collection's other movies in release order. */
+    val collection: String?,
+    val collectionItems: Array<WebItem>,
 )
 
 /** One of an item's cast: the role they play and their photo's address, either of which may be missing. */
@@ -275,4 +280,6 @@ internal fun WebParts.toWeb(detail: MediaItemDetail) = WebItemDetail(
     detail.item.genres.toTypedArray(),
     detail.related.toWeb(this),
     detail.people.map { WebCastPerson(it.name, it.role, it.photo) }.toTypedArray(),
+    detail.collection?.name,
+    detail.collection?.items.orEmpty().filter { it.id != detail.item.id }.toWeb(this),
 )

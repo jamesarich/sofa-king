@@ -118,7 +118,11 @@ internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val cr
     val credits: TmdbCredits? = null,
     @SerialName("release_dates") val releaseDates: TmdbReleases? = null,
     @SerialName("imdb_id") val imdbId: String? = null,
+    @SerialName("belongs_to_collection") val collection: TmdbCollection? = null,
 )
+
+/** The series a movie is part of, such as `Alien Collection`. */
+@Serializable internal data class TmdbCollection(val name: String = "")
 
 @Serializable internal data class TmdbShow(
     val id: Int,

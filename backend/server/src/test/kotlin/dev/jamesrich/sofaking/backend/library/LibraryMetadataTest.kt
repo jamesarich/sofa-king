@@ -92,6 +92,7 @@ class LibraryMetadataTest {
                 "/movie/348" to
                     """{"id":348,"title":"Alien","release_date":"1979-05-25","overview":"In space.","genres":[{"name":"Horror"}],"vote_average":8.149,
                 "poster_path":"/poster.jpg","backdrop_path":"/back.jpg",
+                "belongs_to_collection":{"id":8091,"name":"Alien Collection","poster_path":"/c.jpg"},
                 "credits":{"cast":[{"name":"Sigourney Weaver","character":"Ripley","profile_path":"/weaver.jpg"},
                   {"name":"Tom Skerritt","character":""}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
                 "release_dates":{"results":[
@@ -114,6 +115,7 @@ class LibraryMetadataTest {
             facts.facts?.credits,
         )
         assertEquals("/poster.jpg", facts.facts?.poster)
+        assertEquals("Alien Collection", facts.facts?.collection)
         assertEquals(listOf("/search/movie?Alien", "/movie/348"), calls)
 
         // Fresh lookups are not repeated on the next scan.

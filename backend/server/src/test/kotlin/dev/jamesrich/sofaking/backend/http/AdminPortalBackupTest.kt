@@ -62,7 +62,7 @@ class AdminPortalBackupTest : AdminPortalCase() {
             val csrf = field(browser.get("/admin/system/backup").bodyAsText(), "csrf")
             browser.post("/admin/system/backup/take", "csrf" to csrf)
             val backup = runtime.backups!!.list().single()
-            val bytes = Files.readAllBytes(runtime.backups!!.file(backup.name)!!)
+            val bytes = Files.readAllBytes(runtime.backups.file(backup.name)!!)
 
             suspend fun upload(token: String, confirm: Boolean, content: ByteArray) = browser.submitFormWithBinaryData(
                 "/admin/system/backup/upload",

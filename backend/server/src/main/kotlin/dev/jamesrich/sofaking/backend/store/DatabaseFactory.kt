@@ -79,7 +79,7 @@ internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPool
     @Synchronized private fun drop(broken: PooledConnection) {
         if (pooled !== broken) return
         pooled = null
-        runCatching { broken.close() }
+        val _ = runCatching { broken.close() }
     }
 
     @Synchronized override fun close() {

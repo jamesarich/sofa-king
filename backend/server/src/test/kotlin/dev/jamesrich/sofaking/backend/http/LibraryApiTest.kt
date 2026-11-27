@@ -344,7 +344,7 @@ class LibraryApiTest {
         try {
             val name = if (kind == LibraryKind.SHOWS) "TV" else "Movies"
             val library = runtime.libraries!!.create(name, kind, folder.toString())
-            runtime.libraries!!.scan(library.id)
+            runtime.libraries.scan(library.id)
             application { backendModule(store, clock, runtime, token, config = config) }
             Lib(this, dir, store, runtime, clock, library).block()
         } finally {

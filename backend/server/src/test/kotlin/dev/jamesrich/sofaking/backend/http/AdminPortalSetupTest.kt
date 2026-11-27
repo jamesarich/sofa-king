@@ -136,7 +136,7 @@ class AdminPortalSetupTest : AdminPortalCase() {
                     restarting.take(600),
                 )
                 assertEquals(1, restarts)
-                val written = runtime.setup!!.document()
+                val written = runtime.setup.document()
                 assertEquals(
                     listOf("fixture", "alt", "twin", "ts", "whale", "pluto"),
                     written.providers.map { it.id },
@@ -148,7 +148,7 @@ class AdminPortalSetupTest : AdminPortalCase() {
                 assertEquals(HttpStatusCode.OK, removed.status)
                 assertEquals(
                     listOf("fixture", "twin", "ts", "whale", "pluto"),
-                    runtime.setup!!.document().providers.map { it.id },
+                    runtime.setup.document().providers.map { it.id },
                 )
                 assertEquals(1, restarts, "one restart is pending for every write")
             }
@@ -186,9 +186,9 @@ class AdminPortalSetupTest : AdminPortalCase() {
                     "starter" to "on",
                     "confirm" to "yes",
                 ).bodyAsText()
-                assertTrue(saved.contains("and the starter lineup to ${runtime.setup!!.policyPath}"), saved.take(800))
+                assertTrue(saved.contains("and the starter lineup to ${runtime.setup.policyPath}"), saved.take(800))
                 assertEquals(1, restarts)
-                val policy = Json.parseToJsonElement(Files.readString(runtime.setup!!.policyPath)).jsonObject
+                val policy = Json.parseToJsonElement(Files.readString(runtime.setup.policyPath)).jsonObject
                 assertEquals(
                     listOf("pluto", "fixture", "alt", "twin", "ts"),
                     policy["providers"]!!.jsonArray.map {

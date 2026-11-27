@@ -92,7 +92,7 @@ class SteadyPlaylists(private val limit: Int = 16, private val holdLapses: Boole
             recent.addAll(window.uris)
             val excess = recent.iterator()
             repeat(recent.size - RECENT) {
-                excess.next()
+                val _ = excess.next()
                 excess.remove()
             }
             return text

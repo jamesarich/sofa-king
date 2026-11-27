@@ -18,7 +18,7 @@ internal fun atomicWrite(path: Path, bytes: ByteArray, sync: Boolean = true) {
     val directory = path.toAbsolutePath().parent
     val temp = Files.createTempFile(directory, ".${path.fileName}.", ".tmp")
     try {
-        runCatching { Files.setPosixFilePermissions(temp, Files.getPosixFilePermissions(path)) }
+        val _ = runCatching { Files.setPosixFilePermissions(temp, Files.getPosixFilePermissions(path)) }
         FileChannel.open(temp, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING).use { channel ->
             val buffer = ByteBuffer.wrap(bytes)
             while (buffer.hasRemaining()) channel.write(buffer)
@@ -26,7 +26,9 @@ internal fun atomicWrite(path: Path, bytes: ByteArray, sync: Boolean = true) {
         }
         Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         // The rename is durable only once the directory entry is; not every platform can open a directory.
-        if (sync) runCatching { FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) } }
+        if (sync) {
+            val _ = runCatching { FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) } }
+        }
     } finally {
         Files.deleteIfExists(temp)
     }

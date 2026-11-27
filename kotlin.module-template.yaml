@@ -3,6 +3,8 @@
 # them in the same pull request as the catalog (renovate.json).
 settings:
   kotlin:
+    # A compiler warning fails the build, as sofaking.warningsAsErrors does for the app: fix it or opt in to the API it names.
+    allWarningsAsErrors: true
     # renovate: datasource=maven depName=org.jetbrains.kotlin:kotlin-stdlib
     version: 2.5.0-RC
     serialization:

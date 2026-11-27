@@ -31,6 +31,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -126,6 +127,7 @@ class Dvr(
      * Runs the scheduler on guide imports, rule changes and every [SCHEDULE_EVERY], and starts
      * and ends recordings every [TICK].
      */
+    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): List<Job> {
         this.scope = scope
         return listOfNotNull(

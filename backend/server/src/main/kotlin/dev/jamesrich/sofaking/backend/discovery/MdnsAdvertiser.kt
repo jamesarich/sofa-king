@@ -51,7 +51,9 @@ class MdnsAdvertiser(
     @Synchronized internal fun refresh() {
         if (closed) return
         val found = runCatching(addresses).getOrElse { emptyList() }.toSet()
-        (responders.keys - found).forEach { address -> responders.remove(address)?.let { runCatching { it.close() } } }
+        (responders.keys - found).forEach { address ->
+            responders.remove(address)?.let { val _ = runCatching { it.close() } }
+        }
         failed.retainAll(found)
         for (address in found - responders.keys) {
             runCatching { responders[address] = responder(address) }
@@ -83,7 +85,7 @@ class MdnsAdvertiser(
     @Synchronized override fun close() {
         closed = true
         rescans?.shutdownNow()
-        responders.values.forEach { runCatching { it.close() } }
+        responders.values.forEach { val _ = runCatching { it.close() } }
         responders.clear()
     }
 
@@ -113,7 +115,7 @@ class MdnsAdvertiser(
         private fun register(address: InetAddress, name: String, port: Int, version: String): AutoCloseable {
             val jmdns = JmDNS.create(address, HOST_NAME)
             runCatching { jmdns.registerService(serviceInfo(name, port, version)) }
-                .onFailure { runCatching { jmdns.close() } }
+                .onFailure { val _ = runCatching { jmdns.close() } }
                 .getOrThrow()
             return AutoCloseable {
                 jmdns.unregisterAllServices()

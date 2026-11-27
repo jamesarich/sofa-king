@@ -75,7 +75,7 @@ private fun guideMatchErrors(policy: LineupPolicy): List<String> = buildList {
 private fun patternErrors(value: String, where: String): List<String> {
     if (!fits(value, NAME_LIMIT)) return listOf("$where: patterns must be 1 to $NAME_LIMIT characters")
     return try {
-        Regex(value)
+        val _ = Regex(value)
         emptyList()
     } catch (e: PatternSyntaxException) {
         listOf("$where: invalid pattern ${e.message?.lineSequence()?.firstOrNull()}")

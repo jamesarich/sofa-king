@@ -168,23 +168,23 @@ class WireFixturesTest {
         fun nulls(element: JsonElement): Set<String> = (element as JsonObject).filterValues { it is JsonNull }.keys
 
         val recordings = Json.parseToJsonElement(fixture("v1/recording-list.json")).jsonObject
-        strict.decodeFromJsonElement<RecordingList>(recordings)
+        val _ = strict.decodeFromJsonElement<RecordingList>(recordings)
         val recording = recordings["recordings"]!!.jsonArray.single()
         assertEquals(emptySet(), nulls(recording))
         assertEquals(emptySet(), nulls(recording.jsonObject["breaks"]!!.jsonArray.single()))
         assertEquals(emptySet(), nulls(recordings["storage"]!!))
 
         val rules = Json.parseToJsonElement(fixture("v1/recording-rule-list.json"))
-        strict.decodeFromJsonElement<RecordingRuleList>(rules)
+        val _ = strict.decodeFromJsonElement<RecordingRuleList>(rules)
         assertEquals(emptySet(), nulls(rules.jsonObject["rules"]!!.jsonArray.single()))
 
         val item = Json.parseToJsonElement(fixture("v1/library-item.json"))
-        strict.decodeFromJsonElement<LibraryItem>(item)
+        val _ = strict.decodeFromJsonElement<LibraryItem>(item)
         assertEquals(emptySet(), nulls(item))
         assertEquals(emptySet(), nulls(item.jsonObject["playState"]!!))
-        strict.decodeFromJsonElement<List<Library>>(Json.parseToJsonElement(fixture("v1/libraries.json")))
+        val _ = strict.decodeFromJsonElement<List<Library>>(Json.parseToJsonElement(fixture("v1/libraries.json")))
         val facts = Json.parseToJsonElement(fixture("v1/program-facts.json"))
-        strict.decodeFromJsonElement<ProgramFacts>(facts)
+        val _ = strict.decodeFromJsonElement<ProgramFacts>(facts)
         assertEquals(emptySet(), nulls(facts))
     }
 

@@ -178,8 +178,8 @@ class UpdateCheckerTest {
             assertNull(state.published)
             assertNull(state.current)
             assertNotNull(state.error)
-            assertTrue(state.error!!.contains("503"), state.error)
-            assertFalse(state.error!!.contains("ghcr.io"))
+            assertTrue(state.error.contains("503"), state.error)
+            assertFalse(state.error.contains("ghcr.io"))
             assertEquals(false, jobs.snapshot().single().lastOk)
         }
         dir.toFile().deleteRecursively()

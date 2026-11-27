@@ -134,7 +134,7 @@ class SessionPreemptionTest {
             sessions.external.open(channel, "DVR", shareable = false, preempt = true, hold = true)
             val failure = assertFailsWith<ApiFailure> { sessions.update(watcher.id, UpdatePlayback()) }
             assertEquals(Wire.ErrorCode.SESSION_PREEMPTED, failure.code)
-            assertTrue(failure.message!!.contains(catalog.catalog().channels.single().name), failure.message)
+            assertTrue(failure.message.contains(catalog.catalog().channels.single().name), failure.message)
             assertEquals(Wire.ErrorCode.SESSION_PREEMPTED, sessions.media.letGo(watcher.id).code)
             sessions.close()
         }

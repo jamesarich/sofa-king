@@ -89,7 +89,7 @@ class AdminPortalWantedTest : AdminPortalCase() {
 
             val done = browser.post("/admin/recordings/wanted/rec-later/delete", "csrf" to csrf, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, done.status)
-            assertTrue(runtime.dvr!!.recordings().recordings.none { it.id == "rec-later" })
+            assertTrue(runtime.dvr.recordings().recordings.none { it.id == "rec-later" })
         }
     }
 

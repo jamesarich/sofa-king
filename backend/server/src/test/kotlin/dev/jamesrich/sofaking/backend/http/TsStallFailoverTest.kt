@@ -37,6 +37,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TsStallFailoverTest {
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val token = "secret".repeat(8)
 
     @Test fun `an MPEG-TS source that goes silent past the grace moves the session on and the old epoch gets a 410`() =
@@ -79,7 +81,7 @@ class TsStallFailoverTest {
             server = RealServer(store, MutableClock(), runtime, token, hdhr = hdhr)
 
             HttpClient(CIO).use { http ->
-                val session = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+                val session = json.decodeFromString<PlaybackSession>(
                     http.post("${server.base}/api/v1/playback-sessions") {
                         bearerAuth(token)
                         header(Wire.Header.PLAYBACK_PROTOCOLS, "hls, mpegts")

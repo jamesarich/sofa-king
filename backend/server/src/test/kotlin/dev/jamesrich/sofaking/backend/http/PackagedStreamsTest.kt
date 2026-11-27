@@ -40,6 +40,8 @@ import kotlin.test.assertTrue
 
 /** An MPEG-TS channel for an app session: the server packages it as HLS unless the client asks for the TS. */
 class PackagedStreamsTest {
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val token = "secret".repeat(8)
 
     /** Runs [block] on a server whose one channel, `TS`, is an MPEG-TS source, with [appStreams] set. */
@@ -143,7 +145,7 @@ class PackagedStreamsTest {
     @Test fun `the session carries the lead its player's last playlist gave it`() = withTsChannel { channel, _ ->
         val session = open(channel, "lead", "hls")
         assertEquals(null, session.liveLeadMs, "no playlist has gone out when a session opens")
-        suspend fun lead() = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+        suspend fun lead() = json.decodeFromString<PlaybackSession>(
             client.get("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }.bodyAsText(),
         ).liveLeadMs
         var checked = 0
@@ -209,7 +211,7 @@ class PackagedStreamsTest {
         channel: String,
         key: String,
         protocols: String?,
-    ): PlaybackSession = Json { ignoreUnknownKeys = true }.decodeFromString(
+    ): PlaybackSession = json.decodeFromString(
         client.post("/api/v1/playback-sessions") {
             bearerAuth(token)
             contentType(ContentType.Application.Json)

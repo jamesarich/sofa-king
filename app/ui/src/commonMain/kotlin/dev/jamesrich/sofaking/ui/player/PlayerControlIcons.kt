@@ -11,7 +11,12 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.player_control_exit_full_screen
 import dev.jamesrich.sofaking.resources.player_control_full_screen
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -42,7 +49,9 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The center
- * touch control is [primary], Material's medium icon button; the others are [CONTROL_SIZE] tonal buttons.
+ * touch control is [primary], Material's medium icon button; the others are [CONTROL_SIZE] tonal buttons. A mouse
+ * resting on it or a long touch shows the label as a tooltip; a remote reads the focused button's name under its row
+ * instead ([PlayerButtonRow]), so focus alone shows none.
  */
 @Composable
 internal fun ControlIcon(
@@ -52,19 +61,28 @@ internal fun ControlIcon(
     modifier: Modifier = Modifier,
     primary: Boolean = false,
 ) {
-    if (primary) {
-        FilledIconButton(
-            onClick = onClick,
-            modifier = modifier.size(IconButtonDefaults.mediumContainerSize()).tvFocus(IconButtonDefaults.filledShape),
-        ) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
-        }
-    } else {
-        FilledTonalIconButton(
-            onClick = onClick,
-            modifier = modifier.size(CONTROL_SIZE).tvFocus(IconButtonDefaults.filledShape),
-        ) {
-            Icon(icon, contentDescription = label)
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+        enableUserInput = LocalLastInput.current.kind == InputKind.POINTER,
+    ) {
+        if (primary) {
+            FilledIconButton(
+                onClick = onClick,
+                modifier = modifier
+                    .size(IconButtonDefaults.mediumContainerSize())
+                    .tvFocus(IconButtonDefaults.filledShape),
+            ) {
+                Icon(icon, contentDescription = label, modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
+            }
+        } else {
+            FilledTonalIconButton(
+                onClick = onClick,
+                modifier = modifier.size(CONTROL_SIZE).tvFocus(IconButtonDefaults.filledShape),
+            ) {
+                Icon(icon, contentDescription = label)
+            }
         }
     }
 }

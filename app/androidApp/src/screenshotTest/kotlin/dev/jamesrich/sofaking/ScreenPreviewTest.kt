@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.android.tools.screenshot.PreviewTest
+import dev.jamesrich.sofaking.data.Appearance
+import dev.jamesrich.sofaking.previews.DesignSystemPreview
 import dev.jamesrich.sofaking.previews.GuidePreview
 import dev.jamesrich.sofaking.previews.LibraryHomePreview
 import dev.jamesrich.sofaking.previews.LiveBarPreview
@@ -141,3 +143,21 @@ private fun NowPlayingNarrow() = NowPlayingPreview(tv = false)
 @Preview(device = TV)
 @Composable
 private fun NowPlayingTv() = NowPlayingPreview(tv = true)
+
+/** A phone tall enough for the whole design system page. */
+private const val GALLERY = "spec:width=411dp,height=1200dp,dpi=420"
+
+@PreviewTest
+@Preview(device = TV)
+@Composable
+private fun DesignSystemTv() = DesignSystemPreview(tv = true)
+
+@PreviewTest
+@Preview(device = GALLERY)
+@Composable
+private fun DesignSystemLight() = DesignSystemPreview(tv = false, appearance = Appearance.LIGHT)
+
+@PreviewTest
+@Preview(device = GALLERY)
+@Composable
+private fun DesignSystemPrevue() = DesignSystemPreview(tv = false, appearance = Appearance.PREVUE)

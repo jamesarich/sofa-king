@@ -36,6 +36,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 
 ## UI
 
+- Follow the [design system](docs/design-system.md): colors, shapes and text styles from `MaterialTheme`, spacing in multiples of 4dp, `Modifier.overlaySurface()` inside `OverVideo` for anything over the picture, and a new token or shared component added to `theme/`, `DesignSystemPreview` and that page. `DesignSystemTest` fails on a color value, corner radius, font size or unnamed duration written in a screen.
 - Use multiplatform Material 3 Expressive components under `SofaKingTheme`. Add `tvFocus` (or use `SofaButton`) to every focusable control; guide cells and Settings rows keep scale 1. A switch setting is a `ListItem` made `toggleable` so the whole row takes focus; a choice of a few values is a `SingleChoiceSegmentedButtonRow`.
 - Support the five-way D-pad and its keyboard equivalents. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The header's buttons never keep focus once channels are on screen, except after Back from another tab or leaving Settings (`Arrival.inHeader`). The unconfigured screen focuses the header's Settings button (`homeFocusFor`).
 - Pad screens with `screenPadding` (`ui/Adaptive.kt`: 48dp horizontal and 27dp vertical overscan on TV, safe-drawing insets elsewhere); never hard-code the margins.
@@ -46,7 +47,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 - Decide Back in the guide in `guideBackAction`, never in a second `BackHandler`; take the remote's Back key in the guide's preview key handler (key-down held, climb on key-up), since Compose turns an unhandled Back key-down into a focus exit that can eat the press. There is no press-again step. The ladder is in [usage](docs/usage.md).
 - Navigate with `Navigation`'s moves (`push`, `pop`, `open`, `closeSettings`), never by holding a parent page in a `Route`: the entry below is the parent. One-shot arrival data goes in `Arrival`, and a `Route`'s `id` names its saved state, so it must not change while the page is open.
 - Keep models immutable. Read time from rememberMinuteNow, not the clock during composition; rest timers read `uptimeMs`.
-- Use theme colors, shared motion and Compose resource strings in US English, without Android escapes (`\'`). UI terminology is "program".
+- Use shared motion (`ui/Motion.kt`, `MaterialTheme.motionScheme`) and Compose resource strings in US English, without Android escapes (`\'`). UI terminology is "program".
 
 ## Playback and data
 

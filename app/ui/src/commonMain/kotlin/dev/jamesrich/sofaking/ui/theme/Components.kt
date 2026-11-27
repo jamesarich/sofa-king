@@ -88,6 +88,9 @@ import kotlin.math.roundToInt
 /** How much a focused control grows, as TV focus does; a guide cell passes 1 so it never covers its neighbors. */
 const val TV_FOCUS_SCALE = 1.1f
 
+/** How thick the focus ring is: thick enough to find from a sofa, drawn inside the control's bounds. */
+internal val TV_FOCUS_RING_WIDTH = 3.dp
+
 /**
  * A D-pad focus cue for Material components, whose own focus state layer is too faint across a room: the control
  * scales by [focusedScale] on the theme's spatial spring and draws an outline ring in [shape] while it has focus.
@@ -202,7 +205,7 @@ private class TvFocusNode(
         drawContent()
         if (!focused) return
         // The layer placed in measure scales the ring with the content.
-        val stroke = 3.dp.toPx()
+        val stroke = TV_FOCUS_RING_WIDTH.toPx()
         val inset = stroke / 2
         val outline = shape.createOutline(Size(size.width - stroke, size.height - stroke), layoutDirection, this)
         translate(inset, inset) { drawOutline(outline, ring, style = Stroke(stroke)) }

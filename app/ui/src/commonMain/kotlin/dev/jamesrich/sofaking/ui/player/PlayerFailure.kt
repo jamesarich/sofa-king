@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.resources.player_code_label
 import dev.jamesrich.sofaking.resources.player_retry_in
 import dev.jamesrich.sofaking.resources.player_retry_now
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 
 /** The [FailureCard] code for [e]: the server's error code, or `SESSION_UNAVAILABLE` when the server gave none. */
@@ -37,7 +38,7 @@ internal fun BoxScope.FailureCard(code: String, live: Boolean = true, retryInSec
     Column(
         Modifier
             .align(Alignment.Center)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),

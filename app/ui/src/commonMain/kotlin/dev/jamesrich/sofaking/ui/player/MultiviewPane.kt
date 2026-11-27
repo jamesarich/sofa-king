@@ -37,6 +37,7 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -114,7 +115,7 @@ private fun BoxScope.PaneNote(text: String, modifier: Modifier = Modifier) {
     Box(modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
         Text(
             text,
-            Modifier.padding(12.dp).background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(12.dp, 8.dp),
+            Modifier.padding(12.dp).overlaySurface().padding(12.dp, 8.dp),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
@@ -128,7 +129,7 @@ private fun BoxScope.PaneLabel(channel: Channel, program: String?, sound: Boolea
         Modifier
             .align(Alignment.TopStart)
             .padding(12.dp)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,

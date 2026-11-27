@@ -21,8 +21,9 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_watched
 import dev.jamesrich.sofaking.ui.ProgressBar
-import dev.jamesrich.sofaking.ui.theme.SofaAmber
+import dev.jamesrich.sofaking.ui.theme.SofaOnPictureAccent
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */
@@ -47,17 +48,17 @@ internal fun BoxScope.ItemMarks(item: MediaItem) {
         )
     }
     if (progress != null && progress.inProgress) {
-        progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter), SofaAmber) }
+        progress.fraction?.let { ProgressBar(it, Modifier.align(Alignment.BottomCenter), SofaOnPictureAccent) }
     }
 }
 
 @Composable
 internal fun WatchedTick(modifier: Modifier = Modifier) {
-    Box(modifier.size(28.dp).background(SofaOverlayScrim, CircleShape), contentAlignment = Alignment.Center) {
+    Box(modifier.size(28.dp).overlaySurface(CircleShape), contentAlignment = Alignment.Center) {
         Icon(
             Icons.Filled.Check,
             contentDescription = stringResource(Res.string.library_watched),
-            tint = SofaAmber,
+            tint = SofaOnPictureAccent,
             modifier = Modifier.size(20.dp),
         )
     }

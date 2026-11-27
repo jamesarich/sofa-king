@@ -60,6 +60,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -351,7 +352,7 @@ private fun PaneHint(modifier: Modifier = Modifier) {
     val pointer = LocalLastInput.current.kind == InputKind.POINTER
     Text(
         stringResource(if (pointer) Res.string.multiview_touch_hint else Res.string.multiview_keys_hint),
-        modifier.screenPadding().background(SofaOverlayScrim, MaterialTheme.shapes.small).padding(HINT_PADDING),
+        modifier.screenPadding().overlaySurface().padding(HINT_PADDING),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurface,
     )

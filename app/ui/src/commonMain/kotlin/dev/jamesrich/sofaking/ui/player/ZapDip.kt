@@ -32,6 +32,8 @@ import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.rememberMotionEnabled
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 
@@ -81,7 +83,7 @@ internal fun ZapDip(zaps: Int, allowed: Boolean, newStreamPlaying: () -> Boolean
         while (zapDipHolds(uptimeMs() - start, playing())) withFrameNanos {}
         alpha.animateTo(0f, tween(ZAP_DIP_FADE_MS))
     }
-    Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }.background(Color.Black))
+    Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }.background(SofaScrim))
 }
 
 /** The [ZapDip] for the live player's channel changes; [playing] says whether the stream plays now. */
@@ -125,7 +127,7 @@ internal fun BoxScope.ZapNumber(zaps: Int, number: String, typing: Boolean) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .screenPadding()
-                .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+                .overlaySurface()
                 .padding(horizontal = 24.dp)
                 .clearAndSetSemantics {},
         )

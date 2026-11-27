@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.ui.WIDESCREEN
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -108,7 +109,7 @@ internal fun BoxScope.CornerCard(modifier: Modifier = Modifier, content: @Compos
             .align(Alignment.BottomEnd)
             .screenPadding()
             .width(420.dp)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(16.dp)
             .then(modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp),

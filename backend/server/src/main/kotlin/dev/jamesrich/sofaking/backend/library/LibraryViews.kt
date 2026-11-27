@@ -145,6 +145,7 @@ private class MusicParents(records: List<LibraryItemRecord>, facts: Map<String, 
             similar = facts?.similar.orEmpty().takeIf { record.kind == ItemKind.ARTIST }.orEmpty()
                 .mapNotNull(artists::get).filter { it != record.id }.distinct(),
             popular = popular(record, facts),
+            credits = view.credits,
         )
     }
 }
@@ -195,6 +196,7 @@ private fun arranged(
             view.backdrop,
             view.similar,
             view.popular,
+            view.credits,
         )
     }
     fun List<View>.fresh() = map { counted.getValue(it.record.id) }
@@ -245,7 +247,10 @@ private fun itemView(
         extra = record.details?.extra?.takeIf { record.kind == ItemKind.EXTRA },
         tmdbId = ids.tmdb, tvdbId = ids.tvdb, imdbId = ids.imdb,
     )
-    return View(record, item, text.tagline, text.studio, text.cast, text.directors, art.poster, art.backdrop)
+    return View(
+        record, item, text.tagline, text.studio, text.cast, text.directors, art.poster, art.backdrop,
+        credits = text.credits,
+    )
 }
 
 /**
@@ -272,6 +277,16 @@ private class ItemText(record: LibraryItemRecord, facts: MetadataFacts?) {
     val genres = first(details?.genres, facts?.genres)
     val cast = first(details?.cast, facts?.cast)
     val directors = first(details?.directors, facts?.directors)
+
+    /**
+     * The [cast] with their roles and photos: a `.nfo` names the role, TMDB's credits the role it lacks and the photo
+     * of anyone it names too.
+     */
+    val credits: List<Credit> = run {
+        val known = facts?.credits.orEmpty().associateBy { it.name }
+        val roles = details?.roles.orEmpty()
+        cast.map { name -> Credit(name, roles[name].takeIf { nfo } ?: known[name]?.role, known[name]?.photo) }
+    }
 
     private fun <T> first(own: T?, tmdb: T?): T? = if (nfo && own != null) own else tmdb ?: own
 

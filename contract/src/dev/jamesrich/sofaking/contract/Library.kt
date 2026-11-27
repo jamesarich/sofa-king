@@ -129,6 +129,11 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
 @Serializable data class MediaSegment(val kind: String, val startMs: Long, val endMs: Long)
 
 /**
+ * One of an item's cast: the [role] they play, when the server knows it, and a [photo] of them the server serves.
+ */
+@Serializable data class CastMember(val name: String, val role: String? = null, val photo: String? = null)
+
+/**
  * An item with what its page shows: for a show its seasons, for a season or a show without seasons its episodes,
  * for a show the episode to play [next]; for a file its tracks and the [segments] the server found in it, such as
  * an episode's intro.
@@ -141,6 +146,8 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
     val studio: String? = null,
     val cast: List<String> = emptyList(),
     val directors: List<String> = emptyList(),
+    /** The [cast] again, in the same order, each with the role they play and a photo where the server has them. */
+    val people: List<CastMember> = emptyList(),
     val audio: List<MediaTrack> = emptyList(),
     val subtitles: List<MediaTrack> = emptyList(),
     val container: String? = null,

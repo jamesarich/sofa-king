@@ -76,6 +76,8 @@ data class ItemDetails(
     val contentRating: String? = null,
     val rating: Double? = null,
     val cast: List<String> = emptyList(),
+    /** The roles a `.nfo` gives its [cast], by name. */
+    val roles: Map<String, String> = emptyMap(),
     val directors: List<String> = emptyList(),
     /** The TMDB id a `.nfo` or a `{tmdb-N}` tag in the name gives; it pins the TMDB match. */
     val tmdbId: Int? = null,
@@ -148,6 +150,19 @@ data class ScanResult(
 }
 
 /**
+ * One of the cast as TMDB credits them: the [role] they play and TMDB's image path of their [photo], such as
+ * `/abc.jpg`.
+ */
+@Serializable
+data class Credit(val name: String, val role: String? = null, val photo: String? = null)
+
+/**
+ * The [MetadataFacts.revision] a movie's or show's TMDB lookup is made under now; one kept under an older revision
+ * is made again on the next scan. 1 keeps the cast's roles and photos.
+ */
+internal const val FACTS_REVISION = 1
+
+/**
  * What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB
  * image paths such as `/abc.jpg`.
  */
@@ -163,7 +178,11 @@ data class MetadataFacts(
     val contentRating: String? = null,
     val rating: Double? = null,
     val cast: List<String> = emptyList(),
+    /** The [cast] with the role each plays and TMDB's photo of them, for a movie or a show. */
+    val credits: List<Credit> = emptyList(),
     val directors: List<String> = emptyList(),
+    /** For a movie or a show, the [FACTS_REVISION] its lookup was made under. */
+    val revision: Int = 0,
     val runtimeMinutes: Int? = null,
     val poster: String? = null,
     val backdrop: String? = null,

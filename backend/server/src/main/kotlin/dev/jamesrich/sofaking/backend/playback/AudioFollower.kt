@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.playback
 import dev.jamesrich.sofaking.backend.MS_PER_SECOND
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -62,6 +63,7 @@ internal class AudioFollower(
         if (running.compareAndSet(false, true)) scope.launch { drain() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // Channel.isEmpty
     private suspend fun drain() {
         try {
             while (true) {

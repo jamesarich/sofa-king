@@ -17,6 +17,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ProgramFactsLookupTest {
+    private val json = Json { encodeDefaults = true }
+
     private val token = "eyJ" + "a".repeat(60)
 
     /** A TMDB stand-in answering [routes] by path, and 404 for the rest; each call's path lands in [calls]. */
@@ -62,7 +64,7 @@ class ProgramFactsLookupTest {
         assertEquals(listOf("Pat Narrator", "Sam Expert", "Lee Witness"), facts.cast, "the first three billed")
         assertEquals(8.1, facts.rating)
         assertEquals(listOf("/search/tv", "/tv/7"), calls)
-        assertKeepsWireFixture("v1/program-facts.json", Json { encodeDefaults = true }.encodeToString(facts))
+        assertKeepsWireFixture("v1/program-facts.json", json.encodeToString(facts))
     }
 
     @Test fun `a movie the guide files as one is searched as a movie first`() = runBlocking {

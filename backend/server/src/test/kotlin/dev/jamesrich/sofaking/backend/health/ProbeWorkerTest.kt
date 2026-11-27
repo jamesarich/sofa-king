@@ -137,14 +137,14 @@ class ProbeWorkerTest {
                             if (offering.id == "open" && !outage) null else FailureClass.AUTH
                         }
                         repeat(2) {
-                            while (worker.step()) Unit
+                            while (worker.step()) { /* until nothing is due */ }
                             clock.now = clock.now.plusSeconds(300)
                         }
                         assertTrue(store.health("blocked")!!.failures.isEmpty(), "a credential outage strikes nothing")
                         assertTrue(store.health("open")!!.failures.isEmpty())
                         outage = false
                         repeat(2) {
-                            while (worker.step()) Unit
+                            while (worker.step()) { /* until nothing is due */ }
                             clock.now = clock.now.plusSeconds(300)
                         }
                         assertEquals(HealthStatus.HEALTHY, store.health("open")!!.status)
@@ -509,7 +509,7 @@ class ProbeWorkerTest {
                         order += offering.id
                         null
                     }
-                    while (worker.step()) Unit
+                    while (worker.step()) { /* until nothing is due */ }
                     return order
                 }
             }

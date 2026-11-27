@@ -31,7 +31,7 @@ internal suspend fun serveExternal(
     val sessions = runtime.sessions
     val joined = if (shareHls) sessions.external.joinable(channelId) else null
     if (joined != null) {
-        hls(joined)
+        val _ = hls(joined)
     } else {
         val opened = sessions.external.open(channelId, call.request.origin.remoteAddress)
         var release = true

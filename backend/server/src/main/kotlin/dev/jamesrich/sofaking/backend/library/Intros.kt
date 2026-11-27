@@ -172,7 +172,7 @@ class IntroDetector(
         var result: IntroResult? = null
         jobs.record(INTRO_JOB) {
             result = detect(library)
-            JobOutcome(true, "${library.name}: ${result!!.note}")
+            JobOutcome(true, "${library.name}: ${result.note}")
         }
         return result
     }

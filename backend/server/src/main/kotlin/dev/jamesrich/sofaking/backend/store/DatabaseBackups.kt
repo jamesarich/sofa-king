@@ -255,7 +255,7 @@ private fun connect(file: Path, readOnly: Boolean): java.sql.Connection = SQLite
 private fun createPrivateDirectory(directory: Path) {
     if (Files.isDirectory(directory)) return
     Files.createDirectories(directory)
-    runCatching { Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString("rwx------")) }
+    val _ = runCatching { Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString("rwx------")) }
 }
 
 /**
@@ -288,7 +288,7 @@ private fun java.sql.Statement.first(sql: String): String? =
     executeQuery(sql).use { if (it.next()) it.getString(1) else null }
 
 private fun restrict(file: Path) {
-    runCatching { Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------")) }
+    val _ = runCatching { Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------")) }
 }
 
 /**

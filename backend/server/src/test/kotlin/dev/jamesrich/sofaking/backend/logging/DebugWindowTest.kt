@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.logging
 
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -12,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
+@OptIn(ExperimentalCoroutinesApi::class) // the test scheduler's time controls
 class DebugWindowTest {
     private val clock = MutableClock()
     private val scope = TestScope(StandardTestDispatcher())

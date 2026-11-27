@@ -175,7 +175,7 @@ class McpActionsApiTest {
         runtime.policy!!.apply("test")
         val entry = runtime.lineup.entries().first()
         val before = currentRevision()
-        val changes = runtime.policy!!.changes(1000).size
+        val changes = runtime.policy.changes(1000).size
         val (failed, text) = call(admin, "edit_station", editNumber(entry.id, before, "777"))
         assertFalse(failed, text)
         val result = Json.parseToJsonElement(text)
@@ -184,7 +184,7 @@ class McpActionsApiTest {
         assertEquals(1, result.field("impact")!!.field("changeNumber")!!.field("total")!!.jsonPrimitive.int, text)
         assertEquals(before, result.field("revision")!!.jsonPrimitive.content, "a preview leaves the revision")
         assertEquals(before, currentRevision())
-        assertEquals(changes, runtime.policy!!.changes(1000).size, "a preview logs nothing")
+        assertEquals(changes, runtime.policy.changes(1000).size, "a preview logs nothing")
         assertNull(result.field("applied"), text)
     }
 
@@ -199,7 +199,7 @@ class McpActionsApiTest {
         assertTrue(result.field("applied") != null, text)
         assertEquals("777", runtime.lineup.entry(entry.id)!!.number)
         assertNotEquals(before, currentRevision(), "the policy file changed")
-        val change = runtime.policy!!.changes(10).first { it.change.field == "number" }
+        val change = runtime.policy.changes(10).first { it.change.field == "number" }
         assertEquals("mcp", change.change.reason)
         val (_, logged) = call(admin, "policy_changes")
         assertTrue(logged.contains("\"reason\":\"mcp\""), logged)
@@ -264,11 +264,11 @@ class McpActionsApiTest {
         }
         val (previewed, preview) = call(admin, "decide_merge", arguments(true))
         assertFalse(previewed, preview)
-        assertTrue(runtime.policy!!.policy.names.aliases.isEmpty(), "a preview writes nothing")
+        assertTrue(runtime.policy.policy.names.aliases.isEmpty(), "a preview writes nothing")
         assertEquals(revision, currentRevision())
         val (failed, text) = call(admin, "decide_merge", arguments(false))
         assertFalse(failed, text)
-        assertEquals("station", runtime.policy!!.policy.names.aliases["ghost"], text)
+        assertEquals("station", runtime.policy.policy.names.aliases["ghost"], text)
     }
 
     @Test fun `decide_merge never keeps two keys apart`() = mcp(withPolicy = true) {
@@ -285,7 +285,7 @@ class McpActionsApiTest {
             },
         )
         assertFalse(failed, text)
-        assertEquals(listOf(setOf("alpha", "station")), runtime.policy!!.policy.names.never.map { it.toSet() })
+        assertEquals(listOf(setOf("alpha", "station")), runtime.policy.policy.names.never.map { it.toSet() })
         val (bad, why) = call(
             admin,
             "decide_merge",

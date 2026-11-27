@@ -170,7 +170,7 @@ class VodApiTest {
         runtime.vod!!.expire()
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
         clock.now = clock.now.plus(Duration.ofSeconds(46))
-        runtime.vod!!.expire()
+        runtime.vod.expire()
         assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${preview.id}") { bearerAuth(token) }.status)
     }
 
@@ -230,7 +230,7 @@ class VodApiTest {
         runtime.libraries!!.scan(item().libraryId)
         assertTrue(catalog.item(id).item.unreadable, "a rescan of the same file keeps the flag")
         clip(dir.resolve("media/movies/Heals (2020)/Heals (2020).mkv"))
-        runtime.libraries!!.scan(item().libraryId)
+        runtime.libraries.scan(item().libraryId)
         assertFalse(catalog.item(id).item.unreadable, "the changed file is probed again")
         assertEquals(HttpStatusCode.Created, open(remuxProfile(), itemId = id).status)
     }
@@ -314,15 +314,15 @@ class VodApiTest {
                     LibraryKind.MOVIES,
                     dir.resolve("media/movies").toString(),
                 )
-                runtime.libraries!!.scan(library.id)
-                val movie = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+                runtime.libraries.scan(library.id)
+                val movie = runtime.libraries.catalog.items(library.id, null, false, null, 10).items.single()
                 val vod = runtime.vod!!
                 // The release lands before, during and after the restart's stop and start, and an expiry once.
                 for (wait in listOf(0L, 5L, 20L, 60L, 200L, -1L)) {
                     val session = vod.open(OpenVodPlayback(movie.id, ClientProfile()))
                     coroutineScope {
                         launch(Dispatchers.Default) {
-                            runCatching { vod.update(session.id, UpdateVodPlayback(startMs = 4000)) }
+                            val _ = runCatching { vod.update(session.id, UpdateVodPlayback(startMs = 4000)) }
                         }
                         launch(Dispatchers.Default) {
                             delay(wait.coerceAtLeast(0))
@@ -456,7 +456,7 @@ class VodApiTest {
             HttpStatusCode.SeeOther,
             browser.submitForm("/admin/vod/$id/stop", parameters { append("csrf", csrf) }).status,
         )
-        assertTrue(runtime.vod!!.snapshot().isEmpty(), "Stop ends it")
+        assertTrue(runtime.vod.snapshot().isEmpty(), "Stop ends it")
     }
 
     @Test fun `a whole playlist lists the item and converts from the segment a player asks for`() = longServer {
@@ -579,7 +579,7 @@ class VodApiTest {
         try {
             val name = if (kind == LibraryKind.SHOWS) "TV" else "Movies"
             val library = runtime.libraries!!.create(name, kind, dir.resolve("media/$folder").toString())
-            runtime.libraries!!.scan(library.id)
+            runtime.libraries.scan(library.id)
             application { backendModule(store, clock, runtime, token, admin, config = config) }
             Vod(this, dir, runtime, clock, library).block()
         } finally {

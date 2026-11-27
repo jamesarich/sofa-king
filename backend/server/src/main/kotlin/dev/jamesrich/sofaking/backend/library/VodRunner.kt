@@ -116,7 +116,7 @@ internal class VodRunner(private val ffmpeg: String, private val directory: Path
             if (!Files.isDirectory(dir)) return
             try {
                 Files.walk(dir).use { paths ->
-                    paths.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } }
+                    paths.sorted(Comparator.reverseOrder()).forEach { val _ = runCatching { Files.deleteIfExists(it) } }
                 }
             } catch (_: NoSuchFileException) {
                 // Deleted by the other stop before the walk began.

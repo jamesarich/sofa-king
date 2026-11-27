@@ -176,7 +176,7 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
     private val tokens = HashMap<String, String>()
     val size: Int get() = pinned.size + segments.size
     operator fun get(token: String): String? = pinned[token] ?: segments[token]
-    fun tokenFor(url: String): String? = tokens[url]?.also { token -> segments[token] }
+    fun tokenFor(url: String): String? = tokens[url]?.also { token -> val _ = segments[token] }
     fun put(token: String, url: String, pinned: Boolean) {
         tokens[url] = token
         if (pinned) this.pinned[token] = url else segments[token] = url

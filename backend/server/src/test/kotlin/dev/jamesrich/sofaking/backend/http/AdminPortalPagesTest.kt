@@ -363,20 +363,20 @@ class AdminPortalPagesTest : AdminPortalCase() {
                 ).status,
             )
             val library = runtime.libraries!!.libraries().single()
-            runtime.libraries!!.scan(library.id)
+            runtime.libraries.scan(library.id)
             val listed = browser.get("/admin/library").bodyAsText()
             assertTrue(listed.contains("1 movie"), listed)
             assertTrue(listed.contains("1 unreadable file"), "the probe found nothing in the text file: $listed")
             assertTrue(listed.contains("Alien (1979)/Alien (1979).mkv"), "the unreadable file is listed")
 
             browser.post("/admin/library/${library.id}/rename", "csrf" to csrf, "name" to "Films")
-            assertEquals("Films", runtime.libraries!!.library(library.id).name)
+            assertEquals("Films", runtime.libraries.library(library.id).name)
 
             val ask = browser.post("/admin/library/${library.id}/remove", "csrf" to csrf)
             assertTrue(ask.bodyAsText().contains("Remove Films?"), "removal asks first")
-            assertEquals(1, runtime.libraries!!.libraries().size)
+            assertEquals(1, runtime.libraries.libraries().size)
             browser.post("/admin/library/${library.id}/remove", "csrf" to csrf, "confirm" to "yes")
-            assertTrue(runtime.libraries!!.libraries().isEmpty())
+            assertTrue(runtime.libraries.libraries().isEmpty())
             assertTrue(Files.exists(movies.resolve("Alien (1979)/Alien (1979).mkv")), "the files stay")
         }
     }

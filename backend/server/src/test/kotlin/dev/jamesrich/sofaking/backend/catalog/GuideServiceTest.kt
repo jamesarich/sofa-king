@@ -230,7 +230,7 @@ class GuideServiceTest {
         server.executor = executor
         server.createContext("/slow.xml") { exchange ->
             exchange.sendResponseHeaders(200, 0)
-            runCatching {
+            val _ = runCatching {
                 exchange.responseBody.use { out ->
                     out.write("""<?xml version="1.0"?><tv>""".toByteArray())
                     // One more byte every 50 ms for 20 s, long past the limit but inside the socket's silence limit.

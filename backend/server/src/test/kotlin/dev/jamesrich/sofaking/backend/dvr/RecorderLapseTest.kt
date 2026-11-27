@@ -173,7 +173,7 @@ class RecorderLapseTest {
                     "ffmpeg", "-v", "error", "-y", "-i", whole.toString(), drop, "-c", "copy", "-f", "mpegts",
                     part.toString(),
                 ).redirectErrorStream(true).start()
-                process.inputStream.readBytes()
+                val _ = process.inputStream.readBytes()
                 check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0) { "FFmpeg cut $kind$n" }
                 parts["/$kind$n.ts"] = Files.readAllBytes(part)
             }

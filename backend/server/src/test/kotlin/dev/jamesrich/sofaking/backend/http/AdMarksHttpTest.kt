@@ -35,6 +35,8 @@ import kotlin.test.assertTrue
 
 /** What the app's live playlists carry that other players' do not: dates, a hold-back and the ad marks. */
 class AdMarksHttpTest {
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val token = "secret".repeat(8)
     private val output = "players-" + "x".repeat(32)
 
@@ -106,7 +108,6 @@ class AdMarksHttpTest {
                     application {
                         backendModule(store, MutableClock(), runtime, token, outputs = outputs, config = config)
                     }
-                    val json = Json { ignoreUnknownKeys = true }
                     val catalog = client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()
                     block(json.decodeFromString<Catalog>(catalog).channels.single().id)
                 } finally {
@@ -119,7 +120,7 @@ class AdMarksHttpTest {
     }
 
     @Test fun `the app's playlist carries dates, a hold-back and the ad marks`() = withAdChannel { channel ->
-        val session = Json { ignoreUnknownKeys = true }.decodeFromString<PlaybackSession>(
+        val session = json.decodeFromString<PlaybackSession>(
             client.post("/api/v1/playback-sessions") {
                 bearerAuth(token)
                 contentType(ContentType.Application.Json)

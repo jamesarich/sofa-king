@@ -87,7 +87,7 @@ The smoke scripts start disposable servers in temporary directories. `smoke.py` 
 
 ## Code
 
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized. Run `../kotlin do ktlintFormat -m server` and `../kotlin check ktlint detekt -m server` before you commit; CI fails on code ktlint would change and on any detekt finding, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized. A compiler warning fails the build of the server and the contract (`allWarningsAsErrors` in `kotlin.module-template.yaml`): fix it, assign a result you mean to drop to `val _`, or opt in to the API it names. Run `../kotlin do ktlintFormat -m server` and `../kotlin check ktlint detekt -m server` before you commit; CI fails on code ktlint would change and on any detekt finding, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
 
 ## Scripts
 

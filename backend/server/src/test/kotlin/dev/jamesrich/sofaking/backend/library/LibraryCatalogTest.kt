@@ -327,7 +327,7 @@ class LibraryCatalogTest {
         val alien = s.service.catalog.snapshot().views.values.first { it.item.title == "Alien" }
         val artwork = s.service.artwork!!
         assertNotNull(artwork.image(alien.poster!!))
-        assertNotNull(artwork.image(alien.poster!!))
+        assertNotNull(artwork.image(alien.poster))
         assertEquals(listOf("/t/p/w342/a.jpg"), calls, "a TMDB image is downloaded once")
         assertNull(artwork.image(ArtSource.Tmdb("/../etc.jpg", "w342")))
         assertNull(artwork.image(ArtSource.Local(s.root.resolve("movies"), "../outside.jpg")))

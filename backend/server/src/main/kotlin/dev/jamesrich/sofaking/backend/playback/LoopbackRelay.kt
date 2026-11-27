@@ -268,7 +268,7 @@ class LoopbackRelay(
         server?.let { running ->
             server = null
             // The hook can be stopping it at the same moment; a second stop has nothing left to do.
-            runCatching { running.stop(0, STOP_TIMEOUT_MS) }
+            val _ = runCatching { running.stop(0, STOP_TIMEOUT_MS) }
         }
         leases.clear()
     }

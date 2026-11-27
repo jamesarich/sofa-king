@@ -48,6 +48,7 @@ private val STREAM_WAIT = 10.seconds
 
 class HistoryApiTest {
     private val json = Json { ignoreUnknownKeys = true }
+    private val withDefaults = Json { encodeDefaults = true }
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
 
@@ -141,7 +142,7 @@ class HistoryApiTest {
         val dir = Files.createTempDirectory("sofa-history-api-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
-            Files.writeString(sources, Json { encodeDefaults = true }.encodeToString(listOf(fixture.feed)))
+            Files.writeString(sources, withDefaults.encodeToString(listOf(fixture.feed)))
             val config = ServerConfig(
                 "127.0.0.1",
                 8080,

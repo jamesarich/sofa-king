@@ -103,7 +103,7 @@ class ApplicationTest {
                     get("/broken") { throw IllegalStateException("broken") }
                 }
             }
-            runCatching { client.get("/abort").bodyAsBytes() }
+            val _ = runCatching { client.get("/abort").bodyAsBytes() }
             val logged = events.map { "${it.level}: ${it.message}" }
             assertTrue(events.none { it.level == Level.ERROR }, "client abort logged as $logged")
             assertTrue(

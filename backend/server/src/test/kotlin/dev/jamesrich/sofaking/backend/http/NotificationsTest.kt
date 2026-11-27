@@ -103,7 +103,7 @@ class NotificationsTest : AdminPortalCase() {
             browser.post("/admin/connect/targets/${target.id}/test", "csrf" to csrf)
             assertTrue(browser.get("/admin/connect").bodyAsText().contains("The test failed"))
             browser.post("/admin/connect/targets/${target.id}/enabled", "csrf" to csrf, "enabled" to "0")
-            assertFalse(runtime.notifications!!.get(target.id).enabled)
+            assertFalse(runtime.notifications.get(target.id).enabled)
             browser.post(
                 "/admin/connect/targets/${target.id}",
                 "csrf" to csrf,
@@ -113,15 +113,15 @@ class NotificationsTest : AdminPortalCase() {
                 "secret" to "",
                 "event" to "disk.low",
             )
-            val saved = runtime.notifications!!.get(target.id)
+            val saved = runtime.notifications.get(target.id)
             assertEquals("http://127.0.0.1:1/…", saved.url, "a blank URL keeps the one set, shown masked")
             assertEquals(listOf("disk.low"), saved.events)
             assertTrue(saved.hasSecret, "a blank secret keeps the one set")
             val asked = browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf)
             assertTrue(asked.bodyAsText().contains("Remove Phone?"))
-            assertEquals(1, runtime.notifications!!.list().size)
+            assertEquals(1, runtime.notifications.list().size)
             browser.post("/admin/connect/targets/${target.id}/delete", "csrf" to csrf, "confirm" to "yes")
-            assertTrue(runtime.notifications!!.list().isEmpty())
+            assertTrue(runtime.notifications.list().isEmpty())
         }
     }
 }

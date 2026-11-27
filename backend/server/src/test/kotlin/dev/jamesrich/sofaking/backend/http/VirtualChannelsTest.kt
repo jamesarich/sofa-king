@@ -196,7 +196,7 @@ class VirtualChannelsTest {
             val channel = create(VirtualChannel(name = "News", slots = listOf(live(entry.id).copy(start = "00:00"))))
             val schedule = runtime.virtual!!.schedule(channel.id, MutableClock().now, MutableClock().now.plusSeconds(1))
             assertEquals("Live: ${entry.number} Live", schedule.single().title)
-            assertEquals(entry.name, runtime.virtual!!.programs(setOf(channel.id)).first().title)
+            assertEquals(entry.name, runtime.virtual.programs(setOf(channel.id)).first().title)
             val url = streamUrl("News")
             val text = fetch(url).body().decodeToString()
             assertTrue(text.lines().count { it.endsWith(".ts") } >= 3, text + logs(dir))
@@ -298,7 +298,7 @@ class VirtualChannelsTest {
 
         val asked = browser.submitForm("/admin/virtual/${stored.id}/delete", parameters { append("csrf", csrf) })
         assertTrue("Delete Movie night?" in asked.bodyAsText())
-        assertEquals(1, runtime.virtual!!.channels().size)
+        assertEquals(1, runtime.virtual.channels().size)
         browser.submitForm(
             "/admin/virtual/${stored.id}/delete",
             parameters {
@@ -306,7 +306,7 @@ class VirtualChannelsTest {
                 append("confirm", "yes")
             },
         )
-        assertTrue(runtime.virtual!!.channels().isEmpty())
+        assertTrue(runtime.virtual.channels().isEmpty())
     }
 
     @Test fun `the live playlist marks each new piece and numbers its segments on`() {
@@ -410,7 +410,7 @@ class VirtualChannelsTest {
                 LibraryKind.MOVIES,
                 dir.resolve("media/movies").toString(),
             )
-            runtime.libraries!!.scan(library.id)
+            runtime.libraries.scan(library.id)
             application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
             Virtual(this, runtime, library, dir).block()
         } finally {

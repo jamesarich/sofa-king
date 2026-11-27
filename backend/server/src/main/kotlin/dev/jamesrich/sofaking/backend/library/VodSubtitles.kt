@@ -152,7 +152,7 @@ class VodSubtitles internal constructor(
         if (files.size <= SUBTITLES_KEPT) return
         files.sortedBy { Files.getLastModifiedTime(it) }
             .take(files.size - SUBTITLES_KEPT)
-            .forEach { runCatching { Files.deleteIfExists(it) } }
+            .forEach { val _ = runCatching { Files.deleteIfExists(it) } }
     }
 
     private companion object {

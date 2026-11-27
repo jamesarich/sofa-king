@@ -198,6 +198,24 @@ body.playing .page { padding: 0; }
 }
 .player-toast.shown { opacity: 1; }
 
+.track-panel {
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    display: grid;
+    gap: 12px;
+    width: min(360px, calc(100% - 32px));
+    max-height: calc(100% - 96px);
+    overflow-y: auto;
+    padding: 12px;
+    border-radius: 12px;
+    background: #000c;
+}
+.track-group { display: grid; gap: 6px; }
+.track-group h2 { margin: 0 0 2px; font-size: 14px; font-weight: 600; color: var(--dim); }
+.track { text-align: left; background: transparent; border-color: transparent; }
+.track.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
 @media (prefers-reduced-motion: reduce) {
     .channel-banner, .player-toast { transition: none; }
 }

@@ -1,13 +1,24 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.TrackChoice
+import dev.jamesrich.sofaking.data.defaultAudio
+import dev.jamesrich.sofaking.data.initialAudio
+import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.isPictureSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
+import dev.jamesrich.sofaking.data.trackLabel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.promise
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.js.Promise
+import kotlin.time.Duration.Companion.seconds
 
 /** The media libraries' pages, as the page browses them. */
 @JsExport
@@ -91,15 +102,69 @@ internal fun homeToWeb(state: LibraryHomeState, shelf: (MediaShelf) -> WebShelf)
     )
 }
 
+/** How long the player waits for an item's tracks before it opens without them. */
+private val TRACKS_WAIT = 5.seconds
+
 /** A library item on the session, as the page's player plays it. */
 @JsExport
 class WebItemPlayback internal constructor(private val parts: WebParts) {
     private val library = parts.library
     private val viewModel = parts.viewModel
 
-    /** Opens [itemId] on the session, from the start with [fromStart], else where the household stopped in it. */
-    fun play(itemId: String, fromStart: Boolean): Promise<WebStream> = parts.scope.promise {
-        parts.opening { library.play(parts.item(itemId), webProfile, fromStart).toWeb() }
+    /** The item [tracks] read last, which names the show a pick is kept for. */
+    private var read: MediaItemDetail? = null
+
+    /**
+     * [itemId]'s audio and subtitle tracks and the ones it starts with: the languages picked in its show on this
+     * browser, else the file's own. Null when the server does not give the item within [TRACKS_WAIT], so the player
+     * opens without a picker rather than waiting on it.
+     */
+    fun tracks(itemId: String): Promise<WebTracks?> = parts.scope.promise {
+        val state = withTimeoutOrNull(TRACKS_WAIT) {
+            library.openItem(itemId).use { page -> page.state.first { it !is ItemDetailState.Loading } }
+        }
+        val detail = (state as? ItemDetailState.Ready)?.detail ?: return@promise null
+        read = detail
+        parts.remember(detail.item)
+        tracksToWeb(detail, detail.item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) })
+    }
+
+    /**
+     * Opens [itemId] on the session, from the start with [fromStart], else where the household stopped in it, with
+     * the audio track [audioIndex] and the picture subtitle track [subtitleIndex] drawn in (the file's own audio and
+     * no subtitles when null).
+     */
+    fun play(
+        itemId: String,
+        fromStart: Boolean,
+        audioIndex: Int? = null,
+        subtitleIndex: Int? = null,
+    ): Promise<WebStream> = parts.scope.promise {
+        parts.opening {
+            library.play(parts.item(itemId), webProfile, fromStart, audioIndex, subtitleIndex).toWeb()
+        }
+    }
+
+    /** Plays [itemId] again from [positionMs] with the audio track [audioIndex] and [subtitleIndex] drawn in. */
+    fun switchTracks(itemId: String, positionMs: Double, audioIndex: Int?, subtitleIndex: Int?): Promise<WebStream> =
+        parts.scope.promise {
+            parts.opening {
+                library.switchTracks(parts.item(itemId), webProfile, positionMs.toLong(), audioIndex, subtitleIndex)
+                    .toWeb()
+            }
+        }
+
+    /** The viewer picked [audioIndex] and [subtitleIndex] (null for off) in [itemId]; its show keeps the languages. */
+    fun picked(itemId: String, audioIndex: Int?, subtitleIndex: Int?) {
+        val detail = read?.takeIf { it.item.id == itemId } ?: return
+        detail.item.showId?.let { viewModel.setTrackChoice(it, trackChoice(detail, audioIndex, subtitleIndex)) }
+    }
+
+    /** [itemId]'s text subtitle track [index] as cues, or null when the server cannot give it. */
+    fun subtitles(itemId: String, index: Int): Promise<Array<WebCue>?> = parts.scope.promise {
+        library.subtitles(itemId, index)?.cues
+            ?.map { WebCue(it.startMs.toDouble(), it.endMs.toDouble(), it.text) }
+            ?.toTypedArray()
     }
 
     /** Restarts a converted stream at [positionMs] in the item; a file played as it is comes back unchanged. */
@@ -114,4 +179,22 @@ class WebItemPlayback internal constructor(private val parts: WebParts) {
     /** Playback of [itemId] stopped at [positionMs]; saved now, and the library's pages reload. */
     fun stopped(itemId: String, positionMs: Double, durationMs: Double) =
         library.stopped(itemId, positionMs.toLong(), durationMs.toLong().takeIf { it > 0 })
+}
+
+/**
+ * [detail]'s tracks as the player's picker lists them, starting with the languages [choice] names for its show: the
+ * audio track asked of the stream only when it is not the file's own, as the apps do.
+ */
+internal fun tracksToWeb(detail: MediaItemDetail, choice: TrackChoice?): WebTracks {
+    val audio = initialAudio(detail, choice) ?: defaultAudio(detail)
+    return WebTracks(
+        audio = detail.audio.mapIndexed { i, track -> WebTrack(track.index, trackLabel(track, i + 1), false) }
+            .toTypedArray(),
+        subtitles = detail.subtitles
+            .mapIndexed { i, track -> WebTrack(track.index, trackLabel(track, i + 1), isPictureSubtitle(track)) }
+            .toTypedArray(),
+        audioIndex = audio?.index,
+        openAudio = audio?.index?.takeIf { it != defaultAudio(detail)?.index },
+        subtitleIndex = initialSubtitle(detail, choice)?.index,
+    )
 }

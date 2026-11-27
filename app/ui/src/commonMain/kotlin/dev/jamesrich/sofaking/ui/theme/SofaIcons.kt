@@ -345,6 +345,24 @@ internal object SofaIcons {
         )
     }
 
+    /** A Movies library in the rail. */
+    val Movie: ImageVector by lazy {
+        pathIcon(
+            "Filled.Movie",
+            "M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 " +
+                "2-2V4h-4z",
+        )
+    }
+
+    /** A TV Shows library in the rail. */
+    val Tv: ImageVector by lazy {
+        pathIcon(
+            "Filled.Tv",
+            "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 " +
+                "14H3V5h18v12z",
+        )
+    }
+
     /** Next episode. */
     val SkipNext: ImageVector by lazy { pathIcon("Filled.SkipNext", "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z") }
 

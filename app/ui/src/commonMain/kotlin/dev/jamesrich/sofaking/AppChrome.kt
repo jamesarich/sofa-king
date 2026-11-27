@@ -47,7 +47,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import dev.jamesrich.sofaking.resources.nav_dvr
@@ -151,19 +153,26 @@ internal fun TabPage(
 /** Frames a tab page gets to focus something of its own before its tab takes focus. */
 private const val IDLE_FOCUS_FRAMES = 3
 
-/** Which destination is open, whether Library and Recordings are offered, and what picking one does. */
+/**
+ * Which destination is open, whether Library and Recordings are offered, and what picking one does. A rail also
+ * lists [libraries] under Library: [libraryOpen] is the one whose grid is open, and [onLibrary] opens one.
+ */
 internal class TabsModel(
     val selected: Tab,
     val libraryShown: Boolean,
     val recordingsShown: Boolean,
     val onTab: (Tab) -> Unit,
+    val libraries: List<MediaLibrary> = emptyList(),
+    val libraryOpen: String? = null,
+    val onLibrary: (String) -> Unit = {},
 )
 
 /**
  * Live, Library, DVR and Settings around [content]. A TV keeps them in the header, so the guide loses no
  * width and Up from its chips reaches them as it reaches the header's buttons; [TabPage] draws them there.
  * Elsewhere Material's navigation suite puts them in a short bar on a compact window and a rail on a larger one,
- * and slides it away while [shown] is false, over the full-screen players.
+ * and slides it away while [shown] is false, over the full-screen players. A rail with the height for them lists
+ * the libraries under Library, each a destination of its own ([railLibraries]).
  */
 @Composable
 internal fun TopLevel(
@@ -188,7 +197,10 @@ internal fun TopLevel(
     LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
         navigationItems = {
-            val selected = tabs.selected.takeUnless { settingsOpen }
+            val listed = railLibraries(type, LocalLayoutProfile.current.compactHeight, tabs)
+            val libraryOpen = tabs.libraryOpen.takeIf { open -> !settingsOpen && listed.any { it.id == open } }
+            // A library listed in the rail is the selected item while its grid is open, in Library's place.
+            val selected = tabs.selected.takeUnless { settingsOpen || libraryOpen != null }
             TabItem(Tab.LIVE, SofaIcons.LiveTv, Res.string.nav_live, selected, tabs.onTab, tabFocus, type)
             if (tabs.libraryShown) {
                 TabItem(
@@ -200,6 +212,9 @@ internal fun TopLevel(
                     tabFocus,
                     type,
                 )
+                for (library in listed) {
+                    LibraryItem(library, library.id == libraryOpen, tabs.onLibrary, tabFocus, type)
+                }
             }
             if (tabs.recordingsShown) {
                 TabItem(
@@ -250,14 +265,62 @@ private fun TabItem(
     )
 }
 
+/** One library in the rail, under Library; the one whose grid is [open] is selected and takes [tabFocus]. */
+@Composable
+private fun LibraryItem(
+    library: MediaLibrary,
+    open: Boolean,
+    onLibrary: (String) -> Unit,
+    tabFocus: FocusRequester,
+    type: NavigationSuiteType,
+) {
+    NavigationSuiteItem(
+        selected = open,
+        onClick = { onLibrary(library.id) },
+        modifier = if (open) Modifier.focusRequester(tabFocus) else Modifier,
+        icon = { Icon(library.kind.railIcon, contentDescription = null) },
+        label = { NavigationLabel(library.name, ellipsis = true) },
+        navigationSuiteType = type,
+    )
+}
+
 /**
  * A navigation item's label on one line. The theme's TV-sized label nearly fills the rail's 96 dp item, so at a
- * larger text size a label runs past the item's edge rather than break mid-word.
+ * larger text size a label runs past the item's edge rather than break mid-word. A library's name is the server
+ * owner's and can be any length, so it ends in an [ellipsis] instead.
  */
 @Composable
-private fun NavigationLabel(text: String) {
-    Text(text, softWrap = false, maxLines = 1)
+private fun NavigationLabel(text: String, ellipsis: Boolean = false) {
+    if (ellipsis) {
+        Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    } else {
+        Text(text, softWrap = false, maxLines = 1)
+    }
 }
+
+/**
+ * The libraries a navigation suite of [type] lists under Library: every one in a rail, which has the height for
+ * them unless the window is short ([compactHeight]) or the server has more than [RAIL_LIBRARIES_MAX]; none in a bar,
+ * where the Library home's chips open them.
+ */
+internal fun railLibraries(type: NavigationSuiteType, compactHeight: Boolean, tabs: TabsModel): List<MediaLibrary> {
+    val rail = type == NavigationSuiteType.NavigationRail ||
+        type == NavigationSuiteType.WideNavigationRailCollapsed ||
+        type == NavigationSuiteType.WideNavigationRailExpanded
+    val fits = rail && !compactHeight && tabs.libraryShown && tabs.libraries.size <= RAIL_LIBRARIES_MAX
+    return if (fits) tabs.libraries else emptyList()
+}
+
+/** The most libraries a rail lists; Material's rail holds up to seven destinations in all. */
+private const val RAIL_LIBRARIES_MAX = 4
+
+private val LibraryKind.railIcon: ImageVector
+    get() = when (this) {
+        LibraryKind.MOVIES -> SofaIcons.Movie
+        LibraryKind.SHOWS -> SofaIcons.Tv
+        LibraryKind.MUSIC -> SofaIcons.Audiotrack
+        LibraryKind.VIDEOS, LibraryKind.OTHER -> SofaIcons.VideoLibrary
+    }
 
 /**
  * The TV's destinations in the header, as Google TV shows them: Material tabs, the open one on a pill, every one with
@@ -424,10 +487,21 @@ internal fun rememberTabChrome(
 ): TabChrome {
     val settingsFocus = remember { FocusRequester() }
     val tabFocus = remember { FocusRequester() }
-    val tabs = TabsModel(shell.nav.tab, offered.library, offered.recordings) { picked ->
-        // The library's shelves are read again each time its tab is opened, as the recordings are.
-        if (picked == Tab.LIBRARY && shell.nav.tab != Tab.LIBRARY) onLibraryOpen()
-        shell.openTab(picked)
-    }
+    val tabs = TabsModel(
+        selected = shell.nav.tab,
+        libraryShown = offered.library,
+        recordingsShown = offered.recordings,
+        onTab = { picked ->
+            // The library's shelves are read again each time its tab is opened, as the recordings are.
+            if (picked == Tab.LIBRARY && shell.nav.tab != Tab.LIBRARY) onLibraryOpen()
+            shell.openTab(picked)
+        },
+        libraries = offered.libraries,
+        libraryOpen = shell.nav.libraryOpen,
+        onLibrary = { picked ->
+            if (shell.nav.tab != Tab.LIBRARY) onLibraryOpen()
+            shell.openLibrary(picked)
+        },
+    )
     return TabChrome(tv, tabs, tabFocus, settingsFocus, onSettings = { shell.push(Route.Settings) })
 }

@@ -13,6 +13,11 @@ internal fun AppShellState.openTab(picked: Tab) {
         )
 }
 
+/** A library picked in the rail: its grid on the Library tab, with Settings closed. */
+internal fun AppShellState.openLibrary(libraryId: String) {
+    nav = nav.closeSettings().openLibrary(libraryId)
+}
+
 /** Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button. */
 internal fun AppShellState.leaveSettings() {
     headerReturn = HeaderReturn.SETTINGS

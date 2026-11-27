@@ -26,6 +26,30 @@ class NavigationTest {
     }
 
     @Test
+    fun `a library picked in the rail opens its grid over the library home`() {
+        val nav = start.openLibrary("movies")
+        assertEquals(Tab.LIBRARY, nav.tab)
+        assertEquals(listOf(Route.Library, Route.LibraryGrid("movies")), nav.stack(Tab.LIBRARY))
+        assertEquals("movies", nav.libraryOpen)
+        assertEquals(Route.Library, nav.pop().top)
+    }
+
+    @Test
+    fun `a library picked in the rail takes the place of the one open and its titles`() {
+        val open = start.open(Tab.LIBRARY).push(Route.LibraryGrid("movies")).push(Route.LibraryItem("m1"))
+        assertEquals("movies", open.libraryOpen)
+        val nav = open.openLibrary("shows")
+        assertEquals(listOf(Route.Library, Route.LibraryGrid("shows")), nav.stack(Tab.LIBRARY))
+        assertEquals("shows", nav.libraryOpen)
+    }
+
+    @Test
+    fun `no library is open on the library home or on another tab`() {
+        assertNull(start.open(Tab.LIBRARY).libraryOpen)
+        assertNull(start.openLibrary("movies").open(Tab.LIVE).libraryOpen)
+    }
+
+    @Test
     fun `a title picked from the grid takes the place of the titles open over it`() {
         val grid = Route.LibraryGrid("shows")
         val open = start.open(Tab.LIBRARY).push(grid).push(Route.LibraryItem("s1")).push(Route.LibraryItem("e1"))

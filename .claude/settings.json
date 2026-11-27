@@ -26,6 +26,7 @@
       "Bash(ktlint *)",
       "Bash(java -jar /opt/detekt-cli.jar *)",
       "Bash(./gradlew *)",
+      "Bash(./kotlin *)",
       "Bash(git worktree add *)",
       "Bash(git worktree remove *)",
       "Bash(adb -s emulator-5554 *)",

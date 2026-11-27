@@ -169,6 +169,9 @@ data class MediaTrackInfo(
     val forced: Boolean = false,
 )
 
+/** Someone in an item's cast: the [role] they play and their [photo]'s address, where the server knows them. */
+data class CastPerson(val name: String, val role: String? = null, val photo: String? = null)
+
 /** An item with what its page shows: a show's seasons or a season's episodes in [children], and what to play [next]. */
 data class MediaItemDetail(
     val item: MediaItem,
@@ -178,6 +181,8 @@ data class MediaItemDetail(
     val tagline: String? = null,
     val studio: String? = null,
     val cast: List<String> = emptyList(),
+    /** The [cast] in the same order with their roles and photos; empty from a server that sends only the names. */
+    val people: List<CastPerson> = emptyList(),
     val directors: List<String> = emptyList(),
     val audio: List<MediaTrackInfo> = emptyList(),
     val subtitles: List<MediaTrackInfo> = emptyList(),
@@ -196,6 +201,9 @@ data class MediaItemDetail(
     /** For an artist, their songs listeners play most, most played first. */
     val popular: List<MediaItem> = emptyList(),
 )
+
+/** The cast to list on the item's page: [MediaItemDetail.people], or the names alone where that is all there is. */
+val MediaItemDetail.billed: List<CastPerson> get() = people.ifEmpty { cast.map { CastPerson(it) } }
 
 /** What kind of extra an [ItemKind.EXTRA] is; one the server names that the app does not know is [OTHER]. */
 enum class ExtraKind(internal val wire: String) {

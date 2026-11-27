@@ -171,9 +171,18 @@ struct ItemDetailView: View {
                 Text("Directed by \(detail.directors.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)
             }
             if !detail.cast.isEmpty {
-                Text("Cast: \(detail.cast.prefix(6).joined(separator: ", "))").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text("Cast: \(castLine(detail))").font(.caption).foregroundStyle(.secondary).lineLimit(3)
             }
         }
+    }
+
+    /// The first of the cast, each with the role they play where the server knows it.
+    private func castLine(_ detail: MediaItemDetail) -> String {
+        let roles = Dictionary(detail.people.map { ($0.name, $0.role ?? "") }, uniquingKeysWith: { first, _ in first })
+        return detail.cast.prefix(6).map { name in
+            if let role = roles[name], !role.isEmpty { return "\(name) (\(role))" }
+            return name
+        }.joined(separator: ", ")
     }
 
     /// An artist's or album's names, its year, songs and length, and for an album, Play and Shuffle.

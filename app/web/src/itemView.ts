@@ -1,7 +1,7 @@
-import type { WebItem, WebItemDetail, WebItemState } from '@sofaking/core';
+import type { WebCastPerson, WebItem, WebItemDetail, WebItemState } from '@sofaking/core';
 import { button, h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
-import { length, position } from './format';
+import { initials, length, position } from './format';
 import { card } from './libraryView';
 import { href } from './router';
 import { Watches, type Context, type View } from './view';
@@ -51,6 +51,8 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
     const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.kind === 'movie' ? '' : item.kind, item.unreadable ? 'Unreadable' : '']
         .filter(Boolean)
         .join(' · ');
+    // With a role or a photo for any of the cast, each gets a card under the summary; the names alone stay a line in it.
+    const cast = detail.people.some((one) => one.role || one.photo) ? detail.people.slice(0, CAST_SHOWN) : [];
     return h(
         'div',
         {
@@ -71,14 +73,30 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
                 item.overview ? h('p', { class: 'overview', text: item.overview }) : null,
                 detail.genres.length ? h('p', { class: 'facts', text: detail.genres.join(', ') }) : null,
                 detail.directors.length ? h('p', { class: 'facts', text: `Directed by ${detail.directors.join(', ')}` }) : null,
-                detail.cast.length ? h('p', { class: 'facts', text: `With ${detail.cast.slice(0, 8).join(', ')}` }) : null,
+                !cast.length && detail.cast.length ? h('p', { class: 'facts', text: `With ${detail.cast.slice(0, 8).join(', ')}` }) : null,
             ),
         ),
+        cast.length ? h('div', { class: 'shelf' }, h('h2', { text: 'Cast' }), h('div', { class: 'cards' }, ...cast.map(person))) : null,
         detail.children.length
             ? h('div', { class: 'shelf' }, h('h2', { text: item.kind === 'show' ? 'Seasons' : 'Episodes' }), h('div', { class: 'cards' }, ...detail.children.map((child) => card(child, 'child'))))
             : null,
         detail.related.length
             ? h('div', { class: 'shelf' }, h('h2', { text: 'More like this' }), h('div', { class: 'cards' }, ...detail.related.map((related) => card(related, 'related'))))
             : null,
+    );
+}
+
+const CAST_SHOWN = 12;
+
+/** One of the cast: their photo, or their initials where there is none, over their name and the role they play. */
+function person(one: WebCastPerson): HTMLElement {
+    return h(
+        'div',
+        { class: 'person' },
+        one.photo
+            ? h('img', { class: 'photo', attrs: { src: one.photo, alt: '', loading: 'lazy' } })
+            : h('div', { class: 'photo blank', text: initials(one.name), attrs: { 'aria-hidden': 'true' } }),
+        h('div', { class: 'card-title', text: one.name }),
+        one.role ? h('div', { class: 'card-detail', text: one.role }) : null,
     );
 }

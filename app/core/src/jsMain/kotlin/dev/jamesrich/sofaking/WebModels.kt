@@ -151,7 +151,13 @@ class WebItemDetail(
     val directors: Array<String>,
     val genres: Array<String>,
     val related: Array<WebItem>,
+    /** The cast with their roles and photos, where the server knows any; empty when [cast] is all there is. */
+    val people: Array<WebCastPerson>,
 )
+
+/** One of an item's cast: the role they play and their photo's address, either of which may be missing. */
+@JsExport
+class WebCastPerson(val name: String, val role: String?, val photo: String?)
 
 @JsExport
 class WebItemState(val state: String, val message: String, val detail: WebItemDetail?)
@@ -268,4 +274,5 @@ internal fun WebParts.toWeb(detail: MediaItemDetail) = WebItemDetail(
     detail.directors.toTypedArray(),
     detail.item.genres.toTypedArray(),
     detail.related.toWeb(this),
+    detail.people.map { WebCastPerson(it.name, it.role, it.photo) }.toTypedArray(),
 )

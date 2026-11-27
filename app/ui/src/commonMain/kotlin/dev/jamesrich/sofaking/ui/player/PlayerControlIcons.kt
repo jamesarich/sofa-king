@@ -13,6 +13,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,7 +72,7 @@ internal fun ControlIcon(
 /**
  * A control that opens a menu of the item's entries, for what is used less than the rest of the bar. [onOpen] is
  * called now and then while the menu is up, so the bar that holds it stays up too; the menu opens on its first entry.
- * [buttonModifier] goes on the button, which holds the focus.
+ * [buttonModifier] goes on the button, which holds the focus; [onOpenChange] hears the menu open and close.
  */
 @Composable
 internal fun MenuControl(
@@ -80,9 +81,15 @@ internal fun MenuControl(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
+    onOpenChange: (Boolean) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
     val opened by rememberUpdatedState(onOpen)
+    val changed by rememberUpdatedState(onOpenChange)
+    DisposableEffect(open) {
+        changed(open)
+        onDispose { changed(false) }
+    }
     LaunchedEffect(open) {
         while (open) {
             opened()

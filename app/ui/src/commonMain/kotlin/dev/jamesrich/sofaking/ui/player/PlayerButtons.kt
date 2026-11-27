@@ -216,37 +216,47 @@ internal fun PlayerButtonRow(
     showLabel: Boolean,
     modifier: Modifier = Modifier,
     onMenuOpen: () -> Unit = {},
+    onMenuOpenChange: (Boolean) -> Unit = {},
 ) {
     // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
-    var focusedIndex by remember { mutableStateOf<Int?>(null) }
+    var focusedKey by remember { mutableStateOf<Any?>(null) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(BAR_LABEL_GAP)) {
         Row(
             Modifier.focusRestorer(entry).focusGroup().onFocusChanged {
                 onFocus(it.hasFocus)
-                if (!it.hasFocus) focusedIndex = null
+                if (!it.hasFocus) focusedKey = null
             },
             horizontalArrangement = Arrangement.spacedBy(BAR_ROW_SPACING),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { position, item ->
+                val slot = slotOf(position, item)
                 val place = Modifier
                     .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
-                    .onFocusChanged { if (it.isFocused) focusedIndex = position }
+                    .onFocusChanged { if (it.isFocused) focusedKey = slot }
                     .then(
                         if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier,
                     )
                 // The menu button keeps its place in the composition when the buttons around it change (Next
                 // coming to the front as the credits start), so its open menu does not close with the reorder.
-                key(if (item.menu != null) MENU_BUTTON_KEY else position) {
+                key(slot) {
                     if (item.menu != null) {
-                        MenuControl(item, item.menu, onMenuOpen, buttonModifier = place)
+                        MenuControl(
+                            item,
+                            item.menu,
+                            onMenuOpen,
+                            buttonModifier = place,
+                            onOpenChange = onMenuOpenChange,
+                        )
                     } else {
                         ControlIcon(item.icon, item.label, item.onClick, modifier = place)
                     }
                 }
             }
         }
-        val label = focusedIndex?.let { items.getOrNull(it)?.label }
+        val label = focusedKey?.let { held ->
+            items.withIndex().firstOrNull { slotOf(it.index, it.value) == held }?.value?.label
+        }
         if (showLabel && label != null) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
         }
@@ -254,6 +264,9 @@ internal fun PlayerButtonRow(
 }
 
 private const val MENU_BUTTON_KEY = "menu"
+
+/** A button's place in the row: the menu button's own, wherever it sits, and the position for the others. */
+private fun slotOf(position: Int, item: PlayerButtonItem): Any = if (item.menu != null) MENU_BUTTON_KEY else position
 
 /** Leaves the player, for a finger or a mouse; a remote has its Back key. */
 @Composable

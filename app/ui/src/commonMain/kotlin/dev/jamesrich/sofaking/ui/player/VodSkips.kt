@@ -54,13 +54,13 @@ internal class VodSkipState(private val panels: VodPanelState) : VodSkips {
     private var autoSkipAtMs = 0L
 
     override fun ranIntoBreak() {
-        if (panels.tracksOpen) return
+        if (panels.tracksOpen || panels.menuOpen) return
         panels.showInfo()
         focusSkip = true
     }
 
     override fun inIntro(intro: VodMarker, autoSkip: Boolean, nowMs: Long) {
-        if (panels.tracksOpen || !offeredIntros.add(intro.startMs)) return
+        if (panels.tracksOpen || panels.menuOpen || !offeredIntros.add(intro.startMs)) return
         ranIntoBreak()
         if (autoSkip) {
             autoSkipAtMs = nowMs + AUTO_SKIP_MS

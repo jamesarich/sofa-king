@@ -67,7 +67,7 @@ def main():
     parser.add_argument('--keep-log', action='store_true', help='print the server log at the end')
     args = parser.parse_args()
     if not APP.exists():
-        raise SystemExit('Build :server:installDist first')
+        raise SystemExit('Build the distribution first: scripts/dist.sh')
     options = dict(item.split('=', 1) for item in args.option)
     with tempfile.TemporaryDirectory(prefix=f'sofa-provider-{args.service}-') as temporary:
         directory = Path(temporary)

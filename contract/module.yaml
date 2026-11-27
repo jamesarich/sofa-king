@@ -1,0 +1,20 @@
+# The contract under the Kotlin Toolchain, which builds it for the server. Gradle builds the same sources for the app
+# (build.gradle.kts), so a target, dependency or setting changes in both files.
+product:
+  type: kmp/lib
+  platforms: [jvm, iosArm64, iosSimulatorArm64, macosArm64, tvosArm64, tvosSimulatorArm64, watchosArm64, watchosSimulatorArm64, linuxX64, linuxArm64, js, wasmJs]
+
+apply:
+  - ../kotlin.module-template.yaml
+
+dependencies:
+  - $libs.kotlinx.serialization.core: exported
+
+test-dependencies@jvm:
+  - $libs.kotlinx.serialization.json
+
+settings:
+  jvm:
+    jdk:
+      version: 21
+    release: 17

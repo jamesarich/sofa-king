@@ -73,7 +73,7 @@ def start_and_check(directory, iteration):
 
 def main():
     if not APP.exists():
-        raise SystemExit('Build the installed distribution first: ./gradlew :server:installDist')
+        raise SystemExit('Build the distribution first: scripts/dist.sh')
     with tempfile.TemporaryDirectory(prefix='sofa-runtime-smoke-') as temporary:
         directory = Path(temporary)
         first = start_and_check(directory, 1)

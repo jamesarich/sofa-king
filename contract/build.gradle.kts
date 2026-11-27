@@ -29,7 +29,13 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { nodejs() }
 
+    // The Kotlin Toolchain layout: src/ is common code, test@jvm/ and testResources@jvm/ are the JVM tests.
     sourceSets {
+        commonMain { kotlin.setSrcDirs(listOf("src")) }
+        jvmTest {
+            kotlin.setSrcDirs(listOf("test@jvm"))
+            resources.setSrcDirs(listOf("testResources@jvm"))
+        }
         commonMain.dependencies {
             api(libs.kotlinx.serialization.core)
         }

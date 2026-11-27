@@ -4,10 +4,11 @@
 # Every build's code meets these rules as they stand: there is no baseline, and no build turns a rule off.
 
 # The defaults skip test code for some rules by the usual test source set names. This repository also has androidHostTest,
-# fileTest, tvosTest and screenshotTest, so every source set whose name ends in Test is skipped instead.
+# fileTest, tvosTest and screenshotTest, so every source set whose name ends in Test is skipped instead, and so are the
+# test@<platform> directories of a module in the Kotlin Toolchain layout.
 complexity:
   TooManyFunctions:
-    excludes: &tests ['**/*Test/**', '**/test/**']
+    excludes: &tests ['**/*Test/**', '**/test/**', '**/test@*/**']
     # detekt's Compose guidance: previews add no complexity.
     ignoreAnnotatedFunctions: ['Preview']
   CyclomaticComplexMethod:
@@ -22,7 +23,7 @@ naming:
 
 style:
   MagicNumber:
-    excludes: ['**/*Test/**', '**/test/**', '**/*.kts'] # the tests, as above, and the Gradle scripts
+    excludes: ['**/*Test/**', '**/test/**', '**/test@*/**', '**/*.kts'] # the tests, as above, and the Gradle scripts
   ReturnCount:
     # A guard clause (`?: return`, `if (...) return` at the top) is the idiomatic Kotlin early exit, not extra exits.
     excludeGuardClauses: true

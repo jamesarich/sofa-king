@@ -9,7 +9,7 @@ short tagged songs, for Now playing, the mini player and the queue; tv-monkey.py
 its Maestro flows play to the end. Run directly, it serves until stopped and writes the server's address and token
 to <out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
 
-Needs FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/).
+Needs FFmpeg and the server's distribution (`scripts/dist.sh` in backend/).
 """
 import argparse
 import contextlib
@@ -446,7 +446,7 @@ def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, short=F
     that folder once the lineup is in, and scanned before this yields. The show's theme keeps its sound, which finds the
     intros."""
     if not SERVER.exists():
-        raise SystemExit('Build :server:installDist in backend/ first')
+        raise SystemExit('Build the server distribution first: backend/scripts/dist.sh')
     Upstream.mark_every = mark_every
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
         directory = Path(temporary)

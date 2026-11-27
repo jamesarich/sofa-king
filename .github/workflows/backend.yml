@@ -1,7 +1,8 @@
 name: Backend
 
-# Tests every pull request and push that changes the server's or the contract's code or build, the shared Gradle settings,
-# version catalog and build-logic, or this workflow; backend/docs and Markdown are left out. The image carries the web app
+# Tests every pull request and push that changes the server's or the contract's code or build, the Kotlin Toolchain's
+# wrapper, project file and plugins, the shared Gradle settings, version catalog and build-logic, or this workflow;
+# backend/docs and Markdown are left out. The image carries the web app
 # built from the same commit, so a push to main that changes the app's core or web module or its build publishes it too;
 # app pull requests are checked by ci.yml. A push to main, or a manual run on main,
 # then publishes the server image for linux/amd64 and linux/arm64 to GitHub Container Registry as
@@ -28,6 +29,12 @@ on:
       - "!backend/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
+      - "kotlin"
+      - "kotlin.bat"
+      - "project.yaml"
+      - "kotlin.module-template.yaml"
+      - "build-plugins/**"
+      - ".github/actions/kotlin-toolchain/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -42,6 +49,12 @@ on:
       - "!backend/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
+      - "kotlin"
+      - "kotlin.bat"
+      - "project.yaml"
+      - "kotlin.module-template.yaml"
+      - "build-plugins/**"
+      - ".github/actions/kotlin-toolchain/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -85,10 +98,13 @@ jobs:
           distribution: temurin
           java-version: "25"
 
+      # Gradle builds the contract for the app, so the contract's formatting, analysis and tests still run under it.
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - uses: ./.github/actions/kotlin-toolchain
 
       # The tests generate HLS fixtures with FFmpeg and run Comskip on a generated recording.
       - name: Install FFmpeg and Comskip
@@ -96,23 +112,32 @@ jobs:
         with:
           packages: ffmpeg comskip
 
-      - name: Check the formatting, analyze, test and build the distribution
-        run: ./gradlew --console=plain spotlessCheck detekt test :server:installDist
+      # The Kotlin Toolchain builds the server: its checks are the tests and, from build-plugins/lint, ktlint and detekt.
+      - name: Check the formatting, analyze and test
+        working-directory: .
+        run: ./kotlin check -m server
 
-      # The contract is an included build, so the server's test task does not run its tests: the wire fixtures that
-      # older apps rely on are only checked here.
+      - name: Build the distribution
+        run: scripts/dist.sh
+
+      # The server's checks do not run the contract's tests: the wire fixtures that older apps rely on are only checked
+      # here, by the Gradle build the app includes and then by the toolchain build the server depends on.
       - name: Test the contract
         working-directory: contract
         run: ./gradlew --console=plain spotlessCheck detekt jvmTest
 
-      # The deploy and smoke scripts have no Gradle task; the runner image ships shellcheck.
+      - name: Test the contract with the Kotlin Toolchain
+        working-directory: .
+        run: ./kotlin test -m contract -p jvm
+
+      # The deploy and smoke scripts are no part of either build; the runner image ships shellcheck.
       - name: Check the shell and Python tooling
         run: |
           shellcheck deploy/*.sh scripts/*.sh
           python3 -I -m unittest discover -s scripts -p 'test_*.py'
           python3 -I scripts/api-tables.py --check
 
-      # Both start the installed distribution in a temporary directory and talk to it only over loopback: smoke.py checks
+      # Both start the distribution in a temporary directory and talk to it only over loopback: smoke.py checks
       # the HTTP routes, the migrations and SIGTERM across a restart; live-smoke.py serves fixture feeds and guides it
       # generates with FFmpeg and decodes video through the relay, the player output and the HDHomeRun remux. An empty
       # SOFA_UPDATE_IMAGE turns off the update check, so the server reaches no registry either.
@@ -142,7 +167,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-reports
-          path: "backend/**/build/reports/tests"
+          path: |
+            build/reports
+            contract/build/reports/tests
           retention-days: 14
 
       # Artifacts drop file modes, so the distribution travels as a tar to keep bin/server executable.
@@ -168,15 +195,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
-        with:
-          distribution: temurin
-          java-version: "25"
-
-      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # The toolchain brings the JDK the tests run on.
+      - uses: ./.github/actions/kotlin-toolchain
 
       # The -dev packages bring the shared libraries the built binary links against.
       - name: Install FFmpeg and the Comskip build dependencies
@@ -201,19 +221,42 @@ jobs:
           "$HOME/comskip/bin/comskip" --help 2>&1 | head -n 3 || true
           ffmpeg -version | head -n 1
 
-      # The test skips when comskip does not start, so the report must show it ran.
+      # The test skips when comskip does not start, so the report, which holds this one class, must show it ran.
       - name: Run the Comskip test
+        working-directory: .
         run: |
-          ./gradlew --console=plain :server:test --tests 'dev.jamesrich.sofaking.backend.dvr.CommercialsTest'
-          grep -q 'name="Comskip finds the ad block in a generated recording()"' server/build/test-results/test/TEST-dev.jamesrich.sofaking.backend.dvr.CommercialsTest.xml
-          ! grep -q '<skipped' server/build/test-results/test/TEST-dev.jamesrich.sofaking.backend.dvr.CommercialsTest.xml
+          ./kotlin test -m server --include-classes 'dev.jamesrich.sofaking.backend.dvr.CommercialsTest'
+          grep -q 'name="Comskip finds the ad block in a generated recording()"' build/reports/server/jvm/TEST-junit-jupiter.xml
+          ! grep -q '<skipped' build/reports/server/jvm/TEST-junit-jupiter.xml
 
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: comskip-test-reports
-          path: "backend/**/build/reports/tests"
+          path: build/reports
           retention-days: 14
+
+  # The contract's other targets under the Kotlin Toolchain. The server only needs its JVM jar, and the app builds the
+  # contract with Gradle, so nothing else compiles them from contract/module.yaml: this job keeps that file honest for
+  # the targets a Linux runner can build. The Apple targets need a Mac and are left to Gradle's jobs.
+  contract:
+    name: Contract targets (Kotlin Toolchain)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/kotlin-toolchain
+        with:
+          scope: contract
+
+      - name: Build the contract's JVM, Linux, JS and Wasm targets
+        working-directory: .
+        run: ./kotlin build -m contract
 
   # The web app the image serves at /app/: core's JS library, then esbuild over it and hls.js. It runs beside the
   # tests, and the remote build cache answers the Gradle task when core has not changed.

@@ -55,9 +55,10 @@ jobs:
         uses: ./.github/actions/apt-install
         with:
           packages: ffmpeg
+      - uses: ./.github/actions/kotlin-toolchain
       - name: Build the server distribution
         working-directory: backend
-        run: ./gradlew --console=plain :server:installDist
+        run: scripts/dist.sh
       - name: Build the debug app
         working-directory: app
         run: ./gradlew --console=plain :androidApp:assembleDebug

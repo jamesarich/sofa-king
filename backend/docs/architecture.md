@@ -8,7 +8,7 @@ The terms used here (provider, source, candidate, station) are defined in the [g
 
 | Module | Contents |
 | --- | --- |
-| `../contract` | The live TV, recording and library request and response types the server shares with the app, a Kotlin Multiplatform build included from `settings.gradle.kts` |
+| `../contract` | The live TV, recording and library request and response types the server shares with the app, a Kotlin Multiplatform module the server depends on in `server/module.yaml` |
 | `server` | The admin, lineup policy and status models, Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation, media library scans, music taste and watchlists, the MCP endpoint (`mcp/`, [API](api.md#mcp)), multiview (`multiview/`), [virtual channels](virtual-channels.md) (`virtual/`), [notifications](notifications.md) (`notify/`), the image update check (`update/`, [portal](admin.md#update)), pairing and API tokens, and the admin portal, JVM 21 |
 
 ## Data flow

@@ -3,7 +3,7 @@
 distribution serving fixture channels; fail when the app takes no keys, or on an uncaught error on the page, an error the
 console logged, a failed request, a crashed page or a blank screen.
 
-Needs Playwright for Python, FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/), and
+Needs Playwright for Python, FFmpeg and the server's distribution (`scripts/dist.sh` in backend/), and
 the web build: `npm ci && npm run build` in app/web after `./gradlew :core:jsBrowserProductionLibraryDistribution`.
 Writes the console, the server log, the keys and the last screen to --out. With --served the server serves the build at
 /app/, as the image does; otherwise a static server on another origin does, through SOFA_CORS_ORIGINS.

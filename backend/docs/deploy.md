@@ -250,7 +250,7 @@ Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customap
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | Image definition; copies `server/build/install/server` to `/opt/sofa`, third-party jars first |
-| `.dockerignore` | Admits only the installed distribution into the build context |
+| `.dockerignore` | Admits only the distribution into the build context |
 | `deploy/compose.yaml` | Service, the published image, port mapping, the config folder, [container limits](#container-limits) |
 | `deploy/compose.build.yaml` | Builds the image from a checkout instead, see [build](#build) |
 | `deploy/.env.example` | Optional settings; copy to `.env` beside `compose.yaml` |
@@ -266,7 +266,7 @@ Homepage's [Custom API widget](https://gethomepage.dev/widgets/services/customap
 To run your own build instead of the published image, build it from a checkout. The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. `deploy/compose.build.yaml` adds the build to `compose.yaml` and names the result `sofa-king-backend:local`. From `backend/`:
 
 ```sh
-./gradlew :server:installDist
+scripts/dist.sh
 cd deploy
 REVISION=$(git rev-parse --short HEAD) docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
@@ -275,7 +275,7 @@ A build made this way serves no web app, since `backend/web` is empty. To includ
 
 Later commands in `deploy` that recreate the container take both files, or set `SOFA_IMAGE=sofa-king-backend:local` in `.env`, which makes plain `docker compose up -d` run the local build.
 
-`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report. `VERSION` stamps `org.opencontainers.image.version` and sets `SOFA_VERSION`; the workflow takes it from [`.github/version.sh`](../../.github/version.sh), the same version as the app snapshot built from that commit. The build works without either. It targets the Docker host's platform (`linux/amd64` or `linux/arm64`); set `DOCKER_DEFAULT_PLATFORM=linux/amd64` to build for an amd64 host from Apple Silicon. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
+`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report. `VERSION` stamps `org.opencontainers.image.version` and sets `SOFA_VERSION`; the workflow takes it from [`.github/version.sh`](../../.github/version.sh), the same version as the app snapshot built from that commit. The build works without either. It targets the Docker host's platform (`linux/amd64` or `linux/arm64`); set `DOCKER_DEFAULT_PLATFORM=linux/amd64` to build for an amd64 host from Apple Silicon. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `scripts/dist.sh`.
 
 ### Container limits
 
@@ -379,10 +379,10 @@ The server also checks the registry and writes `config/update-requested` for a n
 
 ## Deploy your build to a host without a JDK
 
-Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers. The host's `.env` sets `SOFA_IMAGE=sofa-king-backend:local`, so its `compose.yaml` runs the build. From `backend/` on the workstation:
+Run `scripts/dist.sh` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers. The host's `.env` sets `SOFA_IMAGE=sofa-king-backend:local`, so its `compose.yaml` runs the build. From `backend/` on the workstation:
 
 ```sh
-./gradlew :server:installDist
+scripts/dist.sh
 DOCKER_HOST=ssh://HOST REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml build
 ssh HOST 'cd /srv/sofa-king && docker compose up -d'
 ```

@@ -10,7 +10,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 
 /**
- * The lint every project in the three builds shares, the root of a multi-project build included.
+ * The lint every project in the Gradle builds shares, the root of a multi-project build included.
  *
  * - Spotless formats the Kotlin sources and Gradle scripts with ktlint, set up by the repository's `.editorconfig`:
  *   `spotlessCheck` fails on a file ktlint would change, and `spotlessApply` changes it.
@@ -33,7 +33,9 @@ class LintConventionPlugin : Plugin<Project> {
         pluginManager.apply(SpotlessPlugin::class.java)
         extensions.configure(SpotlessExtension::class.java) { spotless ->
             spotless.kotlin {
-                it.target("src/**/*.kt")
+                // src/ holds Gradle's source sets; a module in the Kotlin Toolchain layout keeps its tests beside it,
+                // in test@<platform>/.
+                it.target("src/**/*.kt", "test@*/**/*.kt")
                 it.ktlint(ktlint).setEditorConfigPath(editorConfig)
             }
             spotless.kotlinGradle {
@@ -54,9 +56,12 @@ class LintConventionPlugin : Plugin<Project> {
         plugins.withType(KotlinBasePlugin::class.java) {
             pluginManager.apply(DetektPlugin::class.java)
             extensions.configure(DetektExtension::class.java) { detekt ->
-                // Every source set at once, Kotlin Multiplatform's included; the plugin's own default is src/main and
-                // src/test only.
-                detekt.source.setFrom(layout.projectDirectory.dir("src"))
+                // Every source set at once, Kotlin Multiplatform's included, and the test@<platform>/ directories of
+                // a module in the Kotlin Toolchain layout; the plugin's own default is src/main and src/test only.
+                detekt.source.setFrom(
+                    layout.projectDirectory.dir("src"),
+                    layout.projectDirectory.asFileTree.matching { it.include("test@*/**/*.kt") },
+                )
                 detekt.buildUponDefaultConfig.set(true)
                 // Every build sits one directory below the repository root, beside the shared gradle/ directory.
                 detekt.config.setFrom(isolated.rootProject.projectDirectory.file("../gradle/detekt.yml"))

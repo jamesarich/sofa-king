@@ -1,4 +1,4 @@
-# Runs the installed distribution built on the host: ./gradlew :server:installDist
+# Runs the distribution built on the host: scripts/dist.sh
 # and serves the web app from web/, the app/web build (an empty folder serves none).
 # The build context only admits server/build/install/server and web (see .dockerignore).
 
@@ -7,9 +7,8 @@
 FROM --platform=$BUILDPLATFORM busybox:1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4 AS split
 COPY server/build/install/server /dist
 RUN mkdir -p /app/lib \
-    && mv /dist/lib/server-*.jar /dist/lib/contract-jvm-*.jar /app/lib/ \
-    && mv /dist/bin /app/bin \
-    && rm /app/bin/*.bat
+    && mv /dist/lib/server-jvm.jar /dist/lib/contract-jvm.jar /app/lib/ \
+    && mv /dist/bin /app/bin
 
 # Pinned by digest so a rebuild gets the same base; the tag names the JRE it holds.
 FROM eclipse-temurin:25.0.5.1_2-jre-noble@sha256:2ec98aa522c472deadfd2b7c5b39bca680e33ef522a53a72f10789bdf89a6bb5
@@ -35,7 +34,7 @@ COPY web /opt/sofa/web
 # Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp and
 # SOFA_RECORDINGS_DIR, which defaults to /config/recordings; Compose sets it to the /recordings mount.
 # The HDHomeRun tuners admit no address until the portal or SOFA_HDHR_ALLOW allows one; unset tokens are generated.
-# The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
+# The start script (scripts/launcher.sh) reads SERVER_OPTS and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
 # preferIPv4Stack: the HTTP client connects to the first resolved address, and a container without an IPv6 route is still
 # handed AAAA records first for CDN hosts.
 ENV SOFA_HOST=0.0.0.0 \

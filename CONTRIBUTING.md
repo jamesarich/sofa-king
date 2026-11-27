@@ -10,21 +10,27 @@ Contributions are Sofa King welcome, from everyone who follows the [code of cond
 
 ## Repository layout
 
-Three Gradle builds, each with its own wrapper; build each from its own directory:
+Two build tools. Gradle builds the app and, for it, the contract, each from its own directory with its own wrapper. The [Kotlin Toolchain](https://kotlin-toolchain.org/) builds the server and, for it, the contract, from the repository root with the `kotlin` wrapper:
 
-| Directory | Build | Checks |
-| --- | --- | --- |
-| [`app/`](app/README.md) | The Kotlin Multiplatform app | [Build and test](app/docs/development.md#build-and-test) |
-| [`backend/`](backend/README.md) | The Ktor server and its Docker image | [Build and test](backend/docs/development.md#build-and-test) |
-| [`contract/`](contract/README.md) | The wire types both include | `./gradlew jvmTest assemble` |
+| Directory | Build | Tool | Checks |
+| --- | --- | --- | --- |
+| [`app/`](app/README.md) | The Kotlin Multiplatform app | Gradle | [Build and test](app/docs/development.md#build-and-test) |
+| [`backend/`](backend/README.md) | The Ktor server and its Docker image | Kotlin Toolchain | [Build and test](backend/docs/development.md#build-and-test) |
+| [`contract/`](contract/README.md) | The wire types both include | Both | `./gradlew jvmTest assemble` in `contract/`, `./kotlin test -m contract -p jvm` at the root |
 
-They share these files at the root:
+The Kotlin Toolchain is an alpha, pinned to a development build in the `kotlin` and `kotlin.bat` wrappers, which download it, its JDK and the compilers on first use. Its files at the root:
+
+- `project.yaml`, the modules it builds, each described by a `module.yaml`.
+- `kotlin.module-template.yaml`, the Kotlin and kotlinx.serialization versions those modules share, which repeat the catalog's.
+- `build-plugins/lint/`, the plugin that runs ktlint and detekt as the server's checks.
+
+Both tools share these files at the root:
 
 - `gradle/libs.versions.toml`, the one version catalog, so a Kotlin or kotlinx.serialization bump moves every build at once. It holds `sofaking`, the one product version, which `.github/version.sh` extends with the build number that both the app snapshot and the server image carry.
-- `gradle/repositories.settings.gradle.kts` and `gradle/build-cache.settings.gradle.kts`, the repositories and the remote build cache every build applies. The cache is read-only without the `SOFAKING_CACHE_*` credentials.
+- `gradle/repositories.settings.gradle.kts` and `gradle/build-cache.settings.gradle.kts`, the repositories and the remote build cache every Gradle build applies. The cache is read-only without the `SOFAKING_CACHE_*` credentials.
 - `build-logic/`, the convention plugins: `sofaking.kotlin` (the JDK 21 toolchain and the web toolchain repositories), `sofaking.android` (the SDK levels) and `sofaking.lint` (formatting and static analysis).
 - `.editorconfig`, the code style the IDE and ktlint share.
-- `settings.gradle.kts`, which includes all three builds for one IDE import only, with the `gradle.properties` and the `.run/` configurations that import uses. CI never builds from the root; the app's [development](app/docs/development.md#android-studio) page covers opening it in Android Studio.
+- `settings.gradle.kts`, which includes both Gradle builds for one IDE import only, with the `gradle.properties` and the `.run/` configurations that import uses. CI never builds from the root; the app's [development](app/docs/development.md#android-studio) page covers opening it in Android Studio.
 - [`renovate.json`](renovate.json), which proposes the dependency, wrapper, base image and workflow action updates of every build.
 
 `.gitignore` ignores every directory named `build`, so no package or source directory may carry that name.
@@ -39,7 +45,14 @@ Kotlin follows IntelliJ IDEA's Kotlin style, which the root `.editorconfig` sets
 ./gradlew detekt          # static analysis
 ```
 
-CI runs `spotlessCheck` and `detekt` in every build. Each build's `gradle.properties` sets `detekt.use.worker.api=true`, so each detekt task runs in a JVM of its own, not in the Gradle daemon. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why. There is no baseline, and no build turns a rule off.
+The server has no Gradle build, so `build-plugins/lint` runs the same ktlint and detekt versions over it with the same `.editorconfig` and `gradle/detekt.yml`, from the repository root:
+
+```sh
+./kotlin do ktlintFormat -m server      # format
+./kotlin check ktlint detekt -m server  # both checks; `./kotlin check -m server` adds the tests
+```
+
+CI runs `spotlessCheck` and `detekt` in every Gradle build and both checks on the server. Each Gradle build's `gradle.properties` sets `detekt.use.worker.api=true`, so each detekt task runs in a JVM of its own, not in the Gradle daemon. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why. There is no baseline, and no build turns a rule off.
 
 Catch the exceptions a call can throw, such as `IOException` or `SerializationException`, never a bare `catch (e: Exception)`. Where a failure of any kind is logged or shown and the work goes on, such as a background loop's next pass or a screen's load, use `runCatchingCancellable` (the server's `Results.kt`, the app's `data/Failures.kt`): it rethrows `CancellationException`, so canceling still cancels, and never catches an `Error`. To clean up after a failure and let it go on, use `runCatching { … }.onFailure { … }.getOrThrow()`, or `finally`.
 
@@ -86,7 +99,7 @@ The root keeps `README.md`, this file, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CON
 
 ## Wire changes
 
-A request or response type the app and the server share lives in `contract/`, never in either part. A change to it lands with both sides in one pull request, follows the rules in the [contract's README](contract/README.md), and keeps every fixture in `contract/src/jvmTest/resources/wire`: never edit or delete one. Released apps run against newer servers, so the server must keep answering what those fixtures hold.
+A request or response type the app and the server share lives in `contract/`, never in either part. A change to it lands with both sides in one pull request, follows the rules in the [contract's README](contract/README.md), and keeps every fixture in `contract/testResources@jvm/wire`: never edit or delete one. Released apps run against newer servers, so the server must keep answering what those fixtures hold.
 
 ## Dependencies
 
@@ -97,8 +110,8 @@ By hand:
 1. Update the exact versions in the catalog.
 2. Run the part's checks: [app](app/docs/development.md#build-and-test), [server](backend/docs/development.md#build-and-test) with both smoke scripts, and `jvmTest` in `contract/`.
 3. For a change to the app's playback, captions or remote, run the [checks on a TV](app/docs/development.md#test-on-a-tv).
-4. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
-5. A Kotlin or kotlinx.serialization bump moves all three builds: run each part's checks and follow the [contract's README](contract/README.md).
+4. For a Gradle wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`. For the Kotlin Toolchain, run `./kotlin update --dev` (or `--target-version`), which rewrites the version and checksum in both `kotlin` wrappers; Renovate does not track it.
+5. A Kotlin or kotlinx.serialization bump moves every build: set the same versions in `kotlin.module-template.yaml`, as Renovate does, run each part's checks and follow the [contract's README](contract/README.md).
 6. For a wrapper, JDK or SDK change, update the version table in the part's dependencies page.
 
 Each part's dependencies page lists the versions the catalog does not hold: [app](app/docs/dependencies.md), [server](backend/docs/dependencies.md).
@@ -156,8 +169,9 @@ A push to `main` that changes the app publishes the rolling `snapshot` prereleas
 
 `backend.yml` runs five jobs, and serves the web app built from the same commit at `/app/`, which is why a push to `main` that changes the app's `core` or `web` runs it too:
 
-- `test` runs `./gradlew spotlessCheck detekt test :server:installDist` and the contract's `spotlessCheck detekt jvmTest` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships, and Comskip. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. Each test fails after a minute unless it sets a longer `@Timeout`. The contract's `jvmTest` checks the [wire fixtures](contract/README.md) older apps rely on, which the server's `test` does not reach. The job then runs `shellcheck` over `backend/deploy` and `backend/scripts`, the unit tests in `backend/scripts`, `scripts/api-tables.py --check` (the endpoint tables of `backend/docs/api.md` against the OpenAPI document), and both [smoke scripts](backend/docs/development.md#build-and-test) against the installed distribution, which need no network, then fuzzes every documented route with Schemathesis.
+- `test` runs `./kotlin check -m server` (the tests, ktlint and detekt), builds the distribution with `scripts/dist.sh`, and runs the contract's Gradle `spotlessCheck detekt jvmTest` and its `./kotlin test -m contract -p jvm` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships, and Comskip. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. Each test fails after a minute unless it sets a longer `@Timeout`. The contract's tests check the [wire fixtures](contract/README.md) older apps rely on, which the server's checks do not reach. The job then runs `shellcheck` over `backend/deploy` and `backend/scripts`, the unit tests in `backend/scripts`, `scripts/api-tables.py --check` (the endpoint tables of `backend/docs/api.md` against the OpenAPI document), and both [smoke scripts](backend/docs/development.md#build-and-test) against the distribution, which need no network, then fuzzes every documented route with Schemathesis.
 - `comskip` builds Comskip from source (`backend/scripts/build-comskip.sh`, cached on the script and its patch) on Ubuntu 26.04, where no package ships it, and runs the Comskip test with it, beside `test`.
+- `contract` builds the contract's JVM, Linux, JS and Wasm targets with the Kotlin Toolchain (`./kotlin build -m contract`), which nothing else compiles from `contract/module.yaml`: the server needs only its JVM jar, and the app builds the contract with Gradle.
 - `web` builds the web app (`core`'s JS library, then `npm ci && npm run build`) beside `test` and gzips its files; the image serves it at `/app/` ([serve the web app](backend/docs/deploy.md#serve-the-web-app)).
 - `image` builds the image from the tested distribution and the web bundle for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture, then starts it and checks `/readyz`, `/healthz`, the web app's page and its precompressed bundle, and a clean stop. A pull request builds both without pushing them.
 - `publish` runs for `main`, on a push or a manual run, and for a `v*` tag, once both images are built. It tags them together as `ghcr.io/jamesarich/sofa-king:main` (for a tag, `:X.Y.Z`, `:X.Y` and `:latest` instead) and `:sha-<commit>`, with a BuildKit SBOM and max-mode build provenance, which [deploy](backend/docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](backend/docs/deploy.md#update-automatically) install that image.

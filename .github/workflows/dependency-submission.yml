@@ -1,7 +1,9 @@
 name: Dependency graph
 
-# Sends each build's resolved dependencies to GitHub so Dependabot alerts cover the Gradle dependencies too; Renovate
-# updates them, GitHub warns about the vulnerable ones. Runs on main only, as the graph needs write access.
+# Sends each Gradle build's resolved dependencies to GitHub so Dependabot alerts cover the Gradle dependencies too;
+# Renovate updates them, GitHub warns about the vulnerable ones. Runs on main only, as the graph needs write access.
+# The server is built by the Kotlin Toolchain, which has no such submission: its libraries are the catalog's, most of
+# which the app's graph holds too.
 on:
   push:
     branches: [main]
@@ -31,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [app, backend, contract]
+        build: [app, contract]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

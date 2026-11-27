@@ -5,7 +5,7 @@ goes to the background. StrictMode's findings in the debug build are counted and
 the Maestro flows there run first, on the freshly paired app, and any that fails fails the run.
 
 Needs adb with one booted emulator, the debug APK, what fixture_server.py needs: FFmpeg and the server's distribution
-(`./gradlew :server:installDist` in backend/), and Maestro on the PATH for --flows. Writes the logs, the key script and
+(`scripts/dist.sh` in backend/), and Maestro on the PATH for --flows. Writes the logs, the key script and
 a screenshot to --out.
 """
 import argparse

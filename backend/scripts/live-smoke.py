@@ -178,7 +178,7 @@ def stop(process):
 
 def main():
     if not APP.exists():
-        raise SystemExit('Build :server:installDist first')
+        raise SystemExit('Build the distribution first: scripts/dist.sh')
     with tempfile.TemporaryDirectory(prefix='sofa-live-smoke-') as temporary:
         directory = Path(temporary)
         media = directory / 'media'

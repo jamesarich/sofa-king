@@ -3,8 +3,7 @@ name: CodeQL
 # Scans the workflows with GitHub's CodeQL every week and on a manual run, and a pull request that changes this file.
 # Findings appear under the repository's Security tab. The Kotlin code waits: CodeQL's Kotlin extractor stops the build
 # for a Kotlin newer than it supports (below 2.4.30 in October 2026), and the catalog's Kotlin is newer; add
-# `java-kotlin` with a manual `./gradlew --no-daemon --no-build-cache --no-configuration-cache :server:compileKotlin`
-# build in `backend/` once it catches up.
+# `java-kotlin` with a manual `./kotlin build -m server` build once it catches up.
 on:
   schedule:
     - cron: "17 5 * * 1"

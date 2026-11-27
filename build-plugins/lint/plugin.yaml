@@ -1,0 +1,27 @@
+# The versions are the catalog's, the ones the sofaking.lint Gradle convention runs, so Renovate moves both at once.
+tasks:
+  ktlint:
+    action: !dev.jamesrich.sofaking.lint.ktlintCheck
+      sourceDir: ${module.rootDir}/src
+      ktlintClasspath:
+        - $libs.ktlint.cli
+
+  ktlintFormat:
+    action: !dev.jamesrich.sofaking.lint.ktlintFormat
+      sourceDir: ${module.rootDir}/src
+      ktlintClasspath:
+        - $libs.ktlint.cli
+
+  detekt:
+    action: !dev.jamesrich.sofaking.lint.detektCheck
+      sourceDir: ${module.rootDir}/src
+      configFile: ${project.rootDir}/gradle/detekt.yml
+      detektClasspath:
+        - $libs.detekt.cli
+
+checks:
+  - ktlint
+  - detekt
+
+commands:
+  - ktlintFormat

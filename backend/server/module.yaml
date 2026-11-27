@@ -1,0 +1,65 @@
+# The server, built by the Kotlin Toolchain: `./kotlin check -m server` from the repository root, and
+# backend/scripts/dist.sh for the distribution the image and the smoke scripts run.
+product: jvm/app
+# src/main and src/test, as under Gradle.
+layout: maven-like
+
+apply:
+  - ../../kotlin.module-template.yaml
+
+# ktlint and detekt as checks, and `./kotlin do ktlintFormat` (build-plugins/lint).
+plugins:
+  lint: enabled
+
+dependencies:
+  - //contract
+  - $libs.kotlinx.serialization.json
+  - $libs.kotlinx.coroutines.core
+  - $libs.ktor.server.core
+  - $libs.ktor.client.core
+  - $libs.ktor.client.cio
+  - $libs.ktor.server.netty
+  - $libs.ktor.serialization.kotlinx.json
+  - $libs.ktor.server.content.negotiation
+  - $libs.ktor.server.status.pages
+  - $libs.ktor.server.compression
+  - $libs.ktor.server.conditional.headers
+  - $libs.ktor.server.body.limit
+  - $libs.ktor.server.rate.limit
+  - $libs.ktor.server.call.id
+  - $libs.ktor.server.cors
+  - $libs.ktor.server.call.logging
+  - $libs.ktor.server.partial.content
+  - $libs.ktor.server.sse
+  - $libs.exposed.core
+  - $libs.exposed.jdbc
+  - $libs.sqlite.jdbc
+  - $libs.kotlinx.html
+  - $libs.zxing.core
+  - $libs.jmdns
+  - $libs.mcp.kotlin.sdk.server
+  - $libs.logback.classic
+
+test-dependencies:
+  - $libs.junit.jupiter
+  - $libs.junit.platform.launcher: runtime-only
+  - $libs.kotlinx.coroutines.test
+  - $libs.ktor.server.test.host
+  - $libs.ktor.client.mock
+
+settings:
+  jvm:
+    mainClass: dev.jamesrich.sofaking.backend.MainKt
+    # The image runs the server on JRE 25 while the code compiles for 21, so the tests run on the JVM it ships.
+    jdk:
+      version: 25
+    release: 21
+    # JUnit Jupiter; src/test/resources/junit-platform.properties sets the default timeout.
+    test:
+      # Logback configures itself from the environment in the test JVM too; no log file in the source tree.
+      extraEnvironment:
+        SOFA_LOG_DAYS: "0"
+      # Real responses must keep every field of the wire fixtures the contract's tests decode. The path is relative to
+      # this module, where the test JVM starts.
+      systemProperties:
+        sofaking.wireFixtures: ../../contract/testResources@jvm/wire

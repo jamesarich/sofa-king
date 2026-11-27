@@ -1,0 +1,11 @@
+# What the server and the contract share under the Kotlin Toolchain. A module file cannot read the versions in
+# gradle/libs.versions.toml, so the two below repeat the catalog's `kotlin` and `serialization` pins, and Renovate moves
+# them in the same pull request as the catalog (renovate.json).
+settings:
+  kotlin:
+    # renovate: datasource=maven depName=org.jetbrains.kotlin:kotlin-stdlib
+    version: 2.5.0-RC
+    serialization:
+      enabled: true
+      # renovate: datasource=maven depName=org.jetbrains.kotlinx:kotlinx-serialization-core
+      version: 1.13.0

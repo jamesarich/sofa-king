@@ -10,7 +10,21 @@
     "dockerfile",
     "docker-compose",
     "github-actions",
-    "npm"
+    "npm",
+    "custom.regex"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The Kotlin Toolchain's module files cannot read the version catalog, so kotlin.module-template.yaml repeats its Kotlin and kotlinx.serialization pins under a renovate comment; the package rules below put each in the same pull request as the catalog's",
+      "managerFilePatterns": [
+        "/(^|/)[^/]*\\.module-template\\.yaml$/",
+        "/(^|/)module\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+version: (?<currentValue>\\S+)"
+      ]
+    }
   ],
   "packageRules": [
     {
@@ -107,6 +121,16 @@
       ],
       "ignoreUnstable": false,
       "respectLatest": false
+    },
+    {
+      "description": "kotlinx.serialization is pinned in the catalog and again in kotlin.module-template.yaml for the Kotlin Toolchain; one pull request moves both",
+      "matchDatasources": [
+        "maven"
+      ],
+      "matchPackageNames": [
+        "org.jetbrains.kotlinx:kotlinx-serialization-*"
+      ],
+      "groupName": "kotlinx.serialization"
     },
     {
       "description": "AGENTS.md: track kotlinx.serialization and kotlinx.coroutines prereleases",

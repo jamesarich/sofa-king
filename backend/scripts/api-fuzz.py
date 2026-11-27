@@ -48,7 +48,7 @@ def filter_failure(context, failure, case, response):
 
 def main():
     if not APP.exists():
-        raise SystemExit('Build the installed distribution first: ./gradlew :server:installDist')
+        raise SystemExit('Build the distribution first: scripts/dist.sh')
     examples = os.environ.get('SOFA_FUZZ_EXAMPLES', '100')
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))

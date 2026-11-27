@@ -1,0 +1,3 @@
+product: jvm/amper-plugin
+
+description: Runs ktlint and detekt over a module as checks, and formats it with ktlint, as the sofaking.lint Gradle convention does for the Gradle builds.

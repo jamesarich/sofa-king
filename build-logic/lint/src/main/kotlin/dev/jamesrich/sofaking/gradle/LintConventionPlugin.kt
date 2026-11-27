@@ -10,7 +10,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 
 /**
- * The lint every project in the three builds shares, the root of a multi-project build included.
+ * The lint every project in the Gradle builds shares, the root of a multi-project build included.
  *
  * - Spotless formats the Kotlin sources and Gradle scripts with ktlint, set up by the repository's `.editorconfig`:
  *   `spotlessCheck` fails on a file ktlint would change, and `spotlessApply` changes it.

@@ -1,0 +1,25 @@
+name: Cache the Kotlin Toolchain
+description: >-
+  Keeps what the kotlin wrapper downloads (the toolchain, its JDK, the Kotlin compilers and the libraries of the modules
+  in project.yaml) in the Actions cache, so a job that builds the server or the contract downloads them once per change
+  to the wrapper, the catalog or a module file. Run it before the first ./kotlin command of a job.
+inputs:
+  scope:
+    description: >-
+      Names the cache. Jobs that build the same modules share one; the job that builds the contract's native targets
+      keeps the Kotlin/Native compiler in its own.
+    default: server
+runs:
+  using: composite
+  steps:
+    # The wrapper's cache on Linux and on macOS; only the runner's own exists.
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.cache/JetBrains/Kotlin
+          ~/Library/Caches/JetBrains/Kotlin
+        key: kotlin-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ inputs.scope }}-${{ hashFiles('kotlin', 'project.yaml', '**/module.yaml', 'build-plugins/**/plugin.yaml', 'gradle/libs.versions.toml') }}
+        restore-keys: kotlin-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ inputs.scope }}-
+    # The wrapper prints a banner about usage statistics on a fresh machine.
+    - shell: bash
+      run: echo "KOTLIN_CLI_NO_WELCOME_BANNER=1" >> "$GITHUB_ENV"

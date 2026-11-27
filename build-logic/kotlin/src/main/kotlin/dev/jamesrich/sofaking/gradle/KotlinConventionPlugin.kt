@@ -23,7 +23,7 @@ import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 /**
- * What every project in the three builds shares: the JDK 21 toolchain for Kotlin and the web toolchains (Node, Yarn,
+ * What every project in the Gradle builds shares: the JDK 21 toolchain for Kotlin and the web toolchains (Node, Yarn,
  * Binaryen) resolved through the repositories in `gradle/repositories.settings.gradle.kts`, and, where a build sets
  * `sofaking.warningsAsErrors=true` in its `gradle.properties`, compiler warnings that fail the build.
  * Apply it to each project, the root of a multi-project build included, since the Kotlin plugin adds the web

@@ -17,6 +17,13 @@ on:
       - "!contract/**/*.md"
       # The Apple TV remote tests run the server's playback code from the tree.
       - "backend/server/src/main/kotlin/dev/jamesrich/sofaking/backend/playback/**"
+      - "backend/server/module.yaml"
+      - "backend/scripts/dist.sh"
+      - "backend/scripts/launcher.sh"
+      - "kotlin"
+      - "project.yaml"
+      - "kotlin.module-template.yaml"
+      - ".github/actions/kotlin-toolchain/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -41,6 +48,13 @@ on:
       - "!contract/**/*.md"
       # The Apple TV remote tests run the server's playback code from the tree.
       - "backend/server/src/main/kotlin/dev/jamesrich/sofaking/backend/playback/**"
+      - "backend/server/module.yaml"
+      - "backend/scripts/dist.sh"
+      - "backend/scripts/launcher.sh"
+      - "kotlin"
+      - "project.yaml"
+      - "kotlin.module-template.yaml"
+      - ".github/actions/kotlin-toolchain/**"
       - "gradle/**"
       - ".editorconfig"
       - "build-logic/**"
@@ -128,9 +142,10 @@ jobs:
         uses: ./.github/actions/apt-install
         with:
           packages: ffmpeg
+      - uses: ./.github/actions/kotlin-toolchain
       - name: Build the server distribution
         working-directory: backend
-        run: ./gradlew --console=plain :server:installDist
+        run: scripts/dist.sh
       - name: Install Playwright
         run: |
           python3 -m venv build/playwright
@@ -214,9 +229,10 @@ jobs:
       # The touch tests run against the server's installed distribution serving fixture channels, which FFmpeg makes.
       - name: Install FFmpeg
         run: brew install ffmpeg
+      - uses: ./.github/actions/kotlin-toolchain
       - name: Build the server distribution
         working-directory: backend
-        run: ./gradlew --console=plain :server:installDist
+        run: scripts/dist.sh
       # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
       - name: Test the iOS app by touch
         run: |
@@ -332,9 +348,10 @@ jobs:
       # which FFmpeg makes.
       - name: Install FFmpeg
         run: brew install ffmpeg
+      - uses: ./.github/actions/kotlin-toolchain
       - name: Build the server distribution
         working-directory: backend
-        run: ./gradlew --console=plain :server:installDist
+        run: scripts/dist.sh
       - name: Test the Apple TV app with the remote
         run: |
           out=build/tvos-ui

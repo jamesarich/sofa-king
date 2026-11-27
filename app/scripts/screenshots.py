@@ -5,7 +5,7 @@ as the platform can reach them. Writes <platform>-<screen>.png to --out, with th
 Appearance is pinned to Dark; `--appearance light` takes the tour again as <platform>-<screen>-light.png (desktop,
 Android phone and tablet; the TV is always dark). Android's status bar is in demo mode with the clock at 16:30.
 
-Platforms and what each needs besides FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/):
+Platforms and what each needs besides FFmpeg and the server's distribution (`scripts/dist.sh` in backend/):
 
 - web: Playwright for Python and the web app's build (`--app web/dist`, from `npm run build` in app/web), which the server
   serves at /app/, in Google Chrome (`--channel chrome`) or Playwright's own Chromium. It shows the Library tab and a show's page.

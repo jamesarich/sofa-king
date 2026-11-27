@@ -1,6 +1,6 @@
 # Sofa King contract
 
-The request and response types of the server's `/api/v1` (live TV, recordings, media libraries, pairing, viewer preferences and crash reports), shared by the server in [`backend/`](../backend/README.md) and the app in [`app/`](../app/README.md). A Kotlin Multiplatform build with `kotlinx.serialization` types and the `Wire` constants only: no `Json` instance and no Ktor. Both builds include it, so a change here compiles and tests both, and lands with both sides in one pull request.
+The request and response types of the server's `/api/v1` (live TV, recordings, media libraries, pairing, viewer preferences and crash reports), shared by the server in [`backend/`](../backend/README.md) and the app in [`app/`](../app/README.md). A Kotlin Multiplatform build with `kotlinx.serialization` types and the `Wire` constants only: no `Json` instance and no Ktor. Both include it, so a change here compiles and tests both, and lands with both sides in one pull request.
 
 Released apps and servers outlive any one commit, so the types change only in ways both sides can read:
 
@@ -10,8 +10,8 @@ Released apps and servers outlive any one commit, so the types change only in wa
 
 `AdRun` is not JSON: it is the `#EXT-X-SOFA-AD` tag the server adds to the live HLS playlists it relays to the app, marking the ad segments, and the app reads it back with `AdRun.parse`. `AdDateRange` is the same break as the standard `#EXT-X-DATERANGE` tag (class `dev.jamesrich.sofaking.ad`) that the server adds beside each `AdRun`, for players that read timed metadata: `AdDateRange.tag` builds it and `AdDateRange.parse` reads it back.
 
-The server's admin, policy and status models stay in `backend/server`. Build and test from this directory with `./gradlew jvmTest assemble`, or as part of either consumer's build. The sources sit in the Kotlin Toolchain's layout, which `build.gradle.kts` maps to Gradle's source sets: `src/` is common code, and `test@jvm/` and `testResources@jvm/` are the JVM tests.
+The server's admin, policy and status models stay in `backend/server`. Two tools build it from the same sources. Gradle builds it for the app, as an included build: `./gradlew jvmTest assemble` from this directory. The [Kotlin Toolchain](https://kotlin-toolchain.org/) builds it for the server, as the `//contract` module of the root `project.yaml`: `./kotlin test -m contract -p jvm` from the repository root. A target, dependency or compiler setting therefore changes in both `build.gradle.kts` and `module.yaml`. The sources sit in the toolchain's layout, which `build.gradle.kts` maps to Gradle's source sets: `src/` is common code, and `test@jvm/` and `testResources@jvm/` are the JVM tests.
 
-Kotlin and kotlinx.serialization come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the server load too, so all three always compile with the same pins.
+Kotlin and kotlinx.serialization come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the server load too, so all three always compile with the same pins; `../kotlin.module-template.yaml` repeats the two versions for the toolchain.
 
 Its versions are the catalog's exact pins; resolved versions are not locked.

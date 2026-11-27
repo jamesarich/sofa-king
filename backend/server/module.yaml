@@ -1,5 +1,15 @@
+# The server, built by the Kotlin Toolchain: `./kotlin check -m server` from the repository root, and
+# backend/scripts/dist.sh for the distribution the image and the smoke scripts run.
 product: jvm/app
+# src/main and src/test, as under Gradle.
 layout: maven-like
+
+apply:
+  - ../../kotlin.module-template.yaml
+
+# ktlint and detekt as checks, and `./kotlin do ktlintFormat` (build-plugins/lint).
+plugins:
+  lint: enabled
 
 dependencies:
   - //contract
@@ -38,19 +48,18 @@ test-dependencies:
   - $libs.ktor.client.mock
 
 settings:
-  kotlin:
-    version: 2.5.0-RC
-    serialization:
-      enabled: true
-      version: 1.13.0
   jvm:
     mainClass: dev.jamesrich.sofaking.backend.MainKt
+    # The image runs the server on JRE 25 while the code compiles for 21, so the tests run on the JVM it ships.
     jdk:
       version: 25
     release: 21
+    # JUnit Jupiter; src/test/resources/junit-platform.properties sets the default timeout.
     test:
+      # Logback configures itself from the environment in the test JVM too; no log file in the source tree.
       extraEnvironment:
         SOFA_LOG_DAYS: "0"
-      # Relative to this module: the test JVM starts in backend/server.
+      # Real responses must keep every field of the wire fixtures the contract's tests decode. The path is relative to
+      # this module, where the test JVM starts.
       systemProperties:
         sofaking.wireFixtures: ../../contract/testResources@jvm/wire

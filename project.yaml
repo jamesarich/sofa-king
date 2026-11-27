@@ -1,4 +1,8 @@
-# Kotlin Toolchain spike (0.15 dev): the contract and the server only. Gradle still builds everything.
+# The Kotlin Toolchain builds the server and the contract; Gradle builds the app, and the contract again as part of it.
 modules:
   - backend/server
+  - build-plugins/lint
   - contract
+
+plugins:
+  - ./build-plugins/lint

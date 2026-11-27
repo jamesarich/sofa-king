@@ -5,11 +5,10 @@ Library versions are exact pins in [the version catalog](../../gradle/libs.versi
 | Component | Version |
 | --- | --- |
 | htmx | 2.0.11 |
-| Gradle | 9.9.2 |
-| Foojay toolchain resolver | 1.0.0 |
-| JDK toolchain | 21 |
+| Kotlin Toolchain | 0.15.0-dev-4663 |
+| JDK the tests run on | 25 |
 
-The wrapper's version is in [the Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Every library comes from Maven Central.
+The Kotlin Toolchain's version and checksum are in the `kotlin` and `kotlin.bat` wrappers at the repository root. Every library comes from Maven Central.
 
 The image's programs come from its Ubuntu 24.04 (noble) base as distribution packages, at the versions its archive holds: FFmpeg 6.1, Comskip, `sqlite3`, `curl`, `tini`, and the VA-API drivers (Mesa, and on amd64 Intel's media driver and Quick Sync runtime). Renovate updates the base image by digest, which brings their security updates.
 
@@ -39,4 +38,4 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 Follow the steps in [CONTRIBUTING](../../CONTRIBUTING.md#dependencies), then run the [build and test](development.md#build-and-test) checks and both smoke scripts. Renovate follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Run the smoke scripts before merging a major bump to Ktor or the base image.
 
-Published versions are listed on the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor](https://github.com/ktorio/ktor/releases) and [Gradle distribution](https://services.gradle.org/distributions/) pages.
+Published versions are listed on the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor](https://github.com/ktorio/ktor/releases) and [Kotlin Toolchain](https://kotlin-toolchain.org/) pages.

@@ -4,7 +4,7 @@ distribution serving fixture channels, with libVLC playing them; fail when the a
 an unhandled failure, or shows a blank screen, or when closing its window leaves the app running or a session open.
 
 Needs Xvfb, xdotool, ImageMagick's import, python-xlib, libVLC (`vlc-plugin-base`), FFmpeg, the server's distribution
-(`./gradlew :server:installDist` in backend/) and the desktop app (`./gradlew :ui:createDistributable`). Run it under
+(`scripts/dist.sh` in backend/) and the desktop app (`./gradlew :ui:createDistributable`). Run it under
 `dbus-run-session --` to give the app a session bus: it then fails when the app's MPRIS media session does not come
 up, as a runtime missing a module the D-Bus library loads would show. Writes the app's log, the server log, the keys
 and the last screen to --out.

@@ -4,12 +4,12 @@ The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull reque
 
 ## Run without Docker
 
-You need JDK 21 or later and FFmpeg. Run the commands from `backend/`:
+You need JDK 21 or later on the path to run the server, and FFmpeg. The build downloads its own tools. Run the commands from `backend/`:
 
-1. Build the server:
+1. Build the server's distribution, `server/build/install/server`:
 
    ```sh
-   ./gradlew :server:installDist
+   scripts/dist.sh
    ```
 
 2. Create `data/sources.json`. The server reads it from its data directory, `data`, at start. Native providers need no account. Inside any string, `${NAME}` is replaced from the environment, so a tokenized URL stays out of the file:
@@ -67,14 +67,17 @@ Keep `data/` across restarts. It holds the database, the logo cache, the generat
 
 ## Build and test
 
-Use JDK 21 and FFmpeg on the path. The code compiles for 21, and the tests run on JDK 25, the Java the image ships; Gradle downloads one if the machine has none. Run every command from `backend/`:
+The [Kotlin Toolchain](https://kotlin-toolchain.org/) builds the server. Its wrapper, `kotlin` at the repository root, downloads the toolchain, the compilers and the JDK 25 the tests run on, the Java the image ships; the code compiles for Java 21. `server/module.yaml` holds the server's dependencies and settings. The tests need FFmpeg on the path, and the scripts start the distribution on the `java` on the path. Run every command from `backend/`:
 
 ```sh
-./gradlew test :server:installDist
+../kotlin check -m server   # the tests, ktlint and detekt
+scripts/dist.sh             # the distribution, in server/build/install/server
 python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 python3 scripts/api-fuzz.py
 ```
+
+`../kotlin test -m server --include-classes 'dev.jamesrich.sofaking.backend.catalog.LineupServiceTest'` runs one test class, `../kotlin do ktlintFormat -m server` formats the code, and `../kotlin run -m server` starts the server without building the distribution. `scripts/dist.sh` unpacks the executable JAR that `kotlin package` builds into `lib/`, beside `bin/server`, the start script (`scripts/launcher.sh`); it needs `unzip`.
 
 The unit tests cover persistence and migrations, playlist and guide imports (including gzip guides), the native provider clients, the lineup and the lineup policy, and source health. They also cover playback sessions, the relay, the admin API and portal, the player outputs, the logo cache, the HDHomeRun routes, the FFmpeg remux and client cleanup, the DVR's schedule, recorder, file layout and cleanup, library file names, `.nfo` files, scans, TMDB lookups and the library API, and library playback sessions with their modes and recordings. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite. CI runs Ubuntu 24.04's FFmpeg 6.1. On macOS the intro detector, segment audio and HDHomeRun stall tests fail with every FFmpeg build tried (Homebrew's 9 and `ffmpeg@6`, and nixpkgs' `ffmpeg-full` 9 and 6.1, both with Chromaprint), so CI on Ubuntu checks them; the rest of the suite passes on a Mac. `MediaFixture` honors `SOFA_FFMPEG`, as the server does. One test runs Comskip on a generated recording when `comskip` is on the path (`apt install comskip` on Debian and Ubuntu up to 24.04, [`scripts/build-comskip.sh`](dependencies.md#comskip) after) and skips otherwise; CI's `comskip` job builds it on Ubuntu 26.04 and fails if the test skips.
 
@@ -84,7 +87,7 @@ The smoke scripts start disposable servers in temporary directories. `smoke.py` 
 
 ## Code
 
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized. Run `./gradlew spotlessApply detekt` before you commit; CI fails on code ktlint would change and on any detekt finding, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized. Run `../kotlin do ktlintFormat -m server` and `../kotlin check ktlint detekt -m server` before you commit; CI fails on code ktlint would change and on any detekt finding, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
 
 ## Scripts
 
@@ -129,7 +132,7 @@ A native provider is a client for one free streaming service, built into the ser
 2. Register the service. Add its name and whether it has a guide of its own to the `NativeServices` map in `ProviderClient.kt`, and add a branch to `ProviderRegistry.client`. If the service publishes an XMLTV guide that the server should use by default, add it to `NativeServices.defaultGuideUrl`. Add a `ServiceInfo` for it, with its label, what it carries and its options, to `ServiceCatalog.all` in `setup/ServiceCatalog.kt`, at its place in the starter policy's priority order; it becomes the service's switch on the portal's Sources page, and `SetupServiceTest` fails until every service is there.
 3. Add fixtures. Save the sanitized service responses under `server/src/test/resources/providers/`, named for the service, for example `example-channels.json`. Remove tokens, cookies, device identifiers and anything personal before committing a fixture.
 4. Add a test. Write a `ProviderFixture`-based test beside the others in `server/src/test/kotlin/dev/jamesrich/sofaking/backend/providers/`, for example `ExampleClientTest.kt`. Point the client's base URLs at the fixture through its options, load the fixtures with `ProviderFixture.resource(...)`, and assert the channel list, a resolve, and the guide if the service has one. Include a case for a failing service and one for a channel that is gone.
-5. Run `./gradlew test`, then check the service against its live endpoints:
+5. Run `../kotlin check -m server`, then check the service against its live endpoints:
 
    ```sh
    python3 scripts/provider-smoke.py --service example

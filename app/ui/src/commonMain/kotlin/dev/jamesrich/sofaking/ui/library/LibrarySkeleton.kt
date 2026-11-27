@@ -68,7 +68,7 @@ internal fun LibrarySkeleton(modifier: Modifier = Modifier) {
                 pulse,
                 CardDefaults.shape,
                 Modifier
-                    .padding(top = HOME_LIST_TOP)
+                    .padding(top = HOME_TOP)
                     .padding(insets.horizontalOnly())
                     .fillMaxWidth()
                     .height(COMPACT_SPOTLIGHT_HEIGHT),
@@ -80,8 +80,8 @@ internal fun LibrarySkeleton(modifier: Modifier = Modifier) {
                 .wrapContentHeight(
                     Alignment.Top,
                     unbounded = true,
-                ).padding(top = if (staysPut) HOME_LIST_TOP else HOME_ROW_GAP),
-            verticalArrangement = Arrangement.spacedBy(HOME_ROW_GAP),
+                ).padding(top = if (staysPut) HOME_TOP else HOME_GAP),
+            verticalArrangement = Arrangement.spacedBy(HOME_GAP),
         ) {
             SkeletonChips(pulse, insets)
             skeletonStyles().forEach { style -> SkeletonShelf(style, pulse, insets) }
@@ -160,8 +160,8 @@ private fun rememberSkeletonPulse(): State<Float> {
 internal val COMPACT_SPOTLIGHT_HEIGHT = 220.dp
 
 /** The library home's list: its top padding and the gap between its rows, which the skeleton keeps too. */
-internal val HOME_LIST_TOP = 8.dp
-internal val HOME_ROW_GAP = 28.dp
+internal val HOME_TOP = 8.dp
+internal val HOME_GAP = 28.dp
 
 /** A chip is 32dp tall in a row as tall as Material's minimum touch target. */
 private val CHIP_ROW_HEIGHT = 48.dp

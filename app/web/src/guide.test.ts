@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chipsFor, elapsed, filterChannels, nowNext, type ChannelLike } from './guide';
+import { chipsFor, elapsed, filterChannels, gridCells, gridPx, gridSlots, gridStart, nowNext, programWhen, type ChannelLike } from './guide';
 
 const MIN = 60_000;
 const NOW = 1_000 * MIN;
@@ -68,4 +68,51 @@ test('how far through a program it is stays between 0 and 1', () => {
     assert.equal(elapsed(program, 25), 0.25);
     assert.equal(elapsed(program, -5), 0);
     assert.equal(elapsed(program, 500), 1);
+});
+
+test('the grid starts at the half hour now is in', () => {
+    const at = (h: number, m: number) => new Date(2026, 10, 27, h, m, 12).getTime();
+    assert.equal(gridStart(at(20, 10)), new Date(2026, 10, 27, 20, 0).getTime());
+    assert.equal(gridStart(at(20, 30)), new Date(2026, 10, 27, 20, 30).getTime());
+    assert.equal(gridStart(at(20, 59)), new Date(2026, 10, 27, 20, 30).getTime());
+});
+
+test('the row of times has a mark each half hour for six hours', () => {
+    const slots = gridSlots(NOW);
+    assert.equal(slots.length, 12);
+    assert.equal(slots[0], NOW);
+    assert.equal(slots[11], NOW + 330 * MIN);
+    assert.equal(gridPx(30 * MIN), 180);
+});
+
+test('a row cuts its programs to the window and fills what the guide does not list', () => {
+    const programs = [
+        { title: 'Late', startMs: NOW + 50 * MIN, stopMs: NOW + 90 * MIN },
+        { title: 'On now', startMs: NOW - 20 * MIN, stopMs: NOW + 10 * MIN },
+    ];
+    const cells = gridCells(programs, NOW, NOW + 60 * MIN);
+    assert.deepEqual(cells.map((cell) => [cell.program?.title ?? null, (cell.startMs - NOW) / MIN, (cell.stopMs - NOW) / MIN]), [
+        ['On now', 0, 10],
+        [null, 10, 50],
+        ['Late', 50, 60],
+    ]);
+});
+
+test('a row with no programs is one gap, and overlapping programs do not overlap in it', () => {
+    assert.deepEqual(gridCells([], NOW, NOW + 60 * MIN), [{ program: null, startMs: NOW, stopMs: NOW + 60 * MIN }]);
+    const overlapping = [
+        { title: 'A', startMs: NOW, stopMs: NOW + 40 * MIN },
+        { title: 'B', startMs: NOW + 30 * MIN, stopMs: NOW + 60 * MIN },
+        { title: 'Inside A', startMs: NOW + 5 * MIN, stopMs: NOW + 20 * MIN },
+    ];
+    const cells = gridCells(overlapping, NOW, NOW + 60 * MIN);
+    assert.deepEqual(cells.map((cell) => [cell.program?.title, (cell.startMs - NOW) / MIN, (cell.stopMs - NOW) / MIN]), [
+        ['A', 0, 40],
+        ['B', 40, 60],
+    ]);
+});
+
+test('a program in its details says its hours and its channel', () => {
+    const program = { title: 'Heat', startMs: new Date(2026, 10, 27, 20, 0).getTime(), stopMs: new Date(2026, 10, 27, 21, 30).getTime() };
+    assert.equal(programWhen(program, { number: 5, name: 'News 5' }, 'en-US'), '8:00 PM to 9:30 PM · 5 News 5');
 });

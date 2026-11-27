@@ -73,7 +73,7 @@ internal fun RouteDestination(
             }
         }
 
-        Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings ->
+        Route.Guide, Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.Search, Route.Recordings ->
             TabDestination(route, arrival, shell, vm, libraryVm, recordingsVm, player, music, chrome, refreshing)
     }
 }
@@ -138,7 +138,7 @@ private fun TabDestination(
                 chrome.settingsFocus,
             )
 
-            is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm, music)
+            is Route.Search -> SearchDestination(route, arrival, shell, vm, libraryVm, music)
 
             is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm, music)
 

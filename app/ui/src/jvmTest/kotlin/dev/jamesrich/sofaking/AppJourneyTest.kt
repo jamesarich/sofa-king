@@ -118,9 +118,20 @@ class AppJourneyTest {
     }
 
     @Test
+    fun `Search in the header opens over the guide and Back returns to the channel`() = journey(tv = true) {
+        val cell = guideCell()
+        keys("Back", "Back", "Right", "Right", "Right")
+        assertFocused("Search")
+        keys("OK")
+        assertFocused("Channel, program, title or cast")
+        keys("Back")
+        assertFocused(cell)
+    }
+
+    @Test
     fun `Settings opens on its first page and Back returns through it to its button`() = journey(tv = true) {
         guideCell()
-        keys("Back", "Back", "Right", "Right", "Right")
+        keys("Back", "Back", "Right", "Right", "Right", "Right")
         assertFocused("Settings")
         keys("OK")
         assertFocused("the Live TV row") { it?.startsWith("Live TV") == true }

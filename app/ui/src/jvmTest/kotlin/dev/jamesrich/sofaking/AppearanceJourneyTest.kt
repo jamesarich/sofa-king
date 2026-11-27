@@ -36,7 +36,7 @@ class AppearanceJourneyTest {
 
     private fun AppDriver.openSettings() {
         assertFocused("a guide cell") { it?.startsWith("Show at") == true }
-        keys("Back", "Back", "Right", "Right", "Right")
+        keys("Back", "Back", "Right", "Right", "Right", "Right")
         assertFocused("Settings")
         keys("OK")
         assertFocused("the Live TV row") { it?.startsWith("Live TV") == true }

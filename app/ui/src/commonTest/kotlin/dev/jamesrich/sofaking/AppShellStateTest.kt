@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -29,6 +30,39 @@ class AppShellStateTest {
         shell.toGuide(Arrival(atNow = true))
         assertEquals(Route.Guide, shell.top)
         assertEquals(Arrival(returnedFrom = "c", atNow = true), shell.nav.arrival)
+    }
+
+    @Test
+    fun `search opens over the page that is open and Back returns to it`() {
+        shell.history = shell.history.tuned("a")
+        shell.openSearch()
+        assertEquals(Route.Search(), shell.top)
+        assertEquals(Tab.LIVE, shell.nav.tab)
+        shell.back()
+        assertEquals(Route.Guide, shell.top)
+        assertEquals("a", shell.nav.arrival.returnedFrom, "the guide comes back on its channel")
+
+        shell.openTab(Tab.RECORDINGS)
+        shell.openSearch()
+        shell.back()
+        assertEquals(Route.Recordings, shell.top)
+        assertEquals(null, shell.nav.arrival.returnedFrom)
+    }
+
+    @Test
+    fun `search closes Settings and a channel watched from it comes back to it`() {
+        shell.openTab(Tab.LIBRARY)
+        shell.push(Route.Settings)
+        shell.openSearch()
+        assertEquals(listOf(Route.Library, Route.Search()), shell.nav.stack(Tab.LIBRARY))
+        shell.push(Route.Player("a"))
+        shell.history = shell.history.tuned("a").tuned("b")
+        shell.back()
+        assertEquals(Route.Search(), shell.top)
+        assertEquals("b", shell.nav.arrival.returnedFrom)
+        shell.back()
+        assertEquals(Route.Library, shell.top)
+        assertEquals(SEARCH_FOCUS_KEY, shell.nav.arrival.returnedFrom)
     }
 
     @Test
@@ -214,6 +248,29 @@ class AppShellStateTest {
         assertTrue(
             tabsOffered(ServerCapabilities(), Tab.LIBRARY, LibraryHomeState.Loading, RecordingsState.Loading).library,
             "a start on the tab shows it before the bootstrap answers",
+        )
+    }
+
+    @Test
+    fun `Search shows once there is a lineup or a library to search`() {
+        val nothing = tabsOffered(ServerCapabilities(), Tab.LIVE, LibraryHomeState.Loading, RecordingsState.Loading)
+        assertFalse(nothing.search, "a signed-out or unconfigured app offers only Settings")
+        assertTrue(
+            tabsOffered(
+                ServerCapabilities(),
+                Tab.LIVE,
+                LibraryHomeState.Loading,
+                RecordingsState.Loading,
+                live = true,
+            ).search,
+        )
+        assertTrue(
+            tabsOffered(
+                ServerCapabilities(library = true),
+                Tab.LIVE,
+                LibraryHomeState.Loading,
+                RecordingsState.Loading,
+            ).search,
         )
     }
 

@@ -99,6 +99,20 @@ body.playing .page { padding: 0; }
 .meter { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter .fill { display: block; height: 100%; background: var(--accent); }
 
+.spotlight {
+    display: grid;
+    align-content: end;
+    min-height: 300px;
+    padding: 24px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+    background: linear-gradient(var(--panel-2), var(--bg));
+    background-size: cover;
+    background-position: center 20%;
+}
+.spotlight h1 { margin: 0 0 4px; font-size: 32px; }
+.spotlight .overview { margin: 4px 0 0; }
+.spotlight .actions { margin-bottom: 0; }
 .shelf h2 { margin: 24px 0 8px; font-size: 20px; }
 .cards { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 12px; }
 .cards.grid { flex-wrap: wrap; overflow: visible; }

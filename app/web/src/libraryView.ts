@@ -1,8 +1,9 @@
 import type { WebGrid, WebHome, WebItem } from '@sofaking/core';
-import { h, replaceChildren } from './dom';
+import { button, h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
 import { length } from './format';
 import { homeStatus, isSignedOut } from './messages';
+import { showsLetters, titleCount } from './letters';
 import { href } from './router';
 import { signedOutNotice } from './signedOut';
 import { Watches, type Context, type View } from './view';
@@ -88,10 +89,14 @@ export function gridView(ctx: Context, libraryId: string): View {
     const cards = h('div', { class: 'cards grid' });
     const more = h('button', { class: 'more', text: 'Load more', attrs: { type: 'button' }, on: { click: () => ctx.core.library.loadMore() } });
     const status = h('p', { class: 'status', attrs: { role: 'status' } });
+    const count = h('span', { class: 'count' });
+    const letters = h('nav', { class: 'letters', attrs: { 'aria-label': 'Jump to a letter' } });
+    letters.hidden = true;
     const el = h(
         'section',
         { class: 'library' },
-        h('div', { class: 'bar' }, sort, genre, h('label', { class: 'check' }, unwatched, ' Unwatched only')),
+        h('div', { class: 'bar' }, sort, genre, h('label', { class: 'check' }, unwatched, ' Unwatched only'), count),
+        letters,
         cards,
         status,
         more,
@@ -103,6 +108,21 @@ export function gridView(ctx: Context, libraryId: string): View {
 
     let focused = false;
     let genresKey = '';
+    let lettersKey = '';
+    // The item a letter jump is loading toward, scrolled to once the grid holds it.
+    let jumpTo: number | null = null;
+    const jump = (offset: number) => {
+        jumpTo = offset;
+        ctx.core.library.loadThrough(offset);
+        arrive();
+    };
+    const arrive = () => {
+        const target = jumpTo === null ? undefined : cards.children[jumpTo];
+        if (!(target instanceof HTMLElement)) return;
+        jumpTo = null;
+        target.scrollIntoView({ block: 'start' });
+        target.focus();
+    };
     const draw = (grid: WebGrid | null | undefined) => {
         if (!grid || grid.libraryId !== libraryId) return;
         keepFocus(el, () => {
@@ -113,7 +133,19 @@ export function gridView(ctx: Context, libraryId: string): View {
                 replaceChildren(genre, h('option', { text: 'All genres', attrs: { value: '' } }), ...grid.genres.map((name) => h('option', { text: name, attrs: { value: name } })));
                 genre.value = chosen;
             }
+            const row = grid.letters.map((entry) => ({ letter: entry.letter, offset: entry.offset }));
+            const rowKey = row.map((entry) => `${entry.letter}${entry.offset}`).join('|');
+            letters.hidden = !showsLetters(sort.value, grid.total, row);
+            if (rowKey !== lettersKey) {
+                lettersKey = rowKey;
+                replaceChildren(
+                    letters,
+                    ...row.map((entry) => button(entry.letter, () => jump(entry.offset), 'letter')),
+                );
+            }
+            count.textContent = grid.total > 0 ? titleCount(grid.total) : '';
             replaceChildren(cards, ...grid.items.map((item) => card(item, 'grid')));
+            arrive();
             more.hidden = !grid.hasMore;
             status.textContent = grid.error ? `Some of it did not load: ${grid.error}` : grid.loading ? 'Loading' : grid.items.length === 0 ? 'Nothing here.' : '';
         });

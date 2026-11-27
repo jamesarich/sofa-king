@@ -66,6 +66,10 @@ body.playing .page { padding: 0; }
 .status { color: var(--dim); margin: 12px 0; }
 
 .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+.count { margin-left: auto; color: var(--dim); }
+.letters { display: flex; gap: 2px; overflow-x: auto; margin-bottom: 12px; }
+.letters .letter { min-width: 32px; padding: 4px 6px; border-radius: 8px; background: transparent; color: var(--dim); }
+.letters .letter:hover { color: var(--text); background: var(--panel); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border-radius: 999px; padding: 6px 14px; background: var(--panel); }
 .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }

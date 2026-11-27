@@ -123,11 +123,17 @@ class WebHome(
     val signedOut: Boolean = false,
 )
 
+/** The first item in title order under [letter] is at [offset] in the grid. */
+@JsExport
+class WebLetter(val letter: String, val offset: Int)
+
 @JsExport
 class WebGrid(
     val libraryId: String,
     val items: Array<WebItem>,
     val genres: Array<String>,
+    /** Where each first letter starts, in title order; empty in any other order. */
+    val letters: Array<WebLetter>,
     val total: Int,
     val hasMore: Boolean,
     val loading: Boolean,

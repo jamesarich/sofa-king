@@ -36,6 +36,7 @@ class SofaKingWeb {
     val channels = WebChannels(parts)
     val guide = WebGuide(parts)
     val library = WebLibrary(parts)
+    val search = WebSearch(parts)
     val item = WebItemPlayback(parts)
     val settings = WebSettings(parts)
     val decisions = WebDecisions(parts)

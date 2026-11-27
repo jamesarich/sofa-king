@@ -14,6 +14,8 @@ export interface Context {
     go(route: Route): void;
     /** Shows [route] in place of the current page, with no history entry of its own: a zap is not a place to go Back to. */
     replace(route: Route): void;
+    /** Writes [route] as the address of the page that is open, without drawing it again: what a search field holds. */
+    note(route: Route): void;
     back(): void;
 }
 

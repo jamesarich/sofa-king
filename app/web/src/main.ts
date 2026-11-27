@@ -8,6 +8,7 @@ import { gridView, libraryView } from './libraryView';
 import { liveView } from './liveView';
 import { pairingMessage, takePairing } from './pairing';
 import { backStaysInApp, href, parseRoute, stampFor, type Route } from './router';
+import { searchView } from './searchView';
 import { noteFromPairing, settingsView } from './settingsView';
 import type { Context, View } from './view';
 import { vodView } from './vodView';
@@ -29,6 +30,9 @@ const ctx: Context = {
         window.history.replaceState(window.history.state, '', href(route));
         show();
     },
+    note: (route) => {
+        window.history.replaceState(window.history.state, '', href(route));
+    },
     back: () => {
         if (backStaysInApp(window.history.state)) {
             window.history.back();
@@ -44,12 +48,16 @@ replaceChildren(root, nav, main);
 
 let view: View | null = null;
 let libraryOffered = false;
+// Search shows once the server has answered: before that there is nothing to search.
+let searchOffered = false;
 
 function section(route: Route): string {
     switch (route.page) {
         case 'guide':
         case 'watch':
             return 'guide';
+        case 'search':
+            return 'search';
         case 'settings':
             return 'settings';
         default:
@@ -61,6 +69,7 @@ function drawNav(route: Route): void {
     const here = section(route);
     const links: Array<[string, string, string]> = [['guide', 'Guide', href({ page: 'guide' })]];
     if (libraryOffered) links.push(['library', 'Library', href({ page: 'library' })]);
+    if (searchOffered || here === 'search') links.push(['search', 'Search', href({ page: 'search', query: '' })]);
     links.push(['settings', 'Settings', href({ page: 'settings' })]);
     replaceChildren(
         nav,
@@ -85,6 +94,8 @@ function create(route: Route): View {
             return itemView(ctx, route.id);
         case 'play':
             return vodView(ctx, route.id, route.fromStart);
+        case 'search':
+            return searchView(ctx, route.query);
         case 'settings':
             return settingsView(ctx);
     }
@@ -117,8 +128,9 @@ window.addEventListener('hashchange', () => {
 installKeys(root, ctx.back);
 
 core.channels.watchCapabilities((capabilities) => {
-    if (capabilities.library === libraryOffered) return;
+    if (capabilities.library === libraryOffered && capabilities.answered === searchOffered) return;
     libraryOffered = capabilities.library;
+    searchOffered = capabilities.answered;
     drawNav(parseRoute(window.location.hash));
 });
 

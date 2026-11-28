@@ -15,8 +15,9 @@ import io.ktor.http.encodeURLPathPart
 
 /**
  * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`; a Music
- * library also `played` and `plays`), only those in [genre] when given, from [cursor]. A Music library lists its
- * artists, or with [kind] `album` or `track` its albums or songs, with [favorites] only the liked ones.
+ * library also `played` and `plays`), only those in [genre] and of [collection] when given, from [cursor]. A Music
+ * library lists its artists, or with [kind] `album` or `track` its albums or songs, with [favorites] only the liked
+ * ones.
  */
 internal suspend fun SofaKingApi.libraryItems(
     libraryId: String,
@@ -27,12 +28,14 @@ internal suspend fun SofaKingApi.libraryItems(
     genre: String? = null,
     kind: String? = null,
     favorites: Boolean = false,
+    collection: String? = null,
 ): LibraryPageDto = call {
     http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
         url.parameters.append("sort", sort)
         url.parameters.append("limit", limit.toString())
         if (unwatched) url.parameters.append("unwatched", "true")
         if (genre != null) url.parameters.append("genre", genre)
+        if (collection != null) url.parameters.append("collection", collection)
         if (kind != null) url.parameters.append("kind", kind)
         if (favorites) url.parameters.append("favorite", "true")
         if (cursor != null) url.parameters.append("cursor", cursor)

@@ -20,8 +20,11 @@ interface TvLibrary {
 
     fun refreshItem(id: String)
 
-    /** Opens [libraryId]'s grid in [sort] order, only what is not watched with [unwatched], only [genre] when given. */
-    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?)
+    /**
+     * Opens [libraryId]'s grid in [sort] order, only what is not watched with [unwatched], only [genre] and only the
+     * movies of [collection] when given.
+     */
+    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?, collection: String?)
 
     fun loadMore()
 
@@ -53,8 +56,13 @@ internal class TvLibraryCalls(private val parts: TvParts) : TvLibrary {
 
     override fun refreshItem(id: String) = library.openItem(id).use(ItemPage::refresh)
 
-    override fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) =
-        library.openGrid(libraryId, sort, unwatched, genre)
+    override fun openGrid(
+        libraryId: String,
+        sort: LibrarySort,
+        unwatched: Boolean,
+        genre: String?,
+        collection: String?,
+    ) = library.openGrid(libraryId, sort, unwatched, genre, collection = collection)
 
     override fun loadMore() = library.loadMore()
 

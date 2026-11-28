@@ -310,7 +310,7 @@ internal fun TmdbMovie.facts(region: String) = MetadataFacts(
     }?.dates?.firstOrNull { it.certification.isNotBlank() }?.certification,
     rating = voteAverage.rating(), cast = credits.cast().map { it.name }, credits = credits.cast(),
     directors = credits?.crew.orEmpty().filter { it.job == "Director" }.map { it.name },
-    revision = FACTS_REVISION,
+    revision = FACTS_REVISION, collection = collection?.name?.trim()?.ifEmpty { null },
     runtimeMinutes = runtime?.takeIf { it > 0 }, poster = posterPath, backdrop = backdropPath,
 )
 

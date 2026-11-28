@@ -31,8 +31,9 @@ import kotlin.time.Clock
 private data class DwellInput(val channelId: String?, val nonce: Int, val failed: Boolean, val sound: Boolean)
 
 /**
- * The preview's rest timers: muted on tune, sound after five seconds, full screen after [autoOpenDelay], restarted by
- * any key. [returnedFrom], the channel the full screen was just left on, does not reopen until focus has moved.
+ * The preview's rest timers: muted on tune, sound after five seconds, full screen after [autoOpenDelay] with its last
+ * seconds counted down on the preview, restarted by any key. [returnedFrom], the channel the full screen was just left
+ * on, does not reopen until focus has moved.
  */
 @Composable
 internal fun rememberPreviewDwell(autoOpenDelay: AutoOpenDelay, returnedFrom: String?): PreviewDwell {
@@ -91,24 +92,37 @@ internal fun PreviewRestEffects(
                 currentSound,
             )
         }.collectLatest { input ->
-            rest(input, state, dwell) { channel ->
+            state.rest(input.channelId, input.failed, input.sound, dwell) { channel ->
                 if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) currentOpen(channel, true)
             }
         }
     }
 }
 
-/** Times one rest on [input] until the preview opens full screen through [open], or nothing is left to time. */
-private suspend fun rest(input: DwellInput, state: GuideState, dwell: PreviewDwell, open: (Channel) -> Unit) {
-    if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, uptimeMs())
+/**
+ * Times one rest on [channelId] until its preview opens full screen through [open], or nothing is left to time, on
+ * the clock [nowMs] reads. [failed] is whether the preview has no picture and [sound] whether its sound may come on.
+ */
+internal suspend fun GuideState.rest(
+    channelId: String?,
+    failed: Boolean,
+    sound: Boolean,
+    dwell: PreviewDwell,
+    nowMs: () -> Long = ::uptimeMs,
+    open: (Channel) -> Unit,
+) {
+    if (dwell.channelId != channelId) dwell.onFocus(channelId, nowMs())
     while (true) {
-        val now = uptimeMs()
-        state.previewMuted = !input.sound || dwell.isMuted(now)
+        val now = nowMs()
+        previewMuted = !sound || dwell.isMuted(now)
+        // A preview without a picture is not opened, so it counts nothing down.
+        previewOpensIn = dwell.opensInSeconds(now).takeUnless { failed }
         if (dwell.opensFullScreen(now)) {
             // The same handoff as OK: the preview session is promoted, nothing reloads. A preview without a
             // picture is not opened; it would only carry its failure to the full screen.
-            val channel = state.focused?.channel?.takeIf { it.guideId == dwell.channelId }
-            if (channel != null && !input.failed) open(channel)
+            previewOpensIn = null
+            val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
+            if (channel != null && !failed) open(channel)
             return
         }
         delay(dwell.nextTransitionMs(now) ?: return)

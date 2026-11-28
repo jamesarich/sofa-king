@@ -21,9 +21,10 @@ The focused channel plays in a muted preview after 350 ms. Focus resting on it t
 | Rest | Happens |
 | --- | --- |
 | 5 s | Preview sound comes on |
+| 7 s | The preview counts down its last three seconds: Full screen in 3 |
 | 10 s | Channel opens full screen, continuing the preview's stream |
 
-Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds) and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
+Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds), with the countdown always its last three seconds, and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
 
 - A key press restarts both timers and mutes the preview. A touch, mouse press or scroll restarts them too, and the channel then stays closed until the next key press, so scrolling by hand never opens a channel under your finger.
 - OK opens the channel full screen at once.
@@ -57,7 +58,7 @@ Search finds movies, shows, episodes and videos by title, show or cast across ev
 
 A library opens as a grid of posters with one row of filters: a Sort menu (title, recently added, year, rating or recently watched), a Genre menu to show only one of the library's genres, and an Unwatched chip; more load as you scroll. In title order, a library of 80 or more titles also has a row of first letters (# for titles that start with a digit or a symbol); OK on a letter moves to the first title under it, loading the grid that far. Cards show a bar for how far in you are, a check mark once watched (a rewatch stopped part way shows both and resumes) and, on a show, how many episodes are unwatched. OK opens an item's page; the remote's Play key plays a movie or episode straight from its card, and holding OK on a card (a long touch or a right click elsewhere) opens a menu, as the key comes up, with Play from beginning for something partway in and Mark watched or Mark unwatched. An item page's overview that runs past four lines takes focus, and OK shows the rest.
 
-On a phone, tablet or desktop window 840 dp or wider, a library's grid stays on the left and the title you pick opens beside it, with Pick a title to see it here until you do. Picking another title from the grid takes the place of the one open, and Back closes the title page and leaves the grid. A title opened from the Library tab, search or Continue watching fills the window, as everywhere on a TV.
+On a phone, tablet or desktop window 840 dp or wider, a library's grid fills the window until you pick a title, which then opens beside it. Picking another title from the grid takes the place of the one open, and Back closes the title page and leaves the grid. A title opened from the Library tab, search or Continue watching fills the window, as everywhere on a TV.
 
 ### Back and Watch Next
 
@@ -287,13 +288,15 @@ On Android, caption timing shifts captions against the picture so live captions 
 
 The SwiftUI iPhone and iPad app shares its screens with the Apple TV app and works as the other apps do, apart from these differences.
 
-- **Live.** The Live tab lists the channels with what is on now, under All, Favorites and Recent, with Search and, on a server that offers it, On later. Tap a channel to watch it full screen; hold it for Details and the favorite toggle. There is no guide grid, 24-hour window or preview.
+- **Live.** The Live tab shows the channels under All, Favorites and Recent, with Search and, on a server that offers it, On later. On an iPhone, or in a narrow iPad window, it lists the channels with what is on now; tap one to watch it full screen. In a wider iPad window it is the [Apple TV's guide grid](#apple-tv), 90 minutes under a row of times: tap a program on now to watch its channel full screen or a later one for its details, and the arrows beside the times move the grid half an hour, up to 24 hours ahead. Hold a channel or a program for its details and the favorite toggle. There is no preview.
 - **Live player.** It is the system player: its scrubber, captions, AirPlay and Picture in Picture, which also starts when you leave the app, and Control Center and the lock screen show the program on now. The chevron at the top left closes it. The button at the top right opens the menu the Apple TV keeps in its transport bar: Record, the favorite toggle, the channels, Multiview, Sleep timer and, while the program is being recorded, Watch from start. In portrait the channel list sits under the picture, and a tap tunes another channel. Show picture over the break screen is a button over the picture.
 - **Changing channels.** In the live player, swipe up for the next channel in the lineup and down for the one before it; the list wraps at either end. The list under the picture in portrait tunes any channel. There is no digit entry or last-channel key.
 - **Pairing lost.** When the server turns the device's token away, the Live, Library and DVR pages say "This device is no longer paired" with a link to Settings, where a pairing code pairs it again.
 - **Library player.** The same system player. The menu button holds Audio, Subtitles, Playback Speed, Subtitle timing and Sleep timer, which do what [their counterparts](#speed-audio-and-subtitles) do, in place of the stream card's audio picker. Skip break, Skip intro, Skip credits and Next episode are buttons over the picture. A recording's breaks do not show on the scrubber.
+- **Library.** Shelves, grids and pages use touch sizes: a library's grid fits as many columns as the screen's width allows, an item's poster sits above its details where the screen is too narrow for both, and Play keeps its label while Play from beginning, Mark watched and Add to watchlist shrink to icons when the row runs out of room.
+- **Now playing.** The cover sits above the controls in portrait and beside them in landscape. The chevron at the top left leaves it, and the music plays on.
 - **Multiview.** Tick two to four channels and choose Watch. A tap on the tile with the sound watches it full screen, and a tap on another tile moves the sound there.
-- **Not in this app.** The audio visualizer, the guide grid and its 24-hour window, the mini guide in the player and the Open-source licenses page.
+- **Not in this app.** The audio visualizer, the guide grid on an iPhone, the mini guide in the player and the Open-source licenses page.
 - **Links.** `sofaking://` links open the app as on Apple TV, apart from the Top Shelf's.
 
 ## Apple TV

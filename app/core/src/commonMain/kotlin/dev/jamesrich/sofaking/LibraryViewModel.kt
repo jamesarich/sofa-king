@@ -283,7 +283,7 @@ internal class LibraryParts(
             apis.collect { api ->
                 repository = api?.let(newRepository)
                 pages.reset()
-                grids.clear()
+                if (api == null) grids.clear() else grids.restart()
                 if (api == null) shelves.unconfigured() else shelves.refresh()
             }
         }

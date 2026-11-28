@@ -21,7 +21,7 @@ final class TouchTests: XCTestCase {
         // News Now is a ten-second HLS clip that ends; Sofa Sports is live.
         play("Sofa Sports")
         eventually("Sofa Sports to open a playback session", timeout: 30) { !server.sessions().isEmpty }
-        XCUIDevice.shared.press(.home)
+        leaveApp()
         eventually("the app to release its session in the background") { server.sessions().isEmpty }
     }
 
@@ -54,6 +54,16 @@ final class TouchTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let seed = environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
         let steps = environment["SOFAKING_WALK_STEPS"].flatMap(Int.init) ?? 150
+        // The keyboard's Dictate key asks to enable dictation in an alert of SpringBoard's. XCTest's own handler taps
+        // the alert's last button, which opens Apple's privacy sheet over the app and takes the walk's touches, so the
+        // walk declines instead.
+        let dictation = addUIInterruptionMonitor(withDescription: "Enable Dictation?") { alert in
+            let decline = alert.buttons["Not Now"]
+            guard decline.exists else { return false }
+            decline.tap()
+            return true
+        }
+        defer { removeUIInterruptionMonitor(dictation) }
         var random = SplitMix64(seed: seed)
         var walked: [String] = []
         var returns = 0
@@ -78,7 +88,7 @@ final class TouchTests: XCTestCase {
         summary.name = "Walk"
         summary.lifetime = .keepAlways
         add(summary)
-        XCUIDevice.shared.press(.home)
+        leaveApp()
         eventually("the app to release its session in the background, seed \(seed)", timeout: 30) { server.sessions().isEmpty }
     }
 
@@ -161,6 +171,21 @@ final class TouchTests: XCTestCase {
             }
             return false
         }
+    }
+
+    /// Presses Home until the app is behind the home screen. An alert of SpringBoard's over the app (Enable Dictation?,
+    /// after a touch on the keyboard's Dictate key) takes a Home press for itself and leaves the app in front.
+    @MainActor
+    private func leaveApp() {
+        for _ in 0..<3 {
+            XCUIDevice.shared.press(.home)
+            let deadline = Date().addingTimeInterval(5)
+            while Date() < deadline {
+                if app.state == .runningBackground || app.state == .runningBackgroundSuspended { return }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            }
+        }
+        XCTFail("The app stayed in front after Home\n\(screen)")
     }
 
     /// Opens `channel` full screen from the Live tab with one tap on its row. A player already on `channel` is left as

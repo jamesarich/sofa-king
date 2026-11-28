@@ -18,6 +18,7 @@ struct LibraryHomeView: View {
     @FocusState private var focusedId: String?
     /// The last spotlight card focus rested on, so the spotlight keeps its item while focus is on another shelf.
     @State private var spotlightId: String?
+    @PageLayout private var metrics
 
     var body: some View {
         @Bindable var model = model
@@ -80,7 +81,7 @@ struct LibraryHomeView: View {
 
     private func shelves(_ home: MediaHome) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 48) {
+            LazyVStack(alignment: .leading, spacing: metrics.sectionSpacing) {
                 // It only draws the focused card; focus stays on the cards, and where it starts is unchanged.
                 if let shown = SpotlightChoicesKt.spotlightItem(shelves: home.shelves, focusedId: spotlightId) {
                     LibrarySpotlight(item: shown)
@@ -89,6 +90,7 @@ struct LibraryHomeView: View {
                     Button { model.nowPlayingShown = true } label: {
                         Label("Now playing: \(song.title)", systemImage: "music.note").lineLimit(1)
                     }
+                    .pageMargin(metrics)
                 }
                 ForEach(home.shelves, id: \.key) { shelf in
                     let wide = shelf.isWide
@@ -108,7 +110,7 @@ struct LibraryHomeView: View {
                             }
                         }
                     } header: {
-                        Text(shelf.title).font(.title3)
+                        Text(shelf.title).font(.title3).pageMargin(metrics)
                     }
                 }
                 if !home.libraries.isEmpty {
@@ -120,7 +122,7 @@ struct LibraryHomeView: View {
                             }
                         }
                     } header: {
-                        Text("Libraries").font(.title3)
+                        Text("Libraries").font(.title3).pageMargin(metrics)
                     }
                 }
             }
@@ -180,6 +182,7 @@ private struct LibrarySpotlight: View {
 
 private struct SpotlightContent: View {
     let item: MediaItem
+    @PageLayout private var metrics
 
     var body: some View {
         let art = item.backdrop ?? item.poster
@@ -212,8 +215,8 @@ private struct SpotlightContent: View {
             }
             .foregroundStyle(art == nil ? Color.primary : Color.white)
             .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, 80)
-            .padding(.bottom, 32)
+            .padding(.horizontal, metrics.touch ? metrics.margin : 80)
+            .padding(.bottom, metrics.touch ? 16 : 32)
         }
     }
 }
@@ -229,45 +232,45 @@ struct LibraryGridView: View {
     @State private var unwatched = false
     @State private var genre: String?
     @State private var collection: String?
+    @PageLayout private var metrics
 
     private static let sorts: [(LibrarySort, String)] = [(.title, "Title"), (.added, "Added"), (.year, "Year"), (.rating, "Rating"), (.watched, "Watched")]
     /// A music library's artists, by name or by when they were added.
     private static let musicSorts: [(LibrarySort, String)] = [(.title, "Name"), (.added, "Added")]
-    private let columns = Array(repeating: GridItem(.fixed(240), spacing: 48), count: 6)
+
+    /// Apple TV's six fixed columns, or as many as fit on an iPhone or iPad.
+    private var columns: [GridItem] {
+        if let minimum = metrics.gridMinimum {
+            return [GridItem(.adaptive(minimum: minimum), spacing: metrics.cardSpacing, alignment: .top)]
+        }
+        return Array(repeating: GridItem(.fixed(240), spacing: 48), count: 6)
+    }
 
     var body: some View {
         let shown = grid.flatMap { $0.libraryId == library.id ? $0 : nil }
         ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
-                HStack(spacing: 24) {
-                    Picker("Sort", selection: $sort) {
-                        ForEach(library.kind == .music ? Self.musicSorts : Self.sorts, id: \.0) { Text($0.1).tag($0.0) }
-                    }
-                    .pickerStyle(.segmented)
-                    // Music has no watched state.
-                    if library.kind != .music {
-                        Toggle("Unwatched", isOn: $unwatched)
-                    }
-                    if let genres = shown?.genres, !genres.isEmpty {
-                        Menu(genre ?? "All genres") {
-                            Button("All genres") { genre = nil }
-                            ForEach(genres, id: \.self) { option in
-                                Button(option) { genre = option }
-                            }
+            VStack(alignment: .leading, spacing: metrics.touch ? 16 : 32) {
+                if metrics.touch {
+                    // The sort, filter and genre share a row where they fit, and the sort takes its own row where not.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 16) {
+                            sortPicker
+                            filters(shown)
+                        }
+                        VStack(alignment: .leading, spacing: 12) {
+                            sortPicker
+                            HStack(spacing: 16) { filters(shown) }
                         }
                     }
-                    if let collections = shown?.collections, !collections.isEmpty {
-                        Menu(collection ?? "All collections") {
-                            Button("All collections") { collection = nil }
-                            ForEach(collections, id: \.self) { option in
-                                Button(option) { collection = option }
-                            }
-                        }
+                } else {
+                    HStack(spacing: 24) {
+                        sortPicker
+                        filters(shown)
                     }
                 }
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 48) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: metrics.sectionSpacing) {
                     ForEach(Array((shown?.items ?? []).enumerated()), id: \.element.id) { index, item in
-                        NavigationLink(value: item) { LibraryCard(item: item, wide: false) }
+                        NavigationLink(value: item) { LibraryCard(item: item, wide: false, fills: metrics.gridMinimum != nil) }
                             .buttonStyle(.card)
                             .playsOnPlayPause(item)
                             .onAppear {
@@ -291,6 +294,7 @@ struct LibraryGridView: View {
                     ProgressView()
                 }
             }
+            .pageMargin(metrics)
         }
         .navigationTitle(library.name)
         .onAppear {
@@ -304,6 +308,43 @@ struct LibraryGridView: View {
         .onChange(of: collection) { open() }
     }
 
+    private var sortPicker: some View {
+        Picker("Sort", selection: $sort) {
+            ForEach(library.kind == .music ? Self.musicSorts : Self.sorts, id: \.0) { Text($0.1).tag($0.0) }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    /// The Unwatched filter and the genre and collection menus.
+    @ViewBuilder
+    private func filters(_ shown: LibraryGrid?) -> some View {
+        // Music has no watched state.
+        if library.kind != .music {
+            #if os(iOS)
+            // A chip, as the other apps' Unwatched filter is, where a switch would take the row's width.
+            Toggle("Unwatched", isOn: $unwatched).toggleStyle(.button)
+            #else
+            Toggle("Unwatched", isOn: $unwatched)
+            #endif
+        }
+        if let genres = shown?.genres, !genres.isEmpty {
+            Menu(genre ?? "All genres") {
+                Button("All genres") { genre = nil }
+                ForEach(genres, id: \.self) { option in
+                    Button(option) { genre = option }
+                }
+            }
+        }
+        if let collections = shown?.collections, !collections.isEmpty {
+            Menu(collection ?? "All collections") {
+                Button("All collections") { collection = nil }
+                ForEach(collections, id: \.self) { option in
+                    Button(option) { collection = option }
+                }
+            }
+        }
+    }
+
     private func open() {
         model.core.openGrid(libraryId: library.id, sort: sort, unwatched: unwatched, genre: genre, collection: collection)
     }
@@ -312,25 +353,36 @@ struct LibraryGridView: View {
 /// A horizontal row of cards that scrolls past the screen's edges, as the Home screen's rows do.
 struct CardRow<Content: View>: View {
     @ViewBuilder let content: Content
+    @PageLayout private var metrics
 
     var body: some View {
         ScrollView(.horizontal) {
-            LazyHStack(alignment: .top, spacing: 40) { content }
-                .padding(.vertical, 24)
+            LazyHStack(alignment: .top, spacing: metrics.cardSpacing) { content }
+                .padding(.vertical, metrics.touch ? 8 : 24)
         }
         .scrollClipDisabled()
+        .rowMargins(metrics)
     }
 }
 
-/// A poster (2:3), a square cover for music, or a wide (16:9) card with the title below, a bar for how far in, and a tick or the unwatched count.
+/// A poster (2:3), a square cover for music, or a wide (16:9) card with the title below, a bar for how far in, and a
+/// tick or the unwatched count. A card is as wide as the page's metrics say, or with `fills` as wide as its grid column.
 struct LibraryCard: View {
     let item: MediaItem
     let wide: Bool
+    var fills = false
+    @PageLayout private var metrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Artwork(url: wide ? item.backdrop ?? item.poster : item.poster ?? item.backdrop, title: item.title)
-                .frame(width: wide ? 400 : 240, height: wide ? 225 : item.kind.music ? 240 : 360)
+        let width = wide ? metrics.wide : metrics.poster
+        let ratio: CGFloat = wide ? 16 / 9 : item.kind.music ? 1 : 2 / 3
+        VStack(alignment: .leading, spacing: metrics.touch ? 6 : 12) {
+            Color.clear
+                .aspectRatio(ratio, contentMode: .fit)
+                .frame(width: fills ? nil : width, height: fills ? nil : width / ratio)
+                .overlay {
+                    Artwork(url: wide ? item.backdrop ?? item.poster : item.poster ?? item.backdrop, title: item.title)
+                }
                 .overlay(alignment: .bottom) { ProgressStrip(progress: item.progress) }
                 .overlay(alignment: .topTrailing) { WatchBadge(item: item) }
                 .clipped()
@@ -340,9 +392,9 @@ struct LibraryCard: View {
                     Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            .frame(width: wide ? 400 : 240, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
+            .frame(minWidth: fills ? 0 : width, maxWidth: fills ? .infinity : width, alignment: .leading)
+            .padding(.horizontal, metrics.touch ? 0 : 12)
+            .padding(.bottom, metrics.touch ? 4 : 12)
         }
     }
 }
@@ -350,6 +402,7 @@ struct LibraryCard: View {
 /// A library as a wide tile with its name and how much it holds.
 private struct LibraryTile: View {
     let library: MediaLibrary
+    @PageLayout private var metrics
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -357,8 +410,8 @@ private struct LibraryTile: View {
             Spacer()
             Text("\(library.itemCount) items").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(24)
-        .frame(width: 400, height: 225, alignment: .leading)
+        .padding(metrics.touch ? 12 : 24)
+        .frame(width: metrics.wide, height: metrics.wide * 9 / 16, alignment: .leading)
         .background(library.kind == .shows ? Color.sofaLavenderDeep : library.kind == .music ? Color.sofaAmberDeep : Color.sofaPlumRaised)
     }
 }

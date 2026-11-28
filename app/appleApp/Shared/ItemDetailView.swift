@@ -14,6 +14,7 @@ struct ItemDetailView: View {
     @State private var season: ItemDetailState?
     @State private var seasonWatch: Watch?
     @State private var opened: MediaItem?
+    @PageLayout private var metrics
 
     var body: some View {
         Group {
@@ -58,13 +59,8 @@ struct ItemDetailView: View {
     private func page(_ detail: MediaItemDetail) -> some View {
         let item = detail.item
         return ScrollView {
-            VStack(alignment: .leading, spacing: 48) {
-                HStack(alignment: .top, spacing: 60) {
-                    Artwork(url: item.poster, title: item.title)
-                        .frame(width: item.kind.music ? 450 : 300, height: 450)
-                        .clipShape(.rect(cornerRadius: 16))
-                    if item.kind.music { musicSummary(detail) } else { summary(detail) }
-                }
+            VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
+                header(detail).pageMargin(metrics)
                 if item.kind == .artist {
                     albums(detail.children)
                     if !detail.popular.isEmpty { popular(detail.popular) }
@@ -91,7 +87,7 @@ struct ItemDetailView: View {
                             }
                         }
                     } header: {
-                        Text("Extras").font(.title3)
+                        Text("Extras").font(.title3).pageMargin(metrics)
                     }
                 }
                 if let collection = detail.collection {
@@ -121,11 +117,11 @@ struct ItemDetailView: View {
                             }
                         }
                     } header: {
-                        Text("More like this").font(.title3)
+                        Text("More like this").font(.title3).pageMargin(metrics)
                     }
                 }
             }
-            .padding(.top, 40)
+            .padding(.top, metrics.touch ? 16 : 40)
         }
         .background {
             if let backdrop = item.backdrop {
@@ -137,6 +133,34 @@ struct ItemDetailView: View {
         .navigationDestination(item: $opened) { ItemDetailView(itemId: $0.id) }
     }
 
+    /// The poster beside the summary, or above it on a screen too narrow for both.
+    @ViewBuilder
+    private func header(_ detail: MediaItemDetail) -> some View {
+        let item = detail.item
+        let height = metrics.detailPoster * 3 / 2
+        let poster = Artwork(url: item.poster, title: item.title)
+            .frame(width: item.kind.music ? height : metrics.detailPoster, height: height)
+            .clipShape(.rect(cornerRadius: 16))
+        let text = Group { if item.kind.music { musicSummary(detail) } else { summary(detail) } }
+        if metrics.touch {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 24) {
+                    poster
+                    text.frame(minWidth: 0, idealWidth: 400, maxWidth: .infinity, alignment: .leading)
+                }
+                VStack(alignment: .leading, spacing: 20) {
+                    poster
+                    text
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: 60) {
+                poster
+                text
+            }
+        }
+    }
+
     /// With Settings › Library › Hide spoilers on, an episode not started yet keeps its overview back and blurs its still.
     private func hidesSpoilers(_ item: MediaItem) -> Bool {
         model.settings?.hideSpoilers == true && LibraryChoicesKt.hidesSpoilers(item: item)
@@ -144,7 +168,6 @@ struct ItemDetailView: View {
 
     private func summary(_ detail: MediaItemDetail) -> some View {
         let item = detail.item
-        let action = LibraryChoicesKt.primaryAction(detail: detail)
         return VStack(alignment: .leading, spacing: 20) {
             if item.kind == .episode, let show = item.showTitle {
                 Text(show).font(.headline).foregroundStyle(.secondary)
@@ -162,26 +185,23 @@ struct ItemDetailView: View {
                     Text(overview).lineLimit(6)
                 }
             }
-            HStack(spacing: 24) {
-                if let action {
-                    Button(primaryLabel(action, playsItself: item.kind.playable), systemImage: "play.fill") {
-                        model.vod = VodRequest(item: action.item, fromStart: false)
+            if metrics.touch {
+                // Play keeps its words; the rest become icons, named for VoiceOver, where the row is too narrow for them.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        primaryButton(detail)
+                        secondaryButtons(detail)
                     }
-                    if action is PrimaryActionResume {
-                        Button("Play from beginning", systemImage: "arrow.counterclockwise") {
-                            model.vod = VodRequest(item: action.item, fromStart: true)
-                        }
+                    HStack(spacing: 12) {
+                        primaryButton(detail)
+                        secondaryButtons(detail).labelStyle(.iconOnly)
                     }
                 }
-                let watched = item.progress?.watched == true || (!item.kind.playable && item.children > 0 && item.unwatched == 0)
-                Button(watched ? "Mark unwatched" : "Mark watched", systemImage: watched ? "eye.slash" : "checkmark") {
-                    model.core.setWatched(item: item, watched: !watched)
-                }
-                if let marks = model.watchlist, marks.offered, [ItemKind.movie, ItemKind.show, ItemKind.video].contains(item.kind) {
-                    let listed = model.core.watchlistHasItem(marks: marks, item: item)
-                    Button(listed ? "Remove from watchlist" : "Add to watchlist", systemImage: listed ? "bookmark.slash" : "bookmark") {
-                        Task { _ = try? await model.core.toggleWatchlistItem(item: item) }
-                    }
+                .buttonStyle(.bordered)
+            } else {
+                HStack(spacing: 24) {
+                    primaryButton(detail)
+                    secondaryButtons(detail)
                 }
             }
             if !detail.directors.isEmpty {
@@ -189,6 +209,38 @@ struct ItemDetailView: View {
             }
             if !detail.cast.isEmpty {
                 Text("Cast: \(castLine(detail))").font(.caption).foregroundStyle(.secondary).lineLimit(3)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func primaryButton(_ detail: MediaItemDetail) -> some View {
+        let item = detail.item
+        if let action = LibraryChoicesKt.primaryAction(detail: detail) {
+            let play = Button(primaryLabel(action, playsItself: item.kind.playable), systemImage: "play.fill") {
+                model.vod = VodRequest(item: action.item, fromStart: false)
+            }
+            if metrics.touch { play.buttonStyle(.borderedProminent) } else { play }
+        }
+    }
+
+    /// Play from beginning, Mark watched and the watchlist button, those the item offers.
+    @ViewBuilder
+    private func secondaryButtons(_ detail: MediaItemDetail) -> some View {
+        let item = detail.item
+        if let action = LibraryChoicesKt.primaryAction(detail: detail), action is PrimaryActionResume {
+            Button("Play from beginning", systemImage: "arrow.counterclockwise") {
+                model.vod = VodRequest(item: action.item, fromStart: true)
+            }
+        }
+        let watched = item.progress?.watched == true || (!item.kind.playable && item.children > 0 && item.unwatched == 0)
+        Button(watched ? "Mark unwatched" : "Mark watched", systemImage: watched ? "eye.slash" : "checkmark") {
+            model.core.setWatched(item: item, watched: !watched)
+        }
+        if let marks = model.watchlist, marks.offered, [ItemKind.movie, ItemKind.show, ItemKind.video].contains(item.kind) {
+            let listed = model.core.watchlistHasItem(marks: marks, item: item)
+            Button(listed ? "Remove from watchlist" : "Add to watchlist", systemImage: listed ? "bookmark.slash" : "bookmark") {
+                Task { _ = try? await model.core.toggleWatchlistItem(item: item) }
             }
         }
     }
@@ -222,9 +274,16 @@ struct ItemDetailView: View {
                 Text(overview).lineLimit(6)
             }
             if !songs.isEmpty {
-                HStack(spacing: 24) {
-                    Button("Play", systemImage: "play.fill") { model.playMusic(songs, from: nil) }
-                    Button("Shuffle", systemImage: "shuffle") { model.playMusic(songs, from: nil, shuffled: true) }
+                HStack(spacing: metrics.touch ? 12 : 24) {
+                    let play = Button("Play", systemImage: "play.fill") { model.playMusic(songs, from: nil) }
+                    let shuffle = Button("Shuffle", systemImage: "shuffle") { model.playMusic(songs, from: nil, shuffled: true) }
+                    if metrics.touch {
+                        play.buttonStyle(.borderedProminent)
+                        shuffle.buttonStyle(.bordered)
+                    } else {
+                        play
+                        shuffle
+                    }
                 }
             }
         }
@@ -259,7 +318,7 @@ struct ItemDetailView: View {
                 }
             }
         } header: {
-            Text("Albums").font(.title3)
+            Text("Albums").font(.title3).pageMargin(metrics)
         }
     }
 
@@ -275,8 +334,9 @@ struct ItemDetailView: View {
                     .buttonStyle(.card)
                 }
             }
+            .pageMargin(metrics)
         } header: {
-            Text("Popular").font(.title3)
+            Text("Popular").font(.title3).pageMargin(metrics)
         }
     }
 
@@ -291,6 +351,7 @@ struct ItemDetailView: View {
                 .buttonStyle(.card)
             }
         }
+        .pageMargin(metrics)
     }
 
     private func seasonPicker(_ seasons: [MediaItem]) -> some View {
@@ -305,13 +366,14 @@ struct ItemDetailView: View {
                     }
                 }
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, metrics.touch ? 8 : 16)
         }
         .scrollClipDisabled()
+        .rowMargins(metrics)
     }
 
     private func episodes(_ episodes: [MediaItem]) -> some View {
-        LazyVStack(alignment: .leading, spacing: 24) {
+        LazyVStack(alignment: .leading, spacing: metrics.touch ? 8 : 24) {
             ForEach(episodes) { episode in
                 Button { model.vod = VodRequest(item: episode, fromStart: false) } label: { EpisodeRow(episode: episode, spoilersHidden: hidesSpoilers(episode)) }
                     .buttonStyle(.card)
@@ -329,6 +391,7 @@ struct ItemDetailView: View {
                     }
             }
         }
+        .pageMargin(metrics)
     }
 
     /// Year, running time or seasons, rating, content rating and picture.
@@ -365,10 +428,12 @@ private struct SongRow: View {
     let song: MediaItem
     let albumArtist: String?
     let showsDisc: Bool
+    @PageLayout private var metrics
 
     var body: some View {
-        HStack(spacing: 32) {
-            Text(number).font(.headline).monospacedDigit().foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
+        HStack(spacing: metrics.touch ? 12 : 32) {
+            Text(number).font(.headline).monospacedDigit().foregroundStyle(.secondary)
+                .frame(width: metrics.touch ? 36 : 80, alignment: .trailing)
             VStack(alignment: .leading, spacing: 4) {
                 Text(song.title).font(.headline).lineLimit(1)
                 if let artist = song.trackArtist, artist != albumArtist {
@@ -380,9 +445,13 @@ private struct SongRow: View {
                 Text(playTime(ms)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .frame(width: 1500, alignment: .leading)
+        .padding(.horizontal, metrics.touch ? 0 : 24)
+        .padding(.vertical, metrics.touch ? 10 : 16)
+        .rowWidth(metrics)
+        #if os(iOS)
+        // A tap anywhere along the row plays it, not only on its text.
+        .contentShape(.rect)
+        #endif
     }
 
     private var number: String {
@@ -400,11 +469,12 @@ private let spoilerHidden = "Unwatched episode. Hide spoilers keeps its summary 
 private struct EpisodeRow: View {
     let episode: MediaItem
     let spoilersHidden: Bool
+    @PageLayout private var metrics
 
     var body: some View {
-        HStack(alignment: .top, spacing: 32) {
+        HStack(alignment: .top, spacing: metrics.touch ? 12 : 32) {
             Artwork(url: episode.backdrop ?? episode.poster, title: episode.title)
-                .frame(width: 320, height: 180)
+                .frame(width: metrics.still, height: metrics.still * 9 / 16)
                 .blur(radius: spoilersHidden ? 24 : 0)
                 .overlay(alignment: .bottom) {
                     if let progress = episode.progress, progress.inProgress, let fraction = progress.fraction?.doubleValue {
@@ -433,8 +503,13 @@ private struct EpisodeRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .frame(width: 1500, alignment: .leading)
+        .padding(.vertical, metrics.touch ? 8 : 16)
+        .padding(.horizontal, metrics.touch ? 0 : 16)
+        .rowWidth(metrics)
+        #if os(iOS)
+        // A tap anywhere along the row plays it, not only on its text.
+        .contentShape(.rect)
+        #endif
     }
 }
 

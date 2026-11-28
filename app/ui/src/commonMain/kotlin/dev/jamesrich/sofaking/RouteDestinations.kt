@@ -115,6 +115,7 @@ private fun TabDestination(
                 player,
                 chrome.settingsFocus,
                 headerFocus = chrome.tabFocus.takeIf { showsTabs },
+                onBrowse = onBrowse,
             )
 
             Route.OnLater -> OnLaterDestination(shell, vm)

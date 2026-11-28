@@ -1,0 +1,42 @@
+# Search in the header finds a channel on now and its programs coming up, OK on the first result watches it, and Back
+# returns to the results and then to the tab it came from. Starts on any tab (a player left open is left first), since
+# every tab's header has Search once the server has answered, and ends back on that tab.
+appId: dev.jamesrich.sofaking
+name: Header search
+---
+- runFlow:
+    when:
+      visible:
+        id: "player"
+    commands:
+      - pressKey: Back
+- extendedWaitUntil:
+    visible: "Search"
+    timeout: 15000
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible: "Channel, program, title or cast"
+    timeout: 10000
+- tapOn: "Channel, program, title or cast"
+- inputText: "Sofa Sports"
+- extendedWaitUntil:
+    visible: "On now"
+    timeout: 20000
+- assertVisible: "On later"
+# The keyboard's Search action moves focus to the first result, the channel on now.
+- pressKey: Enter
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible:
+      id: "player"
+    timeout: 30000
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "On now"
+    timeout: 15000
+- assertNotVisible:
+    id: "player"
+- pressKey: Back
+- extendedWaitUntil:
+    notVisible: "On now"
+    timeout: 15000

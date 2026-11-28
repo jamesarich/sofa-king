@@ -317,6 +317,7 @@ class AdminPortalSetupTest : AdminPortalCase() {
                     idle,
                 )
                 assertTrue(idle.contains("http-equiv=\"refresh\""), "the page reloads itself")
+                assertFalse(idle.contains("What do these mean?"), "an empty Watching now explains no columns")
                 val gate = CompletableDeferred<Unit>()
                 val run = CoroutineScope(Dispatchers.Default).launch(start = CoroutineStart.UNDISPATCHED) {
                     runtime.jobs.record("activity-test") {

@@ -1,7 +1,8 @@
-import type { WebChannel, WebLineup, WebSettingsState } from '@sofaking/core';
+import type { WebChannel, WebLineup, WebProgram, WebSettingsState } from '@sofaking/core';
 import { h, replaceChildren } from './dom';
-import { focusFirst, keepFocus } from './focus';
+import { focusFirst, focusables, keepFocus } from './focus';
 import { chipsFor, clock, elapsed, filterChannels, nowNext, type GuidePrefs } from './guide';
+import { guideGrid, programDetails } from './guideGrid';
 import { guideStatus, isSignedOut } from './messages';
 import { href } from './router';
 import { signedOutNotice } from './signedOut';
@@ -9,7 +10,28 @@ import { Watches, type Context, type View } from './view';
 
 const NO_PREFS: WebSettingsState | null = null;
 
-/** The guide: a channel list with what is on now and next, and chips that filter it. */
+const VIEW_KEY = 'sofaking.web.guideView';
+/** Narrower than this, a window opens on the list: a grid row shows little beside its channel. */
+const GRID_MIN_WIDTH = 700;
+
+type GuideLayout = 'grid' | 'list';
+
+/** The layout chosen last in this browser, or the one that fits the window. */
+function savedLayout(): GuideLayout {
+    let saved: string | null = null;
+    try {
+        saved = window.localStorage.getItem(VIEW_KEY);
+    } catch {
+        // A browser that keeps no storage opens on the default.
+    }
+    if (saved === 'grid' || saved === 'list') return saved;
+    return window.innerWidth >= GRID_MIN_WIDTH ? 'grid' : 'list';
+}
+
+/**
+ * The guide: the channels as a grid of programs on a timeline or a list of what is on now and next, under chips that
+ * filter them.
+ */
 export function guideView(ctx: Context): View {
     const watches = new Watches();
     const el = h('section', { class: 'guide' });
@@ -19,14 +41,52 @@ export function guideView(ctx: Context): View {
         attrs: { type: 'search', placeholder: 'Search channels and programs', 'aria-label': 'Search' },
     });
     const list = h('div', { class: 'channels' });
+    const details = h('div', { class: 'details-slot' });
+    let layout = savedLayout();
+    const layoutButton = (value: GuideLayout, label: string) =>
+        h('button', {
+            class: 'chip',
+            text: label,
+            attrs: { type: 'button', 'data-key': `layout:${value}` },
+            on: {
+                click: () => {
+                    layout = value;
+                    try {
+                        window.localStorage.setItem(VIEW_KEY, value);
+                    } catch {
+                        // The choice lasts for this page.
+                    }
+                    draw();
+                },
+            },
+        });
+    const layouts: Array<[GuideLayout, HTMLButtonElement]> = [
+        ['grid', layoutButton('grid', 'Grid')],
+        ['list', layoutButton('list', 'List')],
+    ];
+    const layoutGroup = h('div', { class: 'chips', attrs: { role: 'group', 'aria-label': 'Guide layout' } }, ...layouts.map(([, element]) => element));
     const status = h('p', { class: 'status', attrs: { role: 'status' } });
     const signedOut = signedOutNotice(true);
     signedOut.hidden = true;
-    el.append(h('div', { class: 'bar' }, chips, search), status, signedOut, list);
+    el.append(h('div', { class: 'bar' }, chips, search, layoutGroup), status, signedOut, details, list);
 
     let lineup: WebLineup | null = null;
     let prefs = NO_PREFS;
     let focused = false;
+    // The later program whose details are open, and the cell to give focus back to as they close.
+    let open: { channel: WebChannel; program: WebProgram; key: string } | null = null;
+
+    const closeDetails = () => {
+        const key = open?.key;
+        open = null;
+        draw();
+        if (key) focusables(list).find((element) => element.dataset.key === key)?.focus();
+    };
+    const openDetails = (channel: WebChannel, program: WebProgram) => {
+        open = { channel, program, key: `prog:${channel.id}:${program.startMs}` };
+        draw();
+        focusFirst(details);
+    };
 
     const draw = () => {
         keepFocus(el, () => {
@@ -51,7 +111,26 @@ export function guideView(ctx: Context): View {
                 ),
             );
             const shown = filterChannels(channels, active, settings, search.value);
-            replaceChildren(list, ...shown.map((channel) => row(ctx, channel, settings.favorites.includes(channel.id))));
+            for (const [value, element] of layouts) {
+                element.classList.toggle('on', value === layout);
+                element.setAttribute('aria-pressed', String(value === layout));
+            }
+            list.className = layout === 'grid' ? 'guide-grid' : 'channels';
+            if (layout === 'grid') {
+                const grid = guideGrid(shown, settings.favorites, Date.now(), {
+                    toggleFavorite: (id) => ctx.core.guide.toggleFavorite(id),
+                    details: openDetails,
+                });
+                // The grid scrolls sideways inside itself; a redraw keeps the time it was scrolled to.
+                const scrolled = list.firstElementChild?.scrollLeft ?? 0;
+                replaceChildren(list, shown.length > 0 ? grid : null);
+                grid.scrollLeft = scrolled;
+            } else {
+                replaceChildren(list, ...shown.map((channel) => row(ctx, channel, settings.favorites.includes(channel.id))));
+            }
+            // A program's details close when its channel leaves the lineup or the layout changes to the list.
+            if (open && (layout !== 'grid' || !channels.some((channel) => channel.id === open?.channel.id))) open = null;
+            replaceChildren(details, open ? programDetails(open.channel, open.program, closeDetails) : null);
             const out = isSignedOut(lineup);
             signedOut.hidden = !out;
             status.textContent = out ? '' : guideStatus(lineup, shown.length, search.value);

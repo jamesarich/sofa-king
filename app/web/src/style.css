@@ -103,6 +103,53 @@ body.playing .page { padding: 0; }
 .star { font-size: 20px; width: 52px; padding: 0; }
 .star.on { color: var(--accent); }
 
+.grid-guide { overflow-x: auto; scroll-padding-left: 212px; border: 1px solid var(--line); border-radius: 12px; }
+.grid-row { display: flex; width: max-content; border-top: 1px solid var(--line); }
+.grid-row.grid-head { border-top: 0; }
+.grid-channel {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: 0 0 200px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+}
+.grid-name { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 4px 8px 10px; border-radius: 8px; }
+.grid-name .logo { width: 40px; height: 28px; object-fit: contain; flex: none; }
+.grid-name .number { color: var(--dim); font-variant-numeric: tabular-nums; }
+.grid-name .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.grid-channel .star { width: 40px; border-color: transparent; background: transparent; }
+.grid-track { position: relative; height: 56px; }
+.grid-head .grid-track { height: 28px; }
+.grid-time { position: absolute; top: 4px; padding-left: 8px; color: var(--dim); font-size: 13px; border-left: 1px solid var(--line); }
+.grid-cell {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    padding: 4px 8px;
+    overflow: hidden;
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+}
+.grid-cell.on { background: var(--panel-2); }
+.grid-cell.gap { color: var(--dim); font-size: 13px; background: transparent; border-style: dashed; cursor: default; }
+.cell-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell-time { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.grid-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
+.program-details { margin-bottom: 12px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.program-details h2 { margin: 0 0 4px; font-size: 20px; }
+.program-details .actions { margin-bottom: 0; }
+
 .meter { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter .fill { display: block; height: 100%; background: var(--accent); }
 

@@ -1,6 +1,10 @@
 package dev.jamesrich.sofaking
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -30,6 +35,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +51,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.MediaItem
@@ -55,6 +64,7 @@ import dev.jamesrich.sofaking.resources.app_name
 import dev.jamesrich.sofaking.resources.nav_dvr
 import dev.jamesrich.sofaking.resources.nav_library
 import dev.jamesrich.sofaking.resources.nav_live
+import dev.jamesrich.sofaking.resources.nav_search
 import dev.jamesrich.sofaking.resources.nav_settings
 import dev.jamesrich.sofaking.resources.refreshing
 import dev.jamesrich.sofaking.resources.settings
@@ -69,6 +79,7 @@ import dev.jamesrich.sofaking.ui.announcesChanges
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaIconAction
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.StringResource
@@ -77,7 +88,9 @@ import androidx.compose.material3.Tab as MaterialTab
 
 /**
  * A page under the tabs: the header above [content], with the TV's tabs in it. [content] gets whether the header
- * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live.
+ * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live. A page
+ * that says its viewer is moving through its rows ([TabPageScope.onBrowse]) gets the TV header's height for them:
+ * the header slides away until the page says the viewer is back at its top, where Up reaches the tabs again.
  */
 @Composable
 internal fun TabPage(
@@ -94,10 +107,11 @@ internal fun TabPage(
     focusHeaderIfIdle: Boolean,
     nowPlaying: MediaItem?,
     onNowPlaying: () -> Unit,
-    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
+    content: @Composable TabPageScope.(showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
 ) {
     val showsTabs = tv
     var pageFocused by remember { mutableStateOf(false) }
+    val scope = remember { TabPageScope() }
     val currentOnHeaderFocusRequest by rememberUpdatedState(onHeaderFocusRequest)
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     val nowPlayingFocus = remember { FocusRequester() }
@@ -133,29 +147,58 @@ internal fun TabPage(
             TabBack.OPEN_LIVE -> onBackToLive()
         }
     }
-    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }) {
-        Header(
-            modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
-            refreshing = refreshing,
-            notice = notice,
-            onSettings = onSettings.takeIf { showsTabs },
-            settingsFocus = settingsFocus,
-            tabs = tabs.takeIf { showsTabs },
-            tabFocus = tabFocus,
-            nowPlaying = nowPlaying.takeIf { showsTabs },
-            nowPlayingFocus = nowPlayingFocus,
-            onNowPlaying = onNowPlaying,
-        )
-        content(showsTabs, tabBack, headerFocused)
+    // The top margin stays when the header goes, so the page never rises into the overscan.
+    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }.screenPadding(WindowInsetsSides.Top)) {
+        val motion = MaterialTheme.motionScheme
+        AnimatedVisibility(
+            // A notice has nowhere else to show, so it brings the header back for as long as it is up.
+            visible = headerShown(showsTabs, scope.browsing, notice != null),
+            // Effects specs: a spatial spring would overshoot the header's height and bounce the page under it.
+            enter = expandVertically(motion.defaultEffectsSpec()) + fadeIn(motion.defaultEffectsSpec()),
+            exit = shrinkVertically(motion.defaultEffectsSpec()) + fadeOut(motion.fastEffectsSpec()),
+        ) {
+            Header(
+                modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
+                refreshing = refreshing,
+                notice = notice,
+                onSettings = onSettings.takeIf { showsTabs },
+                settingsFocus = settingsFocus,
+                tabs = tabs.takeIf { showsTabs },
+                tabFocus = tabFocus,
+                nowPlaying = nowPlaying.takeIf { showsTabs },
+                nowPlayingFocus = nowPlayingFocus,
+                onNowPlaying = onNowPlaying,
+            )
+        }
+        scope.content(showsTabs, tabBack, headerFocused)
     }
 }
+
+/** What a page under the tabs can tell its [TabPage]. */
+@Stable
+internal class TabPageScope {
+    var browsing by mutableStateOf(false)
+        private set
+
+    /** The viewer started moving through the page's rows (true) or came back to its top (false). */
+    val onBrowse: (Boolean) -> Unit = { browsing = it }
+}
+
+/**
+ * Whether the header is up. Only a TV's header, which holds the tabs, makes way while the viewer is [browsing]: the
+ * other windows' header is the page's title bar and their tabs sit in the rail or bar. A [notice] keeps it up.
+ */
+internal fun headerShown(showsTabs: Boolean, browsing: Boolean, notice: Boolean): Boolean =
+    !showsTabs || !browsing || notice
 
 /** Frames a tab page gets to focus something of its own before its tab takes focus. */
 private const val IDLE_FOCUS_FRAMES = 3
 
 /**
  * Which destination is open, whether Library and Recordings are offered, and what picking one does. A rail also
- * lists [libraries] under Library: [libraryOpen] is the one whose grid is open, and [onLibrary] opens one.
+ * lists [libraries] under Library: [libraryOpen] is the one whose grid is open, and [onLibrary] opens one. Search
+ * sits beside them while there is something to search ([searchShown]): [searchOpen] while its page is the one on
+ * top, which [onSearch] opens.
  */
 internal class TabsModel(
     val selected: Tab,
@@ -165,10 +208,13 @@ internal class TabsModel(
     val libraries: List<MediaLibrary> = emptyList(),
     val libraryOpen: String? = null,
     val onLibrary: (String) -> Unit = {},
+    val searchShown: Boolean = false,
+    val searchOpen: Boolean = false,
+    val onSearch: () -> Unit = {},
 )
 
 /**
- * Live, Library, DVR and Settings around [content]. A TV keeps them in the header, so the guide loses no
+ * Live, Library, DVR, Search and Settings around [content]. A TV keeps them in the header, so the guide loses no
  * width and Up from its chips reaches them as it reaches the header's buttons; [TabPage] draws them there.
  * Elsewhere Material's navigation suite puts them in a short bar on a compact window and a rail on a larger one,
  * and slides it away while [shown] is false, over the full-screen players. A rail with the height for them lists
@@ -197,10 +243,13 @@ internal fun TopLevel(
     LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
         navigationItems = {
-            val listed = railLibraries(type, LocalLayoutProfile.current.compactHeight, tabs)
-            val libraryOpen = tabs.libraryOpen.takeIf { open -> !settingsOpen && listed.any { it.id == open } }
+            val height = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+            val listed = railLibraries(type, height, tabs)
+            // Settings and Search are the selected item while open, over whichever tab they were opened on.
+            val away = settingsOpen || tabs.searchOpen
+            val libraryOpen = tabs.libraryOpen.takeIf { open -> !away && listed.any { it.id == open } }
             // A library listed in the rail is the selected item while its grid is open, in Library's place.
-            val selected = tabs.selected.takeUnless { settingsOpen || libraryOpen != null }
+            val selected = tabs.selected.takeUnless { away || libraryOpen != null }
             TabItem(Tab.LIVE, SofaIcons.LiveTv, Res.string.nav_live, selected, tabs.onTab, tabFocus, type)
             if (tabs.libraryShown) {
                 TabItem(
@@ -227,6 +276,7 @@ internal fun TopLevel(
                     type,
                 )
             }
+            if (tabs.searchShown) SearchItem(tabs.searchOpen && !settingsOpen, tabs.onSearch, tabFocus, type)
             NavigationSuiteItem(
                 selected = settingsOpen,
                 onClick = { if (!settingsOpen) onSettings() },
@@ -265,6 +315,19 @@ private fun TabItem(
     )
 }
 
+/** Search in the navigation suite, selected while its page is [open], when it takes [tabFocus]. */
+@Composable
+private fun SearchItem(open: Boolean, onSearch: () -> Unit, tabFocus: FocusRequester, type: NavigationSuiteType) {
+    NavigationSuiteItem(
+        selected = open,
+        onClick = { if (!open) onSearch() },
+        modifier = if (open) Modifier.focusRequester(tabFocus) else Modifier,
+        icon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        label = { NavigationLabel(stringResource(Res.string.nav_search)) },
+        navigationSuiteType = type,
+    )
+}
+
 /** One library in the rail, under Library; the one whose grid is [open] is selected and takes [tabFocus]. */
 @Composable
 private fun LibraryItem(
@@ -299,20 +362,29 @@ private fun NavigationLabel(text: String, ellipsis: Boolean = false) {
 }
 
 /**
- * The libraries a navigation suite of [type] lists under Library: every one in a rail, which has the height for
- * them unless the window is short ([compactHeight]) or the server has more than [RAIL_LIBRARIES_MAX]; none in a bar,
- * where the Library home's chips open them.
+ * The libraries a navigation suite of [type] lists under Library: every one in a rail, unless the server has more
+ * than [RAIL_LIBRARIES_MAX] or a window [height] tall has no room for them above Settings, since a rail does not
+ * scroll; none in a bar, where the Library home's chips open them.
  */
-internal fun railLibraries(type: NavigationSuiteType, compactHeight: Boolean, tabs: TabsModel): List<MediaLibrary> {
+internal fun railLibraries(type: NavigationSuiteType, height: Dp, tabs: TabsModel): List<MediaLibrary> {
     val rail = type == NavigationSuiteType.NavigationRail ||
         type == NavigationSuiteType.WideNavigationRailCollapsed ||
         type == NavigationSuiteType.WideNavigationRailExpanded
-    val fits = rail && !compactHeight && tabs.libraryShown && tabs.libraries.size <= RAIL_LIBRARIES_MAX
+    // Live, Library and Settings, with DVR and Search where they show.
+    val others = 3 + (if (tabs.recordingsShown) 1 else 0) + (if (tabs.searchShown) 1 else 0)
+    val needed = RAIL_MARGINS + RAIL_ITEM_PITCH * (others + tabs.libraries.size)
+    val fits = rail && tabs.libraryShown && tabs.libraries.size <= RAIL_LIBRARIES_MAX && height >= needed
     return if (fits) tabs.libraries else emptyList()
 }
 
 /** The most libraries a rail lists; Material's rail holds up to seven destinations in all. */
 private const val RAIL_LIBRARIES_MAX = 4
+
+/** From one rail item's top to the next one's, as Material lays them out. */
+private val RAIL_ITEM_PITCH = 68.dp
+
+/** The rail's own space above its first item and under its last, and a system's bars, which the height includes. */
+private val RAIL_MARGINS = 96.dp
 
 private val LibraryKind.railIcon: ImageVector
     get() = when (this) {
@@ -321,152 +393,6 @@ private val LibraryKind.railIcon: ImageVector
         LibraryKind.MUSIC -> SofaIcons.Audiotrack
         LibraryKind.VIDEOS, LibraryKind.OTHER -> SofaIcons.VideoLibrary
     }
-
-/**
- * The TV's destinations in the header, as Google TV shows them: Material tabs, the open one on a pill, every one with
- * the D-pad focus cue. Focus coming up from the page lands on the open one ([tabFocus]).
- */
-@Composable
-private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
-    Row(
-        Modifier.focusProperties { onEnter = { tabFocus.requestFocus() } }.focusGroup().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE, tabFocus) { tabs.onTab(Tab.LIVE) }
-        if (tabs.libraryShown) {
-            HeaderTab(
-                stringResource(Res.string.nav_library),
-                tabs.selected == Tab.LIBRARY,
-                tabFocus,
-            ) {
-                tabs.onTab(Tab.LIBRARY)
-            }
-        }
-        if (tabs.recordingsShown) {
-            HeaderTab(
-                stringResource(Res.string.nav_dvr),
-                tabs.selected == Tab.RECORDINGS,
-                tabFocus,
-            ) {
-                tabs.onTab(Tab.RECORDINGS)
-            }
-        }
-    }
-}
-
-/**
- * One destination, Material's tab: the open one sits on a pill in the secondary container. A tab row's indicator is
- * an underline across the whole row, so the pill is drawn behind the tab. As wide as its label and as tall as a
- * button, so the header keeps its layout and height.
- */
-@Composable
-private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    MaterialTab(
-        selected = selected,
-        onClick = onClick,
-        modifier = Modifier
-            .then(if (selected) Modifier.focusRequester(tabFocus) else Modifier)
-            .tvFocus(CircleShape)
-            // A tab fills the width it is given, as it would in a tab row; here it is as wide as its label.
-            .width(IntrinsicSize.Max)
-            .height(ButtonDefaults.MinHeight)
-            .clip(CircleShape)
-            .background(if (selected) colors.secondaryContainer else Color.Transparent),
-        selectedContentColor = colors.onSecondaryContainer,
-        unselectedContentColor = colors.onSurfaceVariant,
-        text = { Text(label, style = MaterialTheme.typography.titleMedium) },
-    )
-}
-
-/**
- * App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the
- * buttons' height so no grid row is lost.
- */
-@Composable
-private fun Header(
-    refreshing: Boolean,
-    notice: String?,
-    onSettings: (() -> Unit)?,
-    settingsFocus: FocusRequester,
-    modifier: Modifier = Modifier,
-    tabs: TabsModel? = null,
-    tabFocus: FocusRequester = remember { FocusRequester() },
-    nowPlaying: MediaItem? = null,
-    nowPlayingFocus: FocusRequester = remember { FocusRequester() },
-    onNowPlaying: () -> Unit = {},
-) {
-    Row(
-        modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // A phone on its side has height for only a few guide rows, so the mark and name give theirs to the page.
-        val profile = LocalLayoutProfile.current
-        if (profile.tv || !profile.compactHeight) {
-            LogoMark(40.dp)
-            Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
-        }
-        if (LocalKidsMode.current) KidsBadge()
-        tabs?.let { HeaderTabs(it, tabFocus) }
-        // Status sits right of the tabs in whatever Settings leaves, so a long notice ellipsizes rather than
-        // squeezing the button.
-        Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
-            AnimatedVisibility(
-                visible = refreshing,
-                enter = PopIn,
-                exit = PopOut,
-            ) {
-                SofaLoaderLabel(stringResource(Res.string.refreshing))
-            }
-            // The last text is kept so the notice reads while it fades out.
-            var lastNotice by remember { mutableStateOf("") }
-            LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
-            AnimatedVisibility(
-                visible = notice != null,
-                enter = PopIn,
-                exit = PopOut,
-                modifier = Modifier.weight(1f, fill = false),
-            ) {
-                Text(
-                    notice ?: lastNotice,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.announcesChanges(),
-                )
-            }
-        }
-        // A TV has no bar under its pages for the music, so the song playing has a button here that opens Now playing.
-        nowPlaying?.let {
-            SofaButton(
-                onClick = onNowPlaying,
-                modifier = Modifier.widthIn(max = NOW_PLAYING_WIDTH).focusRequester(nowPlayingFocus),
-            ) {
-                Icon(SofaIcons.Audiotrack, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                Text(it.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        // Settings is the header's other button; the lineup, library and recordings reload by themselves, and
-        // Settings › Server has Reload.
-        onSettings?.let {
-            SofaButton(onClick = it, modifier = Modifier.focusRequester(settingsFocus)) {
-                Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                Text(stringResource(Res.string.settings))
-            }
-        }
-    }
-}
-
-/** The widest the header's Now playing button gets, so a long song title leaves room for the status. */
-private val NOW_PLAYING_WIDTH = 320.dp
 
 /** The header the tab pages and the top level share: the tabs, the focus on them and on Settings, and Settings. */
 internal class TabChrome(
@@ -502,6 +428,9 @@ internal fun rememberTabChrome(
             if (shell.nav.tab != Tab.LIBRARY) onLibraryOpen()
             shell.openLibrary(picked)
         },
+        searchShown = offered.search,
+        searchOpen = shell.top is Route.Search,
+        onSearch = shell::openSearch,
     )
     return TabChrome(tv, tabs, tabFocus, settingsFocus, onSettings = { shell.push(Route.Settings) })
 }

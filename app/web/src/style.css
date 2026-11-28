@@ -1,16 +1,20 @@
+/* The brand palette, copied from the Compose app's ui/theme/Color.kt; its DesignSystemTest compares the values. */
 :root {
     --bg: #14111f;
-    --panel: #1e1a2e;
+    --panel: #1f1a30;
     --panel-2: #2a2440;
-    --text: #ece8f7;
-    --dim: #a59fba;
+    --text: #f4effa;
+    --dim: #c4bad9;
     --accent: #c9b8ff;
-    --accent-ink: #1b1530;
+    --accent-ink: #14111f;
     --line: #3a3354;
     color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+
+/* The page scrolls under the header, so a control scrolled to stops below it. */
+html { scroll-padding-top: 72px; }
 
 body {
     margin: 0;
@@ -146,6 +150,20 @@ body.playing .page { padding: 0; }
 .meter { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter .fill { display: block; height: 100%; background: var(--accent); }
 
+.spotlight {
+    display: grid;
+    align-content: end;
+    min-height: 300px;
+    padding: 24px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+    background: linear-gradient(var(--panel-2), var(--bg));
+    background-size: cover;
+    background-position: center 20%;
+}
+.spotlight h1 { margin: 0 0 4px; font-size: 32px; }
+.spotlight .overview { margin: 4px 0 0; }
+.spotlight .actions { margin-bottom: 0; }
 .shelf h2 { margin: 24px 0 8px; font-size: 20px; }
 .cards { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 12px; }
 .cards.grid { flex-wrap: wrap; overflow: visible; }
@@ -158,6 +176,7 @@ body.playing .page { padding: 0; }
 .person .photo { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; background: var(--panel); }
 .person .photo.blank { display: grid; place-items: center; font-size: 24px; color: var(--dim); }
 .more { display: block; margin: 16px auto; }
+.grid-end { height: 1px; }
 
 .detail { padding: 24px; border-radius: 16px; background-size: cover; background-position: center top; }
 .detail h1 { margin: 0 0 4px; }
@@ -192,7 +211,28 @@ body.playing .page { padding: 0; }
     transition: opacity 0.2s;
 }
 .player:hover .controls, .controls:focus-within { opacity: 1; }
+/* The controls stay above the channel list, whose panel reaches the top of the picture. */
+.controls { z-index: 1; }
 .controls .title { font-weight: 600; flex: 1; }
+
+.channel-list {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 90%);
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding: 64px 12px 16px;
+    overflow-y: auto;
+    background: #000c;
+}
+.channel-pick { display: grid; gap: 2px; text-align: left; background: transparent; border-color: transparent; }
+.channel-pick:hover { background: var(--panel); }
+.channel-pick.on { background: var(--panel-2); border-color: var(--line); }
+.pick-heading { font-weight: 600; }
+.pick-now { color: var(--dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .player-status {
     position: absolute;

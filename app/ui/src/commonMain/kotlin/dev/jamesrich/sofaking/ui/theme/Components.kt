@@ -4,7 +4,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -22,6 +24,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
@@ -75,6 +78,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
+import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
@@ -97,17 +101,23 @@ internal val TV_FOCUS_RING_WIDTH = 3.dp
  * The cue lives in a modifier node, so a focus move redraws the control without recomposing its caller.
  *
  * On a TV, a mouse or a pointer remote's cursor moving over the control focuses it, so the cue shows what a click
- * will press and the D-pad carries on from there.
+ * will press and the D-pad carries on from there. Off a TV the cue shows only while the last input was a key, as the
+ * web's `:focus-visible` does: a click focuses what it pressed, and a ring left on it would only mark the last click.
  */
 @Composable
-fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
-    shape = shape,
-    focusedScale = focusedScale,
-    ring = MaterialTheme.colorScheme.onSurface,
-    spec = MaterialTheme.motionScheme.fastSpatialSpec(),
-    cursor = if (rememberIsTelevision()) LocalLastInput.current else null,
-    animates = rememberMotionEnabled(),
-)
+fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier {
+    val tv = rememberIsTelevision()
+    val lastInput = LocalLastInput.current
+    return this then TvFocusElement(
+        shape = shape,
+        focusedScale = focusedScale,
+        ring = MaterialTheme.colorScheme.onSurface,
+        spec = MaterialTheme.motionScheme.fastSpatialSpec(),
+        cursor = if (tv) lastInput else null,
+        keys = if (tv) null else lastInput,
+        animates = rememberMotionEnabled(),
+    )
+}
 
 private data class TvFocusElement(
     val shape: Shape,
@@ -115,11 +125,12 @@ private data class TvFocusElement(
     val ring: Color,
     val spec: FiniteAnimationSpec<Float>,
     val cursor: LastInput?,
+    val keys: LastInput?,
     val animates: Boolean,
 ) : ModifierNodeElement<TvFocusNode>() {
-    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor, animates)
+    override fun create() = TvFocusNode(shape, focusedScale, ring, spec, cursor, keys, animates)
 
-    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor, animates)
+    override fun update(node: TvFocusNode) = node.update(shape, focusedScale, ring, spec, cursor, keys, animates)
 
     override fun InspectorInfo.inspectableProperties() {
         name = "tvFocus"
@@ -135,6 +146,8 @@ private class TvFocusNode(
     private var spec: FiniteAnimationSpec<Float>,
     /** Where a TV's cursor last moved; null off a TV, where hovering focuses nothing. */
     private var cursor: LastInput?,
+    /** The last input off a TV, where the cue shows only after a key; null on a TV, where it always shows. */
+    keys: LastInput?,
     /** False where the system's animations are off: the scale then snaps. */
     private var animates: Boolean,
 ) : Modifier.Node(),
@@ -149,6 +162,10 @@ private class TvFocusNode(
     private var focused by mutableStateOf(false)
     private var shape by mutableStateOf(shape)
     private var ring by mutableStateOf(ring)
+    private var keys by mutableStateOf(keys)
+
+    /** Whether focus is shown now; it reads [LastInput.kind], so the cue comes and goes with the input. */
+    private val cued: Boolean get() = focusCueShown(focused, keys?.kind)
 
     fun update(
         shape: Shape,
@@ -156,8 +173,10 @@ private class TvFocusNode(
         ring: Color,
         spec: FiniteAnimationSpec<Float>,
         cursor: LastInput?,
+        keys: LastInput?,
         animates: Boolean,
     ) {
+        this.keys = keys
         val rescale = focusedScale != this.focusedScale
         this.animates = animates
         this.shape = shape
@@ -195,15 +214,16 @@ private class TvFocusNode(
         val placeable = measurable.measure(constraints)
         return layout(placeable.width, placeable.height) {
             placeable.placeWithLayer(0, 0) {
-                scaleX = scale.value
-                scaleY = scale.value
+                val shown = if (focusCueShown(true, keys?.kind)) scale.value else 1f
+                scaleX = shown
+                scaleY = shown
             }
         }
     }
 
     override fun ContentDrawScope.draw() {
         drawContent()
-        if (!focused) return
+        if (!cued) return
         // The layer placed in measure scales the ring with the content.
         val stroke = TV_FOCUS_RING_WIDTH.toPx()
         val inset = stroke / 2
@@ -211,6 +231,12 @@ private class TvFocusNode(
         translate(inset, inset) { drawOutline(outline, ring, style = Stroke(stroke)) }
     }
 }
+
+/**
+ * Whether a control shows its focus cue: while focused, on a TV ([lastInput] null) always, elsewhere only while the
+ * last input was a key.
+ */
+internal fun focusCueShown(focused: Boolean, lastInput: InputKind?): Boolean = focused && lastInput != InputKind.POINTER
 
 /** How recently the cursor must have moved for a hover to take focus. */
 private const val CURSOR_MOVE_WINDOW_MS = 250L
@@ -299,45 +325,74 @@ private const val DISABLED_CONTENT_ALPHA = 0.38f
 
 /**
  * A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices.
+ * [count] follows the label, dimmer, so "News 4" reads as News with four channels rather than a name; [icon] leads
+ * an unselected chip that acts (Search), and a check leads a selected one.
  */
 @Composable
-internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+internal fun SofaChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    count: Int? = null,
+    icon: ImageVector? = null,
+) {
     TvFocusControl(FilterChipDefaults.shape, modifier) { ringed ->
         FilterChip(
             selected = selected,
             onClick = onClick,
-            label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+            label = { ChipLabel(label, count) },
             modifier = ringed,
             // A check says selected without relying on the chip's color.
-            leadingIcon = if (selected) {
-                {
-                    Icon(
-                        Icons.Filled.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(FilterChipDefaults.IconSize),
-                    )
-                }
-            } else {
-                null
-            },
+            leadingIcon = chipIcon(if (selected) Icons.Filled.Check else icon, FilterChipDefaults.IconSize),
         )
     }
 }
 
 /**
  * A Material 3 assist chip in the label type, with the D-pad focus cue: a chip that acts or goes somewhere rather than
- * filtering, such as the guide's Now, a library to open or a cast member to search for.
+ * filtering, such as the guide's Now, a library to open or a cast member to search for. [icon] leads it, as Material's
+ * assist chips do, so an action stands apart from the filters beside it; [count] follows the label, dimmer.
  */
 @Composable
-internal fun SofaActionChip(onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+internal fun SofaActionChip(
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    count: Int? = null,
+) {
     TvFocusControl(AssistChipDefaults.shape, modifier) { ringed ->
         AssistChip(
             onClick = onClick,
-            label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+            label = { ChipLabel(label, count) },
             modifier = ringed,
+            leadingIcon = chipIcon(icon, AssistChipDefaults.IconSize),
         )
     }
 }
+
+/** A chip's words and, set apart in a dimmer tone of the chip's own color, how many it holds. */
+@Composable
+private fun ChipLabel(label: String, count: Int?) {
+    val style = MaterialTheme.typography.labelLarge
+    if (count == null) {
+        Text(label, style = style)
+        return
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(CHIP_COUNT_GAP)) {
+        Text(label, style = style)
+        Text(count.toString(), style = style, color = LocalContentColor.current.copy(alpha = CHIP_COUNT_ALPHA))
+    }
+}
+
+private fun chipIcon(icon: ImageVector?, size: Dp): (@Composable () -> Unit)? = icon?.let {
+    { Icon(it, contentDescription = null, modifier = Modifier.size(size)) }
+}
+
+/** How far a chip's count sits from its label, and how much of the label's color it keeps. */
+private val CHIP_COUNT_GAP = 4.dp
+private const val CHIP_COUNT_ALPHA = 0.7f
 
 /**
  * A chip that opens a menu of [options] and says which one is chosen, as Plex's filter bar does, so a long list (a

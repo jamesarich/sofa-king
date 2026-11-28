@@ -1,9 +1,17 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import androidx.navigation3.runtime.NavEntry
@@ -11,6 +19,7 @@ import androidx.navigation3.scene.SceneStrategyScope
 import androidx.navigation3.ui.NavDisplay
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class LibraryPanesTest {
@@ -31,6 +40,29 @@ class LibraryPanesTest {
         setContent { Pages(listOf(Route.Library, grid, item)) }
         onNodeWithText(grid.toString()).assertIsDisplayed()
         onNodeWithText(item.toString()).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a wide window gives the grid all of it until a title is picked`() = runDesktopComposeUiTest(1280, 800) {
+        var stack by mutableStateOf(listOf(Route.Library, grid))
+        val seen = mutableListOf<Any>()
+        setContent {
+            val entries = stack.map { route ->
+                NavEntry(route, contentKey = route.id, metadata = panesOf(route)) {
+                    if (route == grid) seen += remember { Any() }
+                    Text(route.toString(), Modifier.fillMaxSize().testTag(route.toString()))
+                }
+            }
+            NavDisplay(entries = entries, sceneStrategies = listOf(rememberLibraryPanes(tv = false)), onBack = {})
+        }
+        val full = onNodeWithTag(grid.toString()).fetchSemanticsNode().size.width
+        assertEquals(1280, full)
+        stack = stack + item
+        waitForIdle()
+        onNodeWithText(item.toString()).assertIsDisplayed()
+        val beside = onNodeWithTag(grid.toString()).fetchSemanticsNode().size.width
+        assertTrue(beside < full, "the grid makes room for the title: $beside")
+        assertEquals(1, seen.distinct().size, "the grid keeps its state when the title opens beside it")
     }
 
     @Test

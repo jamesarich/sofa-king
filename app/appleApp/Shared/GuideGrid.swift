@@ -60,10 +60,11 @@ enum GuideWindow {
     }
 }
 
-/// The guide grid: a row per channel, its number and name, then its programs across 90 minutes under a row of
-/// times. Selecting a program on now plays its channel; a later one opens its details. Right past a row's last cell
-/// and Left past its first page the window half an hour, from now up to 24 hours ahead. Holding the touch surface on
-/// a cell opens its details or stars the channel. `arrival` names a channel to focus, on now, which the grid then
+/// The guide grid, on Apple TV and on an iPad: a row per channel, its number and name, then its programs across 90
+/// minutes under a row of times. Selecting or tapping a program on now plays its channel; a later one opens its
+/// details. On Apple TV, Right past a row's last cell and Left past its first page the window half an hour, from now
+/// up to 24 hours ahead; on an iPad the arrows beside the times do. Holding the touch surface on a cell, or a long
+/// press, opens its details or stars the channel. `arrival` names a channel to focus, on now, which the grid then
 /// clears: the last channel when the guide first shows, and the one just watched after the player closes.
 struct GuideGrid: View {
     @Environment(AppModel.self) private var model
@@ -78,9 +79,24 @@ struct GuideGrid: View {
     @State private var now = Date()
     @FocusState private var focus: GuideFocus?
 
+    #if os(tvOS)
     private static let channelWidth: CGFloat = 320
+    private static let numberWidth: CGFloat = 96
     private static let edgeWidth: CGFloat = 12
     private static let rowHeight: CGFloat = 96
+    private static let minimumArea: CGFloat = 600
+    private static let cellInset: CGFloat = 16
+    private static let narrowCell: CGFloat = 160
+    #else
+    // Touch pages the window with the arrows beside the times, so its rows need no focus stops at their ends.
+    private static let channelWidth: CGFloat = 200
+    private static let numberWidth: CGFloat = 44
+    private static let edgeWidth: CGFloat = 0
+    private static let rowHeight: CGFloat = 64
+    private static let minimumArea: CGFloat = 320
+    private static let cellInset: CGFloat = 10
+    private static let narrowCell: CGFloat = 100
+    #endif
     private static let cellGap: CGFloat = 6
 
     private var earliest: Int64 { GuideWindow.start(at: now) }
@@ -89,7 +105,7 @@ struct GuideGrid: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let area = max(geometry.size.width - Self.channelWidth - 2 * Self.edgeWidth, 600)
+            let area = max(geometry.size.width - Self.channelWidth - 2 * Self.edgeWidth, Self.minimumArea)
             VStack(alignment: .leading, spacing: 12) {
                 timeline(area: area)
                 ScrollViewReader { proxy in
@@ -140,8 +156,15 @@ struct GuideGrid: View {
         let start = Date(timeIntervalSince1970: Double(windowStart) / 1000)
         let slots = Array(stride(from: windowStart, to: windowEnd, by: Int(GuideWindow.step)))
         return HStack(spacing: 0) {
-            Text(Calendar.current.isDateInToday(start) ? "Today" : start.formatted(.dateTime.weekday(.wide)))
-                .frame(width: Self.channelWidth + Self.edgeWidth, alignment: .leading)
+            HStack(spacing: 0) {
+                Text(Calendar.current.isDateInToday(start) ? "Today" : start.formatted(.dateTime.weekday(.wide)))
+                #if os(iOS)
+                Spacer(minLength: 0)
+                pageButton(forward: false)
+                pageButton(forward: true)
+                #endif
+            }
+            .frame(width: Self.channelWidth + Self.edgeWidth, alignment: .leading)
             ForEach(slots, id: \.self) { ms in
                 Text(Date(timeIntervalSince1970: Double(ms) / 1000).formatted(date: .omitted, time: .shortened))
                     .frame(width: area * CGFloat(GuideWindow.step) / CGFloat(GuideWindow.span), alignment: .leading)
@@ -151,12 +174,28 @@ struct GuideGrid: View {
         .foregroundStyle(Color.sofaMauve)
     }
 
+    #if os(iOS)
+    /// Moves the window half an hour earlier or later, as Left and Right past a row's end do on Apple TV.
+    private func pageButton(forward: Bool) -> some View {
+        let enabled = forward ? windowStart < latest : windowStart > earliest
+        return Button {
+            windowStart = forward ? min(windowStart + GuideWindow.step, latest) : max(windowStart - GuideWindow.step, earliest)
+        } label: {
+            Image(systemName: forward ? "chevron.right" : "chevron.left").frame(width: 44, height: 44).contentShape(.rect)
+        }
+        .disabled(!enabled)
+        // The timeline's color would otherwise hide that the button is off.
+        .opacity(enabled ? 1 : 0.4)
+        .accessibilityLabel(forward ? "Later" : "Earlier")
+    }
+    #endif
+
     private func row(_ channel: Channel, area: CGFloat) -> some View {
         let cells = segments(channel, from: windowStart)
         let marks = model.recordingMarks
         return HStack(spacing: 0) {
             HStack(spacing: 16) {
-                Text(channel.number.formatted()).monospacedDigit().frame(width: 96, alignment: .trailing)
+                Text(channel.number.formatted()).monospacedDigit().frame(width: Self.numberWidth, alignment: .trailing)
                 Text(channel.name).lineLimit(2)
                 if model.favorites.contains(channel.guideId) {
                     Image(systemName: "star.fill").foregroundStyle(.yellow).accessibilityLabel("Favorite")
@@ -174,10 +213,10 @@ struct GuideGrid: View {
                             time: cell.program.map(timeText),
                             recording: cell.program.flatMap { program in marks.map { model.core.recordingMark(marks: $0, program: program).recording } } ?? false,
                             onNow: cell.covers(Int64(now.timeIntervalSince1970 * 1000)),
-                            narrow: width < 160
+                            narrow: width < Self.narrowCell
                         )
                     }
-                    .buttonStyle(GuideCellStyle())
+                    .buttonStyle(GuideCellStyle(inset: Self.cellInset))
                     .frame(width: max(width, 8), height: Self.rowHeight)
                     .focused($focus, equals: .cell(guideId: channel.guideId, startMs: cell.startMs))
                     .accessibilityLabel(cellDescription(channel, cell, marks: marks))
@@ -311,18 +350,21 @@ private struct GuideCellLabel: View {
 /// A guide cell's look: a flat tile that turns white when focused, without the system's lift, so neighbors in a
 /// row never overlap.
 private struct GuideCellStyle: ButtonStyle {
+    let inset: CGFloat
+
     func makeBody(configuration: Configuration) -> some View {
-        GuideCellBody(configuration: configuration)
+        GuideCellBody(configuration: configuration, inset: inset)
     }
 }
 
 private struct GuideCellBody: View {
     let configuration: ButtonStyleConfiguration
+    let inset: CGFloat
     @Environment(\.isFocused) private var focused
 
     var body: some View {
         configuration.label
-            .padding(.horizontal, 16)
+            .padding(.horizontal, inset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(focused ? Color.sofaDusk : Color.sofaPlumRaised, in: .rect(cornerRadius: 12))
             .foregroundStyle(focused ? Color.sofaPlum : Color.sofaDusk)

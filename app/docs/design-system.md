@@ -6,7 +6,7 @@ The code is `ui/src/commonMain/kotlin/dev/jamesrich/sofaking/ui/theme` plus the 
 
 | Check | What it holds |
 | --- | --- |
-| `DesignSystemTest` (`ui` `jvmTest`) | Reads the sources: colors, corner shapes, text sizes and the theme come from this system, durations have names, spacing is on the grid, and the Apple apps copy the palette's values |
+| `DesignSystemTest` (`ui` `jvmTest`) | Reads the sources: colors, corner shapes, text sizes and the theme come from this system, durations have names, spacing is on the grid, and the Apple apps and the web app copy the palette's values |
 | `SchemeContrastTest` (`ui` `commonTest`) | WCAG 2.1 contrast of every text pair in the three schemes and on the over-picture scrim |
 | `DesignSystem*` screenshot references | The color roles, type, shapes and components on one page (`DesignSystemPreview`), in dark at TV size and in light and Prevue at phone width, so a token change shows as a picture's diff ([screenshot tests](development.md#build-and-test)) |
 
@@ -112,7 +112,7 @@ An ambient fade that is not a component's motion (the backdrop, the break screen
 
 ## Focus
 
-Material's focus state layer is too faint across a room, so every focusable control takes `Modifier.tvFocus(shape)`: a 3 dp ring in `onSurface` that follows the control's shape, and a scale of 1.1 on the fast spatial spring. Guide cells and list rows pass a scale of 1 so they never cover their neighbors; a focused list row also raises its container to `surfaceVariant` (`listRowColors`). On a TV, a moving mouse or pointer remote focuses what it is over.
+Material's focus state layer is too faint across a room, so every focusable control takes `Modifier.tvFocus(shape)`: a 3 dp ring in `onSurface` that follows the control's shape, and a scale of 1.1 on the fast spatial spring. Guide cells and list rows pass a scale of 1 so they never cover their neighbors; a focused list row also raises its container to `surfaceVariant` (`listRowColors`). On a TV, a moving mouse or pointer remote focuses what it is over. Off a TV the ring and scale show only after a key, as the web's `:focus-visible` does, so a mouse click leaves no ring on what it pressed.
 
 Material's own focus cues, the state layer and its opt-in inset ring, stay at their defaults; the app's ring is the one cue on every platform. [Architecture](architecture.md#ui) covers moving focus.
 
@@ -121,8 +121,8 @@ Material's own focus cues, the state layer and its opt-in inset ring, stay at th
 | Component | Built on | Use |
 | --- | --- | --- |
 | `SofaButton` | `Button` | Every action. `main = true` for the screen's one main action (Play, Watch, Unlock); the rest are tonal. The focused one turns light. A disabled one keeps focus until the D-pad moves on |
-| `SofaChip` | `FilterChip` | A filter that is on or off; a check marks it selected |
-| `SofaActionChip` | `AssistChip` | A chip that acts or goes somewhere: Now, a library, a cast member |
+| `SofaChip` | `FilterChip` | A filter that is on or off; a check marks it selected, an optional icon leads an unselected one that acts (Search), and a count follows the label in a dimmer tone |
+| `SofaActionChip` | `AssistChip` | A chip that acts or goes somewhere: Now, a library, a cast member; an action leads with its icon (a clock on Now, a magnifier on Search) |
 | `SofaMenuChip` | `AssistChip`, `DropdownMenu` | One choice from a long list, such as a genre |
 | `SofaIconToggle`, `SofaIconAction` | Tonal icon buttons, `TooltipBox` | A yes-or-no or one-shot action beside the main one, named by its tooltip |
 | `ToggleRow`, `SettingToggle` | Toggleable `ListItem`, `Switch` | A switch setting; the whole row takes focus |
@@ -144,7 +144,7 @@ The palette in `theme/Color.kt` is the source. The other platforms copy its valu
 | Platform | Copy |
 | --- | --- |
 | iPhone, iPad and Apple TV | `appleApp/Shared/Brand.swift`, which `DesignSystemTest` compares with the palette |
-| Web app | The custom properties at the top of `web/src/style.css` |
+| Web app | The custom properties at the top of `web/src/style.css`, which `DesignSystemTest` compares too |
 | Admin portal | The custom properties at the top of the server's `admin.css`, dark and light, with the contrast of each pair |
 | Documentation site | `docs/site/brand.css` |
 | Android launch screen and icons | `androidApp/src/main/res/values/colors.xml` and the launcher drawables |

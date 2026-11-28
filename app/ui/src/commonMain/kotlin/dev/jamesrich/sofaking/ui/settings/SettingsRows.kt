@@ -62,7 +62,8 @@ internal fun SectionHeader(title: String) {
     Text(
         title,
         style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.primary,
+        // Neutral, so amber keeps meaning where the viewer is and what to do.
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = 8.dp).sectionHeading(),
     )
 }

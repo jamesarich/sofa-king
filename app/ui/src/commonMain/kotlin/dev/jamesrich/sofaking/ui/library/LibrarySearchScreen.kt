@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -35,10 +36,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.LiveHit
+import dev.jamesrich.sofaking.data.LiveSearchResults
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.SEARCH_DEBOUNCE_MS
 import dev.jamesrich.sofaking.data.SearchGroup
-import dev.jamesrich.sofaking.data.SearchResults
 import dev.jamesrich.sofaking.data.SearchSections
 import dev.jamesrich.sofaking.data.searchSections
 import dev.jamesrich.sofaking.resources.Res
@@ -55,6 +57,10 @@ import dev.jamesrich.sofaking.resources.library_search_shows
 import dev.jamesrich.sofaking.resources.library_search_tracks
 import dev.jamesrich.sofaking.resources.library_search_videos
 import dev.jamesrich.sofaking.resources.library_search_voice_prompt
+import dev.jamesrich.sofaking.resources.search_hint
+import dev.jamesrich.sofaking.resources.search_on_later
+import dev.jamesrich.sofaking.resources.search_on_now
+import dev.jamesrich.sofaking.resources.search_voice_prompt
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.rememberVoiceSearch
@@ -65,11 +71,12 @@ import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Search across every library by title, show or cast: movies, shows and what the query's person is in as posters, then
- * episodes and videos, each in its own row.
+ * Search across live TV and every library. The channels to watch now come first, found by number, name or what airs
+ * on them; then the libraries' titles by title, show or cast: movies, shows and what the query's person is in as
+ * posters, then episodes and videos, each in its own row; then the programs coming up in the guide.
  * [voice] starts the platform's speech input on arrival, falling back to the text field without a recognizer;
  * [initialQuery] searches for it on arrival, with focus on the first result; [returnedFrom] is the item whose page
- * the viewer just left, which takes focus.
+ * the viewer just left, or the channel they were watching, which takes focus.
  */
 @Composable
 internal fun LibrarySearchScreen(
@@ -84,7 +91,8 @@ internal fun LibrarySearchScreen(
     val search = remember { SearchProgress() }
     var arrived by rememberSaveable { mutableStateOf(false) }
 
-    val startVoice = rememberVoiceSearch(stringResource(Res.string.library_search_voice_prompt)) { spoken ->
+    val prompt = if (actions.live != null) Res.string.search_voice_prompt else Res.string.library_search_voice_prompt
+    val startVoice = rememberVoiceSearch(stringResource(prompt)) { spoken ->
         if (spoken != null) {
             query.setTextAndPlaceCursorAtEnd(spoken)
             search.focusResults = true
@@ -111,31 +119,60 @@ internal fun LibrarySearchScreen(
         }
         arrived = true
     }
-    RunSearch(query, actions.search, search)
+    RunSearch(query, actions, search)
     val sections = remember(search.results) {
         searchSections(search.results.orEmpty(), search.query, search.people)
     }
     FocusAfterSearch(search, sections, focus)
+    val returnKey = search.returnKey(returnedFrom)
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
-    ) {
-        item(key = "field") { SearchField(query, focus, sections, search, insets) }
-        resultRows(sections, focus, insets, actions, returnedFrom)
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
+        ) {
+            item(key = "field") { SearchField(query, focus, sections, search, insets, live = actions.live != null) }
+            resultRows(sections, search.live, focus, insets, actions, returnKey, onHit = { search.openHit = it })
+        }
+        OpenHitDetails(actions.live, search)
     }
 }
 
-/** A row per group that found something; the first row shown holds the first result. */
+/** The details of the live hit the viewer picked, over the results; closing them gives its card focus back. */
+@Composable
+private fun OpenHitDetails(live: LiveSearch?, search: SearchProgress) {
+    val open = search.openHit ?: return
+    live?.details?.invoke(open) {
+        search.openHit = null
+        search.closedHit = open.key
+        search.focusReturn = open.key
+    }
+}
+
+/**
+ * A row per group that found something, between the channels on now and the programs coming up; the first row shown
+ * holds the first result.
+ */
 private fun LazyListScope.resultRows(
     sections: SearchSections,
+    live: LiveSearchResults,
     focus: SearchFocus,
     insets: PaddingValues,
     actions: LibrarySearchActions,
-    returnedFrom: String?,
+    returnKey: String?,
+    onHit: (LiveHit) -> Unit,
 ) {
-    sections.rows.forEachIndexed { index, section ->
+    var first: FocusRequester? = focus.firstResult
+    fun firstFocus(): FocusRequester? = first.also { first = null }
+    if (live.now.isNotEmpty()) {
+        val rowFocus = LiveRowFocus(firstFocus(), returnKey, focus.returnTo)
+        item(key = LIVE_NOW_ROW) {
+            LiveSearchRow(stringResource(Res.string.search_on_now), live.now, later = false, insets, rowFocus, onHit)
+        }
+    }
+    for (section in sections.rows) {
+        val firstResult = firstFocus()
         item(key = section.group.name) {
             ResultRow(
                 searchGroupTitle(section.group, sections),
@@ -143,13 +180,22 @@ private fun LazyListScope.resultRows(
                 section.group.style,
                 insets,
                 actions,
-                if (index == 0) focus.firstResult else null,
-                returnedFrom,
+                firstResult,
+                returnKey,
                 focus.returnTo,
             )
         }
     }
+    if (live.later.isNotEmpty()) {
+        val rowFocus = LiveRowFocus(firstFocus(), returnKey, focus.returnTo)
+        item(key = LIVE_LATER_ROW) {
+            LiveSearchRow(stringResource(Res.string.search_on_later), live.later, later = true, insets, rowFocus, onHit)
+        }
+    }
 }
+
+private const val LIVE_NOW_ROW = "live-now"
+private const val LIVE_LATER_ROW = "live-later"
 
 @Composable
 private fun searchGroupTitle(group: SearchGroup, sections: SearchSections): String = when (group) {
@@ -180,12 +226,34 @@ private class SearchFocus {
 }
 
 /**
- * The search's [results] (null before a query), whether one is [searching], and where focus goes once it is in: to the
- * first result after a spoken query ([focusResults]), or back to the result the viewer left ([focusReturn]).
+ * The search's [results] (null before a query) and what it found in [live] TV, whether one is [searching], and where
+ * focus goes once it is in: to the first result after a spoken query ([focusResults]), or back to the result the
+ * viewer left ([focusReturn]).
  */
 @Stable
 private class SearchProgress {
     var results by mutableStateOf<List<MediaItem>?>(null)
+
+    /** The channels and programs the query found in the lineup. */
+    var live by mutableStateOf(LiveSearchResults())
+
+    /** The live hit whose details are open over the results. */
+    var openHit by mutableStateOf<LiveHit?>(null)
+
+    /** The live hit whose details the viewer closed last, which keeps the way back to its card. */
+    var closedHit by mutableStateOf<String?>(null)
+
+    /**
+     * The card that takes focus back: the hit whose details just closed, or what the viewer came back from
+     * ([returnedFrom]), an item or the channel they watched.
+     */
+    fun returnKey(returnedFrom: String?): String? = closedHit ?: returnedFrom?.let { live.onChannel(it)?.key ?: it }
+
+    /** Something matched, in the libraries or in live TV. */
+    fun found(sections: SearchSections): Boolean = sections.found || live.found
+
+    /** A search is in and nothing matched anywhere. */
+    val nothing: Boolean get() = results?.isEmpty() == true && !live.found
 
     /** The people the server found [results] by, in its order. */
     var people by mutableStateOf(emptyList<String>())
@@ -197,23 +265,30 @@ private class SearchProgress {
     var focusReturn by mutableStateOf<String?>(null)
 }
 
-/** Runs [search] for the query a moment after the viewer stops typing; a newer query cancels the one running. */
+/**
+ * Runs the search for the query a moment after the viewer stops typing, in the lineup and then the libraries, and
+ * shows both answers together; a newer query cancels the one running.
+ */
 @Composable
-private fun RunSearch(query: TextFieldState, search: suspend (String) -> SearchResults, into: SearchProgress) {
-    val currentSearch by rememberUpdatedState(search)
+private fun RunSearch(query: TextFieldState, actions: LibrarySearchActions, into: SearchProgress) {
+    val currentActions by rememberUpdatedState(actions)
     LaunchedEffect(Unit) {
         snapshotFlow { query.text.toString().trim() }.collectLatest { text ->
             if (text.isEmpty()) {
                 into.results = null
+                into.live = LiveSearchResults()
                 return@collectLatest
             }
             delay(SEARCH_DEBOUNCE_MS)
             // A newer query cancels this one mid-request; the loader must still come down.
             into.searching = true
             try {
-                val found = currentSearch(text)
+                // A day of programs on 200 channels is some ten thousand titles, searched in a few milliseconds.
+                val live = currentActions.live?.find(text)
+                val found = currentActions.search(text)
                 into.query = text
                 into.people = found.people
+                into.live = live ?: LiveSearchResults()
                 into.results = found.items
             } finally {
                 into.searching = false
@@ -231,10 +306,13 @@ private fun FocusAfterSearch(search: SearchProgress, sections: SearchSections, f
     LaunchedEffect(sections, search.searching, search.focusReturn) {
         if (search.searching || search.results == null) return@LaunchedEffect
         val target = search.focusReturn
-        val onResults = if (sections.found) focus.firstResult else focus.field
+        val onResults = if (search.found(sections)) focus.firstResult else focus.field
         when {
             target != null -> {
-                val returned = search.results.orEmpty().any { it.id == target }
+                val live = search.live
+                val returned = search.results.orEmpty().any { it.id == target } ||
+                    (live.now + live.later).any { it.key == target } ||
+                    live.onChannel(target) != null
                 requestFocusWhenAttached(if (returned) focus.returnTo else onResults)
                 // Cleared only once the request is done: clearing it restarts this effect, which would cancel the
                 // request.
@@ -249,7 +327,7 @@ private fun FocusAfterSearch(search: SearchProgress, sections: SearchSections, f
     }
 }
 
-/** The query field, with a spinner while a search runs or a word when it found nothing. */
+/** The query field, with a spinner while a search runs or a word when it found nothing; [live] says it finds TV too. */
 @Composable
 private fun SearchField(
     query: TextFieldState,
@@ -257,6 +335,7 @@ private fun SearchField(
     sections: SearchSections,
     search: SearchProgress,
     insets: PaddingValues,
+    live: Boolean,
 ) {
     Column(
         Modifier.fillMaxWidth().padding(insets.horizontalOnly()),
@@ -267,15 +346,15 @@ private fun SearchField(
             focusRequester = focus.field,
             imeAction = ImeAction.Search,
             onAction = {
-                if (sections.found) focus.firstResult.requestFocus()
+                if (search.found(sections)) focus.firstResult.requestFocus()
             },
             modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
-            hint = stringResource(Res.string.library_search_hint),
+            hint = stringResource(if (live) Res.string.search_hint else Res.string.library_search_hint),
         )
         when {
             search.searching -> SofaLoader(size = 32.dp)
 
-            search.results?.isEmpty() == true -> Text(
+            search.nothing -> Text(
                 stringResource(Res.string.library_search_none),
                 style = MaterialTheme.typography.titleMedium,
             )

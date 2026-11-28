@@ -45,8 +45,6 @@ import dev.jamesrich.sofaking.ui.library.LibraryGridActions
 import dev.jamesrich.sofaking.ui.library.LibraryGridScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
-import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
-import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
 import dev.jamesrich.sofaking.ui.library.TrailerSessions
 import dev.jamesrich.sofaking.ui.library.TrailerSource
 import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
@@ -62,7 +60,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /** What a library card's menu does on every library page: play from the start, or mark watched. */
-private fun cardMenu(shell: AppShellState, libraryVm: LibraryViewModel) = CardMenu(
+internal fun cardMenu(shell: AppShellState, libraryVm: LibraryViewModel) = CardMenu(
     onPlayFromStart = { shell.push(Route.Vod(it.id, fromStart = true)) },
     onSetWatched = libraryVm::setWatched,
 )
@@ -89,35 +87,13 @@ internal fun LibraryHomeDestination(
             onPlayItem = { shell.playItem(music, it) },
             onOpenLibrary = { shell.push(Route.LibraryGrid(it.id)) },
             onRetry = libraryVm::refreshHome,
-            onSearch = { voice -> shell.push(Route.LibrarySearch(), Arrival(search = voice)) },
+            onSearch = { voice -> shell.push(Route.Search(), Arrival(search = voice)) },
             menu = cardMenu(shell, libraryVm),
             onRemoveFromContinue = libraryVm::removeFromContinue,
             onRefresh = libraryVm::refreshHome,
         ),
         returnedFrom = arrival.returnedFrom,
         headerFocused = headerFocused,
-    )
-}
-
-/** Search across every library; the query outlives a trip to an item's page and back, in the entry's saved state. */
-@Composable
-internal fun LibrarySearchDestination(
-    route: Route.LibrarySearch,
-    arrival: Arrival,
-    shell: AppShellState,
-    libraryVm: LibraryViewModel,
-    music: MusicPlayback,
-) {
-    LibrarySearchScreen(
-        actions = LibrarySearchActions(
-            search = libraryVm::search,
-            onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
-            onPlayItem = { shell.playItem(music, it) },
-            menu = cardMenu(shell, libraryVm),
-        ),
-        voice = arrival.search,
-        returnedFrom = arrival.returnedFrom,
-        initialQuery = route.query,
     )
 }
 
@@ -209,7 +185,7 @@ internal fun LibraryItemDestination(
             onSelectSeason = { pickedSeason = it },
             onRetry = page::retry,
             onRetrySeason = page::retrySeason,
-            onPerson = { shell.push(Route.LibrarySearch(query = it)) },
+            onPerson = { shell.push(Route.Search(query = it)) },
             onOpenShow = { shell.push(Route.LibraryItem(it)) },
             onOpenItem = { shell.push(Route.LibraryItem(it.id)) },
             onToggleWatchlist = libraryVm::toggleWatchlist,

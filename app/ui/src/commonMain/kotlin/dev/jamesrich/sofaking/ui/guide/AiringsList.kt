@@ -24,6 +24,7 @@ import dev.jamesrich.sofaking.resources.guide_today
 import dev.jamesrich.sofaking.resources.guide_tomorrow
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.airingWhen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
@@ -73,7 +74,7 @@ internal fun AiringsList(
                 AiringRow(
                     airing = airing,
                     now = now,
-                    whenText = airingWhen(airing, now, timeFormat, today, tomorrow),
+                    whenText = airingWhen(airing.program.start, now, timeFormat, today, tomorrow),
                     onClick = { onPick(airing) },
                     modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
                 )
@@ -81,23 +82,6 @@ internal fun AiringsList(
         }
         SofaButton(onClick = onBack) { Text(stringResource(Res.string.guide_airings_back), maxLines = 1) }
     }
-}
-
-/** "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
-internal fun airingWhen(
-    airing: Airing,
-    now: Instant,
-    timeFormat: TimeFormatter,
-    today: String,
-    tomorrow: String,
-): String {
-    val start = airing.program.start
-    val day = when (timeFormat.daysBetween(now, start)) {
-        0 -> today
-        1 -> tomorrow
-        else -> timeFormat.day(start)
-    }
-    return "$day ${timeFormat.format(start)}"
 }
 
 @Composable

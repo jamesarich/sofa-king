@@ -1,4 +1,4 @@
-# Search in the header finds a channel on now and its programs coming up, OK on the first result watches it, and Back
+# Search in the header finds a channel on now and its programs coming up, the first result's sheet watches it, and Back
 # returns to the results and then to the tab it came from. Starts on any tab (a player left open is left first), since
 # every tab's header has Search once the server has answered, and ends back on that tab.
 appId: dev.jamesrich.sofaking
@@ -29,15 +29,27 @@ name: Header search
     visible: "On later"
     timeout: 20000
 - pressKey: Remote Dpad Down
+# OK on a result opens its program's sheet with Watch focused, as in the guide.
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    visible: "Watch"
+    timeout: 10000
 - pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible:
       id: "player"
     timeout: 30000
 - pressKey: Back
+# Back from the player may land on the sheet again; Back once more closes it.
+- runFlow:
+    when:
+      visible: "Watch"
+    commands:
+      - pressKey: Back
 - extendedWaitUntil:
     visible: "On now"
     timeout: 15000
+- assertNotVisible: "Watch"
 - assertNotVisible:
     id: "player"
 - pressKey: Back

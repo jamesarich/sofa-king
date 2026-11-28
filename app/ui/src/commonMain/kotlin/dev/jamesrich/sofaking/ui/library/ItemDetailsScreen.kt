@@ -126,7 +126,7 @@ private fun Details(
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = (heroHeight * 0.3f).coerceAtLeast(insets.calculateTopPadding()),
+                    top = summaryTop(item.heroArt() != null, heroHeight, insets.calculateTopPadding()),
                     bottom = insets.calculateBottomPadding() + 16.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),

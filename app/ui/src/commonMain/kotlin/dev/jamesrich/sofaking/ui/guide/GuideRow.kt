@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -238,6 +239,7 @@ private fun GuideCellItem(
                 program?.title ?: env.noListingFor(channel),
                 program?.takeIf { focused }?.let { env.timeFormat.range(it.start, it.stop) },
                 compact,
+                status = program == null && !focused,
                 Modifier.fillMaxSize().stickyStart(stickyShift, env.minStickyTextPx),
             )
         }
@@ -281,9 +283,12 @@ private fun Modifier.cellActions(
         onClick = { env.onPlay(channel) },
     )
 
-/** A cell's title, and under it the program's times ([times], null while the cell is not focused). */
+/**
+ * A cell's title, and under it the program's times ([times], null while the cell is not focused). [status] dims the
+ * words of a stretch with no program, such as No listing, so a status never reads as a show.
+ */
 @Composable
-private fun CellText(title: String, times: String?, compact: Boolean, modifier: Modifier = Modifier) {
+private fun CellText(title: String, times: String?, compact: Boolean, status: Boolean, modifier: Modifier = Modifier) {
     Column(
         modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.Center,
@@ -293,6 +298,7 @@ private fun CellText(title: String, times: String?, compact: Boolean, modifier: 
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+            color = if (status) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
         )
         if (times != null) {
             Text(

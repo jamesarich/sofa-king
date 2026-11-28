@@ -17,7 +17,6 @@
     <string name="library_search_artists">Artists</string>
     <string name="library_search_albums">Albums</string>
     <string name="library_search_tracks">Songs</string>
-    <string name="library_library_chip">%1$s %2$d</string>
     <string name="library_loading">Sofa King close, loading the library…</string>
     <string name="library_unavailable">This server has no libraries</string>
     <string name="library_unavailable_hint">Add a movies or shows folder in the admin portal, under Library.</string>
@@ -94,4 +93,5 @@
     <string name="library_subtitles">Subtitles: %1$s</string>
     <string name="library_spoiler_hidden">Unwatched episode. Its summary is hidden by Hide spoilers.</string>
     <string name="library_remove_from_continue">Remove from Continue watching</string>
+    <string name="library_artwork_hint">Posters, backdrops and details come from TMDB: add a TMDB token on the admin portal's Library page.</string>
 </resources>

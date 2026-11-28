@@ -195,6 +195,8 @@ class WebItemDetail(
     val collectionItems: Array<WebItem>,
     /** A movie's or show's trailers, featurettes and other extras, each with its [WebItem.extra]. */
     val extras: Array<WebItem> = emptyArray(),
+    /** Each source's score as its page names it, as in "IMDb 7.8" or "Rotten Tomatoes 91%". */
+    val ratings: Array<String> = emptyArray(),
 )
 
 /** One of an item's cast: the role they play and their photo's address, either of which may be missing. */
@@ -325,4 +327,5 @@ internal fun WebParts.toWeb(detail: MediaItemDetail) = WebItemDetail(
     detail.collection?.name,
     detail.collection?.items.orEmpty().filter { it.id != detail.item.id }.toWeb(this),
     detail.extras.toWeb(this),
+    detail.ratings.map { it.label }.toTypedArray(),
 )

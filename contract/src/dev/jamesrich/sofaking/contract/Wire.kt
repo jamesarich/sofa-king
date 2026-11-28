@@ -5,6 +5,24 @@ package dev.jamesrich.sofaking.contract
  * an unknown one as its fallback.
  */
 object Wire {
+    /** Where an [ItemRating] comes from. */
+    object RatingSource {
+        const val IMDB = "imdb"
+        const val TMDB = "tmdb"
+        const val TRAKT = "trakt"
+        const val TVDB = "tvdb"
+        const val LETTERBOXD = "letterboxd"
+
+        /** Out of 100. */
+        const val METACRITIC = "metacritic"
+
+        /** The Tomatometer: the share of critics' reviews that are positive, out of 100. */
+        const val ROTTEN_TOMATOES = "rotten_tomatoes"
+
+        /** Rotten Tomatoes' audience score, out of 100. */
+        const val ROTTEN_TOMATOES_AUDIENCE = "rotten_tomatoes_audience"
+    }
+
     object Intent {
         const val PREVIEW = "preview"
         const val WATCH = "watch"

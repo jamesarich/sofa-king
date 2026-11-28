@@ -174,7 +174,7 @@ struct ItemDetailView: View {
             }
             Text(item.kind == .episode ? [item.episodeLabel, item.title].compactMap { $0 }.joined(separator: " · ") : item.title)
                 .font(.title).bold()
-            Text(metaLine(item)).foregroundStyle(.secondary)
+            Text(metaLine(item, ratings: detail.ratings)).foregroundStyle(.secondary)
             if let tagline = detail.tagline, !tagline.isEmpty {
                 Text(tagline).italic()
             }
@@ -394,8 +394,8 @@ struct ItemDetailView: View {
         .pageMargin(metrics)
     }
 
-    /// Year, running time or seasons, rating, content rating and picture.
-    private func metaLine(_ item: MediaItem) -> String {
+    /// Year, running time or seasons, each source's score (or the one rating), content rating and picture.
+    private func metaLine(_ item: MediaItem, ratings: [ItemScore]) -> String {
         var parts: [String] = []
         if let year = item.year { parts.append(String(year.intValue)) }
         if item.kind == .show, item.children > 0 {
@@ -403,7 +403,11 @@ struct ItemDetailView: View {
         } else if let runtime = item.runtime {
             parts.append(runtime)
         }
-        if let rating = item.rating { parts.append("★ \(rating.doubleValue.formatted(.number.precision(.fractionLength(1))))") }
+        if !ratings.isEmpty {
+            parts.append(contentsOf: ratings.prefix(4).map(\.label))
+        } else if let rating = item.rating {
+            parts.append("★ \(rating.doubleValue.formatted(.number.precision(.fractionLength(1))))")
+        }
         if let content = item.contentRating { parts.append(content) }
         if let height = item.videoHeight?.intValue { if height >= 2000 { parts.append("4K") } else if height >= 720 { parts.append("HD") } }
         if item.hdr { parts.append("HDR") }

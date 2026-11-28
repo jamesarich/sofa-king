@@ -91,7 +91,7 @@ Now playing in the app shows a song's lyrics when the server has them. An `.lrc`
 
 ## Details and artwork
 
-A Kodi `.nfo` beside a file replaces what its name says: `Title (Year).nfo` or `movie.nfo` for a movie, `tvshow.nfo` in a show's folder, and `Show - S01E02.nfo` for an episode. The scan reads the title, sort title, year, plot, runtime, season and episode, air date, genres, studio, rating, content rating, cast (each actor's name and role), directors and a movie's collection (`<set>`). An `.nfo` that is not XML, such as one holding only a link, is ignored.
+A Kodi `.nfo` beside a file replaces what its name says: `Title (Year).nfo` or `movie.nfo` for a movie, `tvshow.nfo` in a show's folder, and `Show - S01E02.nfo` for an episode. The scan reads the title, sort title, year, plot, runtime, season and episode, air date, genres, studio, rating, each source's score in `<ratings>` (IMDb, TMDB, Trakt, TheTVDB, Letterboxd, Metacritic and Rotten Tomatoes' critics and audience, under the names Kodi, tinyMediaManager, Radarr and Sonarr write), content rating, cast (each actor's name and role), directors and a movie's collection (`<set>`). An `.nfo` that is not XML, such as one holding only a link, is ignored.
 
 Artwork is read from the files beside the video, as `.jpg`, `.jpeg`, `.png` or `.webp`:
 

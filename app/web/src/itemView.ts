@@ -54,7 +54,7 @@ function page(ctx: Context, detail: WebItemDetail, listed: boolean | null | unde
 
     // An episode's picture is a wide still, which a poster's frame would crop.
     const poster = item.kind === 'episode' ? null : item.poster;
-    const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), item.kind === 'movie' ? '' : item.kind, item.unreadable ? 'Unreadable' : '']
+    const facts = [item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs), ...detail.ratings.slice(0, RATINGS_SHOWN), item.kind === 'movie' ? '' : item.kind, item.unreadable ? 'Unreadable' : '']
         .filter(Boolean)
         .join(' · ');
     // With a role or a photo for any of the cast, each gets a card under the summary; the names alone stay a line in it.
@@ -98,6 +98,8 @@ function page(ctx: Context, detail: WebItemDetail, listed: boolean | null | unde
 }
 
 const CAST_SHOWN = 12;
+/** The most of an item's scores the line under its title names, in the order the server lists them. */
+const RATINGS_SHOWN = 4;
 
 /** A trailer, featurette or other extra: a wide card that plays it, named by what it is. */
 function extra(item: WebItem): HTMLElement {

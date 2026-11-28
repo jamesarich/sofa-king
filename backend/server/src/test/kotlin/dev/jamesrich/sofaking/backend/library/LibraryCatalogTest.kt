@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import dev.jamesrich.sofaking.backend.store.watchlist
+import dev.jamesrich.sofaking.contract.ItemRating
 import dev.jamesrich.sofaking.contract.LetterCount
 import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
@@ -260,7 +261,9 @@ class LibraryCatalogTest {
         movies.file(
             "Heat (1995)/Heat (1995).nfo",
             "<movie><title>Heat</title><genre>Crime</genre><plot>A heist.</plot><actor><name>Al Pacino</name>" +
-                "<role>Vincent Hanna</role></actor><actor><name>Val Kilmer</name></actor></movie>",
+                "<role>Vincent Hanna</role></actor><actor><name>Val Kilmer</name></actor>" +
+                "<ratings><rating name=\"imdb\" max=\"10\"><value>7.5</value><votes>700000</votes></rating>" +
+                "<rating name=\"metacritic\" max=\"100\"><value>76</value></rating></ratings></movie>",
         )
         Files.write(movies.resolve("Heat (1995)/poster.jpg"), jpeg)
         val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
@@ -294,6 +297,7 @@ class LibraryCatalogTest {
                         title = "Heat (TMDB)",
                         overview = "TMDB plot.",
                         genres = listOf("Drama"),
+                        rating = 7.9,
                         cast = listOf("Al Pacino", "Val Kilmer", "Robert De Niro"),
                         credits = listOf(
                             Credit("Al Pacino", "Lt. Vincent Hanna", "/pacino.jpg"),
@@ -358,6 +362,23 @@ class LibraryCatalogTest {
         assertEquals(listOf("Al Pacino", "Val Kilmer"), nfo.cast)
         assertEquals(listOf("Vincent Hanna", "Chris Shiherlis"), nfo.people.map { it.role })
         assertEquals(listOf(true, true), nfo.people.map { it.photo != null })
+    }
+
+    @Test fun `an item's page has a nfo's ratings by source, then TMDB's vote`() = runBlocking<Unit> {
+        val s = twoMovies()
+        val views = s.service.catalog.snapshot().views.values
+        val heat = s.service.catalog.item(views.first { it.item.title == "Heat" }.record.id)
+        assertEquals(
+            listOf(
+                ItemRating(Wire.RatingSource.IMDB, 7.5, 10.0, 700000),
+                ItemRating(Wire.RatingSource.METACRITIC, 76.0, 100.0),
+                ItemRating(Wire.RatingSource.TMDB, 7.9),
+            ),
+            heat.ratings,
+        )
+        assertEquals(7.5, heat.item.rating, "the nfo's default rating still wins on the card")
+        val alien = s.service.catalog.item(views.first { it.item.title == "Alien" }.record.id)
+        assertEquals(listOf(ItemRating(Wire.RatingSource.TMDB, 8.1)), alien.ratings, "no nfo: TMDB's vote alone")
     }
 
     @Test fun `movies of one collection are listed together, by a nfo's set or TMDB's`() = runBlocking<Unit> {

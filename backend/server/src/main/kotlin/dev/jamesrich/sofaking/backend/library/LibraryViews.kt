@@ -4,7 +4,9 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
+import dev.jamesrich.sofaking.contract.ItemRating
 import dev.jamesrich.sofaking.contract.LibraryItem
+import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
 
 /** The kinds that show a frame of their video when they have no picture. */
@@ -198,6 +200,7 @@ private fun arranged(
             view.popular,
             view.credits,
             view.collection,
+            view.ratings,
         )
     }
     fun List<View>.fresh() = map { counted.getValue(it.record.id) }
@@ -250,7 +253,7 @@ private fun itemView(
     )
     return View(
         record, item, text.tagline, text.studio, text.cast, text.directors, art.poster, art.backdrop,
-        credits = text.credits, collection = text.collection,
+        credits = text.credits, collection = text.collection, ratings = text.ratings,
     )
 }
 
@@ -288,6 +291,18 @@ private class ItemText(record: LibraryItemRecord, facts: MetadataFacts?) {
         val known = facts?.credits.orEmpty().associateBy { it.name }
         val roles = details?.roles.orEmpty()
         cast.map { name -> Credit(name, roles[name].takeIf { nfo } ?: known[name]?.role, known[name]?.photo) }
+    }
+
+    /**
+     * Each source's score: those a `.nfo` lists, then TMDB's vote from the lookup unless the `.nfo` gave TMDB's
+     * already.
+     */
+    val ratings: List<ItemRating> = run {
+        val own = details?.ratings.orEmpty().takeIf { nfo }.orEmpty()
+            .map { ItemRating(it.source, it.value, it.max, it.votes) }
+        val tmdb = facts?.rating?.takeIf { own.none { it.source == Wire.RatingSource.TMDB } }
+            ?.let { ItemRating(Wire.RatingSource.TMDB, it) }
+        own + listOfNotNull(tmdb)
     }
 
     private fun <T> first(own: T?, tmdb: T?): T? = if (nfo && own != null) own else tmdb ?: own

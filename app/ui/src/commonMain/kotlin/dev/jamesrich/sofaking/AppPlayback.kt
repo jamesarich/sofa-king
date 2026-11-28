@@ -149,7 +149,7 @@ internal fun RouteStreamEffects(
 
             // The library, the recordings and On Later play nothing until one is picked, so the
             // guide's preview stops on the way in.
-            Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem,
+            Route.OnLater, Route.Library, is Route.LibraryGrid, is Route.Search, is Route.LibraryItem,
             Route.Recordings,
             -> if (music.song == null) {
                 player.stop()

@@ -116,3 +116,19 @@ internal fun Duration.hoursAndMinutes(): String {
         else -> "$minutes min"
     }
 }
+
+/** When a program that starts at [start] airs: "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
+internal fun airingWhen(
+    start: Instant,
+    now: Instant,
+    timeFormat: TimeFormatter,
+    today: String,
+    tomorrow: String,
+): String {
+    val day = when (timeFormat.daysBetween(now, start)) {
+        0 -> today
+        1 -> tomorrow
+        else -> timeFormat.day(start)
+    }
+    return "$day ${timeFormat.format(start)}"
+}

@@ -22,7 +22,10 @@ name: Header search
 - extendedWaitUntil:
     visible: "On now"
     timeout: 20000
-- assertVisible: "On later"
+# Programs coming up load after the channels on now.
+- extendedWaitUntil:
+    visible: "On later"
+    timeout: 20000
 # The keyboard's Search action moves focus to the first result, the channel on now.
 - pressKey: Enter
 - pressKey: Remote Dpad Center

@@ -1,7 +1,7 @@
 import type { WebChannel, WebLineup, WebProgram, WebSettingsState } from '@sofaking/core';
 import { h, replaceChildren } from './dom';
 import { focusFirst, focusables, keepFocus } from './focus';
-import { chipsFor, clock, elapsed, filterChannels, nowNext, type GuidePrefs } from './guide';
+import { chipBar, chipsFor, clock, elapsed, filterChannels, nowNext, type GuidePrefs } from './guide';
 import { guideGrid, programDetails } from './guideGrid';
 import { guideStatus, isSignedOut } from './messages';
 import { href } from './router';
@@ -36,6 +36,13 @@ export function guideView(ctx: Context): View {
     const watches = new Watches();
     const el = h('section', { class: 'guide' });
     const chips = h('div', { class: 'chips', attrs: { role: 'group', 'aria-label': 'Filter channels' } });
+    const groupMenu = h('select', {
+        attrs: { 'aria-label': 'Group' },
+        on: { change: () => ctx.core.guide.setFilter(groupMenu.value || null) },
+    });
+    groupMenu.hidden = true;
+    /** The groups the menu lists now, so a redraw leaves an open menu alone. */
+    let listed = '';
     const search = h('input', {
         class: 'search',
         attrs: { type: 'search', placeholder: 'Search channels and programs', 'aria-label': 'Search' },
@@ -68,7 +75,7 @@ export function guideView(ctx: Context): View {
     const status = h('p', { class: 'status', attrs: { role: 'status' } });
     const signedOut = signedOutNotice(true);
     signedOut.hidden = true;
-    el.append(h('div', { class: 'bar' }, chips, search, layoutGroup), status, signedOut, details, list);
+    el.append(h('div', { class: 'bar' }, chips, groupMenu, search, layoutGroup), status, signedOut, details, list);
 
     let lineup: WebLineup | null = null;
     let prefs = NO_PREFS;
@@ -99,9 +106,21 @@ export function guideView(ctx: Context): View {
             const known = chipsFor(channels, settings);
             // A filter whose channels are gone shows All.
             const active = known.some((chip) => chip.key === key) ? key : null;
+            const bar = chipBar(known);
+            const groups = bar.menu.map((chip) => chip.key).join('\n');
+            if (groups !== listed) {
+                listed = groups;
+                replaceChildren(
+                    groupMenu,
+                    h('option', { text: 'Group', attrs: { value: '' } }),
+                    ...bar.menu.map((chip) => h('option', { text: chip.label, attrs: { value: chip.key ?? '' } })),
+                );
+            }
+            groupMenu.hidden = bar.menu.length === 0;
+            groupMenu.value = bar.menu.some((chip) => chip.key === active) ? (active ?? '') : '';
             replaceChildren(
                 chips,
-                ...known.map((chip) =>
+                ...bar.chips.map((chip) =>
                     h('button', {
                         class: chip.key === active ? 'chip on' : 'chip',
                         text: chip.label,

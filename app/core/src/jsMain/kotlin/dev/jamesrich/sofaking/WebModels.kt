@@ -67,6 +67,27 @@ class WebSettingsState(
 @JsExport
 class WebCapabilities(val answered: Boolean, val library: Boolean)
 
+/** An audio or subtitle track as the player's picker lists it; a [picture] subtitle is one the server draws in. */
+@JsExport
+class WebTrack(val index: Int, val label: String, val picture: Boolean)
+
+/**
+ * A file's tracks, with the ones it starts with: [audioIndex] and [subtitleIndex] (null for no subtitles) are on in
+ * the picker, and [openAudio] is the audio track to ask the stream for, null for the file's own.
+ */
+@JsExport
+class WebTracks(
+    val audio: Array<WebTrack>,
+    val subtitles: Array<WebTrack>,
+    val audioIndex: Int?,
+    val openAudio: Int?,
+    val subtitleIndex: Int?,
+)
+
+/** A subtitle's text between two places in the item. */
+@JsExport
+class WebCue(val startMs: Double, val endMs: Double, val text: String)
+
 @JsExport
 class WebStream(
     val channelId: String,

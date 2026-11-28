@@ -226,7 +226,8 @@ internal class LibraryGrids(
         val grid = state.value ?: return
         job?.cancel()
         loadTarget = null
-        state.value = LibraryGrid(grid.libraryId, grid.sort, grid.unwatched, grid.genre, grid.view)
+        state.value =
+            LibraryGrid(grid.libraryId, grid.sort, grid.unwatched, grid.genre, grid.view, collection = grid.collection)
         loadPage(null)
     }
 

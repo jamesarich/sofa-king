@@ -144,7 +144,7 @@ The palette in `theme/Color.kt` is the source. The other platforms copy its valu
 | Platform | Copy |
 | --- | --- |
 | iPhone, iPad and Apple TV | `appleApp/Shared/Brand.swift`, which `DesignSystemTest` compares with the palette |
-| Web app | The custom properties at the top of `web/src/style.css`, which `DesignSystemTest` compares too |
+| Web app | The custom properties at the top of `web/src/style.css`, dark, light under `prefers-color-scheme` and the players' dark block, which `DesignSystemTest` compares too: amber `--primary` for the main action and progress, lavender `--accent` for a selection, as in the app |
 | Admin portal | The custom properties at the top of the server's `admin.css`, dark and light, with the contrast of each pair |
 | Documentation site | `docs/site/brand.css` |
 | Android launch screen and icons | `androidApp/src/main/res/values/colors.xml` and the launcher drawables |

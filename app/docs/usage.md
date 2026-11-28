@@ -21,9 +21,10 @@ The focused channel plays in a muted preview after 350 ms. Focus resting on it t
 | Rest | Happens |
 | --- | --- |
 | 5 s | Preview sound comes on |
+| 7 s | The preview counts down its last three seconds: Full screen in 3 |
 | 10 s | Channel opens full screen, continuing the preview's stream |
 
-Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds) and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
+Settings → Live TV sets the 10 s delay (Off, 10 or 30 seconds), with the countdown always its last three seconds, and turns preview sound off. The channel never opens by itself while a screen reader is on (TalkBack, VoiceOver) or while the preview shows Preview unavailable.
 
 - A key press restarts both timers and mutes the preview. A touch, mouse press or scroll restarts them too, and the channel then stays closed until the next key press, so scrolling by hand never opens a channel under your finger.
 - OK opens the channel full screen at once.
@@ -287,13 +288,13 @@ On Android, caption timing shifts captions against the picture so live captions 
 
 The SwiftUI iPhone and iPad app shares its screens with the Apple TV app and works as the other apps do, apart from these differences.
 
-- **Live.** The Live tab lists the channels with what is on now, under All, Favorites and Recent, with Search and, on a server that offers it, On later. Tap a channel to watch it full screen; hold it for Details and the favorite toggle. There is no guide grid, 24-hour window or preview.
+- **Live.** The Live tab shows the channels under All, Favorites and Recent, with Search and, on a server that offers it, On later. On an iPhone, or in a narrow iPad window, it lists the channels with what is on now; tap one to watch it full screen. In a wider iPad window it is the [Apple TV's guide grid](#apple-tv), 90 minutes under a row of times: tap a program on now to watch its channel full screen or a later one for its details, and the arrows beside the times move the grid half an hour, up to 24 hours ahead. Hold a channel or a program for its details and the favorite toggle. There is no preview.
 - **Live player.** It is the system player: its scrubber, captions, AirPlay and Picture in Picture, which also starts when you leave the app, and Control Center and the lock screen show the program on now. The chevron at the top left closes it. The button at the top right opens the menu the Apple TV keeps in its transport bar: Record, the favorite toggle, the channels, Multiview, Sleep timer and, while the program is being recorded, Watch from start. In portrait the channel list sits under the picture, and a tap tunes another channel. Show picture over the break screen is a button over the picture.
 - **Changing channels.** In the live player, swipe up for the next channel in the lineup and down for the one before it; the list wraps at either end. The list under the picture in portrait tunes any channel. There is no digit entry or last-channel key.
 - **Pairing lost.** When the server turns the device's token away, the Live, Library and DVR pages say "This device is no longer paired" with a link to Settings, where a pairing code pairs it again.
 - **Library player.** The same system player. The menu button holds Audio, Subtitles, Playback Speed, Subtitle timing and Sleep timer, which do what [their counterparts](#speed-audio-and-subtitles) do, in place of the stream card's audio picker. Skip break, Skip intro, Skip credits and Next episode are buttons over the picture. A recording's breaks do not show on the scrubber.
 - **Multiview.** Tick two to four channels and choose Watch. A tap on the tile with the sound watches it full screen, and a tap on another tile moves the sound there.
-- **Not in this app.** The audio visualizer, the guide grid and its 24-hour window, the mini guide in the player and the Open-source licenses page.
+- **Not in this app.** The audio visualizer, the guide grid on an iPhone, the mini guide in the player and the Open-source licenses page.
 - **Links.** `sofaking://` links open the app as on Apple TV, apart from the Top Shelf's.
 
 ## Apple TV

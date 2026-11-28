@@ -156,6 +156,9 @@ internal class GuideState(
     /** Bumped by each input that restarts the preview's rest, which the rest timers watch. */
     var dwellNonce by mutableIntStateOf(0)
     var previewMuted by mutableStateOf(true)
+
+    /** The seconds left before the preview opens full screen by itself, through its last few; null otherwise. */
+    var previewOpensIn by mutableStateOf<Int?>(null)
     var previewFailed by mutableStateOf(false)
 
     var jump by mutableStateOf<GuideJump?>(null)

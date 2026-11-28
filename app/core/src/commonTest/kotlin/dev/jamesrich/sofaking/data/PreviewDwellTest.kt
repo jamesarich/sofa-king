@@ -93,15 +93,59 @@ class PreviewDwellTest {
     }
 
     @Test
-    fun `the next transition counts down to unmute then full screen then nothing`() {
+    fun `the next transition counts down to unmute then the countdown then each second of it then nothing`() {
         dwell.onFocus("a", now)
         assertEquals(5_000L, dwell.nextTransitionMs(now))
         advance(2_000)
         assertEquals(3_000L, dwell.nextTransitionMs(now))
         advance(3_000)
-        assertEquals(5_000L, dwell.nextTransitionMs(now))
-        advance(5_000)
+        assertEquals(2_000L, dwell.nextTransitionMs(now))
+        advance(2_000)
+        assertEquals(1_000L, dwell.nextTransitionMs(now))
+        advance(1_400)
+        assertEquals(600L, dwell.nextTransitionMs(now))
+        advance(1_600)
         assertNull(dwell.nextTransitionMs(now))
+    }
+
+    @Test
+    fun `the last three seconds before the full screen opens count down`() {
+        dwell.onFocus("a", now)
+        advance(6_999)
+        assertNull(dwell.opensInSeconds(now))
+        advance(1)
+        assertEquals(3, dwell.opensInSeconds(now))
+        advance(1_000)
+        assertEquals(2, dwell.opensInSeconds(now))
+        advance(1_500)
+        assertEquals(1, dwell.opensInSeconds(now))
+        advance(500)
+        assertNull(dwell.opensInSeconds(now))
+        assertTrue(dwell.opensFullScreen(now))
+    }
+
+    @Test
+    fun `a key during the countdown ends it`() {
+        dwell.onFocus("a", now)
+        advance(8_000)
+        assertEquals(2, dwell.opensInSeconds(now))
+        dwell.onKey(now)
+        assertNull(dwell.opensInSeconds(now))
+        advance(7_000)
+        assertEquals(3, dwell.opensInSeconds(now))
+    }
+
+    @Test
+    fun `nothing counts down where the full screen never opens by itself`() {
+        val off = PreviewDwell(fullScreenAfterMs = null)
+        val returned = PreviewDwell(suppressedChannelId = "a")
+        val touched = PreviewDwell(pointerDriven = true)
+        listOf(off, returned, touched).forEach {
+            it.onFocus("a", now)
+            assertNull(it.opensInSeconds(now + 8_000))
+        }
+        dwell.onFocus(null, now)
+        assertNull(dwell.opensInSeconds(now + 8_000))
     }
 
     @Test
@@ -131,8 +175,12 @@ class PreviewDwellTest {
         val thirty = PreviewDwell(fullScreenAfterMs = 30_000L)
         thirty.onFocus("a", now)
         advance(5_000)
-        assertEquals(25_000L, thirty.nextTransitionMs(now))
-        advance(24_999)
+        assertEquals(22_000L, thirty.nextTransitionMs(now))
+        advance(21_999)
+        assertNull(thirty.opensInSeconds(now))
+        advance(1)
+        assertEquals(3, thirty.opensInSeconds(now))
+        advance(2_999)
         assertFalse(thirty.opensFullScreen(now))
         advance(1)
         assertTrue(thirty.opensFullScreen(now))

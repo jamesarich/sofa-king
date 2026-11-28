@@ -368,6 +368,12 @@ class AdminPortalPagesTest : AdminPortalCase() {
             assertTrue(listed.contains("1 movie"), listed)
             assertTrue(listed.contains("1 unreadable file"), "the probe found nothing in the text file: $listed")
             assertTrue(listed.contains("Alien (1979)/Alien (1979).mkv"), "the unreadable file is listed")
+            val actions = listed.substringAfter("<div class=\"row-actions\">").substringBefore("</td>")
+            assertTrue(
+                actions.indexOf("Scan now") < actions.indexOf(">Rename<") &&
+                    actions.indexOf(">Rename<") < actions.indexOf("class=\"small quiet destructive\""),
+                "a library's actions are one row with Remove, marked destructive, last: $actions",
+            )
 
             browser.post("/admin/library/${library.id}/rename", "csrf" to csrf, "name" to "Films")
             assertEquals("Films", runtime.libraries.library(library.id).name)

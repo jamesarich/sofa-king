@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chipsFor, elapsed, filterChannels, gridCells, gridPx, gridSlots, gridStart, nowNext, programWhen, type ChannelLike } from './guide';
+import { chipBar, chipsFor, elapsed, filterChannels, gridCells, gridPx, gridSlots, gridStart, nowNext, programWhen, type ChannelLike } from './guide';
 
 const MIN = 60_000;
 const NOW = 1_000 * MIN;
@@ -24,6 +24,15 @@ test('the chips are All, then Favorites and Recent when set, then each group by 
     assert.deepEqual(labels(['m'], ['s']), ['All', 'Favorites', 'Recent', 'Local', 'Movies', 'News', 'Sports']);
     // A favorite the lineup no longer has does not make a chip.
     assert.deepEqual(labels(['gone'], []), ['All', 'Local', 'Movies', 'News', 'Sports']);
+});
+
+test('a few groups are a chip each and many go in one menu beside All, Favorites and Recent', () => {
+    const chips = chipsFor(all, { favorites: ['m'], recentChannels: [] });
+    assert.deepEqual(chipBar(chips), { chips, menu: [] });
+    const split = chipBar(chips, 3);
+    assert.deepEqual(split.chips.map((chip) => chip.label), ['All', 'Favorites']);
+    assert.deepEqual(split.menu.map((chip) => chip.key), ['group:Local', 'group:Movies', 'group:News', 'group:Sports']);
+    assert.deepEqual(chipBar(chips, 4).menu, [], 'as many groups as the bar holds stay chips');
 });
 
 test('a group chip keeps the channels filed under it, by number', () => {

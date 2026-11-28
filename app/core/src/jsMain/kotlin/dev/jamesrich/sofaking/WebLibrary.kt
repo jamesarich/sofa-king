@@ -36,6 +36,7 @@ class WebLibrary internal constructor(private val parts: WebParts) {
                     it.next != null,
                     it.loading,
                     it.error,
+                    it.collections.toTypedArray(),
                 )
             }
         },
@@ -59,10 +60,13 @@ class WebLibrary internal constructor(private val parts: WebParts) {
 
     fun refreshHome() = library.refreshHome()
 
-    /** Opens [libraryId]'s grid in [sort] order (`title`, `added`, `year`, `rating` or `watched`). */
-    fun openGrid(libraryId: String, sort: String, unwatched: Boolean, genre: String?) {
+    /**
+     * Opens [libraryId]'s grid in [sort] order (`title`, `added`, `year`, `rating` or `watched`), with only [genre]
+     * and only the movies of [collection] when given.
+     */
+    fun openGrid(libraryId: String, sort: String, unwatched: Boolean, genre: String?, collection: String?) {
         val order = LibrarySort.entries.firstOrNull { it.name.equals(sort, true) } ?: LibrarySort.TITLE
-        library.openGrid(libraryId, order, unwatched, genre)
+        library.openGrid(libraryId, order, unwatched, genre, collection = collection)
     }
 
     fun loadMore() = library.loadMore()

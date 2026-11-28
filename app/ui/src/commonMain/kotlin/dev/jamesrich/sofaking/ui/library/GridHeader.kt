@@ -30,6 +30,7 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MusicView
 import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_collection_all
 import dev.jamesrich.sofaking.resources.library_filter_unwatched
 import dev.jamesrich.sofaking.resources.library_genre_all
 import dev.jamesrich.sofaking.resources.library_items_count
@@ -101,8 +102,9 @@ private fun ViewChips(grid: LibraryGrid?, actions: LibraryGridActions) {
 }
 
 /**
- * The whole filter bar in one row: the sort and the genre as menus, then the Unwatched toggle where the library has
- * it. Down from any of them goes to the letters, which the grid's search would pass over from the row's left end.
+ * The whole filter bar in one row: the sort, the genre and, in a library with any, the collection as menus, then the
+ * Unwatched toggle where the library has it. Down from any of them goes to the letters, which the grid's search would
+ * pass over from the row's left end.
  */
 @Composable
 private fun FilterBar(kind: LibraryKind?, grid: LibraryGrid?, actions: LibraryGridActions, letterRow: FocusRequester?) {
@@ -110,6 +112,8 @@ private fun FilterBar(kind: LibraryKind?, grid: LibraryGrid?, actions: LibraryGr
     val sorts = gridSorts(kind, grid?.view ?: MusicView.ARTISTS)
     val genres = grid?.genres.orEmpty()
     val genre = grid?.genre?.let { current -> genres.firstOrNull { it.equals(current, ignoreCase = true) } }
+    val collections = grid?.collections.orEmpty()
+    val collection = grid?.collection?.let { open -> collections.firstOrNull { it.equals(open, ignoreCase = true) } }
     val firstChip = remember { FocusRequester() }
     val toLetters = Modifier.focusProperties { if (letterRow != null) down = letterRow }
     FlowRow(
@@ -133,6 +137,16 @@ private fun FilterBar(kind: LibraryKind?, grid: LibraryGrid?, actions: LibraryGr
                 selected = genre,
                 optionLabel = { it ?: stringResource(Res.string.library_genre_all) },
                 onSelect = actions.onGenre,
+                modifier = toLetters,
+            )
+        }
+        if (collections.isNotEmpty()) {
+            SofaMenuChip(
+                label = collection ?: stringResource(Res.string.library_collection_all),
+                options = listOf<String?>(null) + collections,
+                selected = collection,
+                optionLabel = { it ?: stringResource(Res.string.library_collection_all) },
+                onSelect = actions.onCollection,
                 modifier = toLetters,
             )
         }

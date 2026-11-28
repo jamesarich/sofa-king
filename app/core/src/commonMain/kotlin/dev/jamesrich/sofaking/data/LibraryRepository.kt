@@ -25,8 +25,9 @@ class LibraryRepository(internal val api: SofaKingApi) {
         limit: Int = PAGE_SIZE,
         genre: String? = null,
         view: MusicView = MusicView.ARTISTS,
+        collection: String? = null,
     ): MediaPage = api.mediaPage(
-        api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire, view.favorites),
+        api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre, view.wire, view.favorites, collection),
     )
 
     /** The songs of a radio from the artist, album or song [id], in the order to play them. */
@@ -67,6 +68,7 @@ class LibraryRepository(internal val api: SofaKingApi) {
             extras = dto.extras.map(api::mediaItem),
             related = dto.related.map(api::mediaItem),
             popular = dto.popular.map(api::mediaItem),
+            collection = dto.collection?.let { MediaCollection(it.name, it.items.map(api::mediaItem)) },
         )
     }
 
@@ -114,6 +116,7 @@ private fun SofaKingApi.mediaPage(dto: LibraryPageDto) = MediaPage(
             },
         )
     },
+    dto.collections,
 )
 
 private fun mediaLibrary(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)

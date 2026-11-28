@@ -116,27 +116,27 @@ internal fun LibraryGridDestination(
             open?.unwatched ?: false,
             open?.takeIf { it.libraryId == route.libraryId }?.genre,
             open?.takeIf { it.libraryId == route.libraryId }?.view ?: MusicView.ARTISTS,
+            open?.takeIf { it.libraryId == route.libraryId }?.collection,
         )
     }
     val shown = grid?.takeIf { it.libraryId == route.libraryId }
     val view = shown?.view ?: MusicView.ARTISTS
+
+    // One control changes one choice and keeps the others.
+    fun reopen(
+        sort: LibrarySort = shown?.sort ?: LibrarySort.TITLE,
+        unwatched: Boolean = shown?.unwatched ?: false,
+        genre: String? = shown?.genre,
+        collection: String? = shown?.collection,
+    ) = libraryVm.openGrid(route.libraryId, sort, unwatched, genre, view, collection)
     LibraryGridScreen(
         library = (home as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == route.libraryId },
         grid = shown,
         actions = LibraryGridActions(
-            onSort = { libraryVm.openGrid(route.libraryId, it, shown?.unwatched ?: false, shown?.genre, view) },
-            onUnwatched = {
-                libraryVm.openGrid(route.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre, view)
-            },
-            onGenre = {
-                libraryVm.openGrid(
-                    route.libraryId,
-                    shown?.sort ?: LibrarySort.TITLE,
-                    shown?.unwatched ?: false,
-                    it,
-                    view,
-                )
-            },
+            onSort = { reopen(sort = it) },
+            onUnwatched = { reopen(unwatched = it) },
+            onGenre = { reopen(genre = it) },
+            onCollection = { reopen(collection = it) },
             // Another view keeps its own genres and may not offer the sort, so it opens by title.
             onView = { libraryVm.openGrid(route.libraryId, LibrarySort.TITLE, false, null, it) },
             onOpenItem = { shell.nav = shell.nav.pushOver(route, Route.LibraryItem(it.id)) },

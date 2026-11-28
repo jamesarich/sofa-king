@@ -81,9 +81,9 @@ import kotlinx.serialization.Serializable
 
 /**
  * One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last, and
- * [genres] every genre in the library, for a filter. The first page in title order also counts the items under each
- * first letter in [letters], in order, so a client can jump to one. A search names in [people] the cast and directors
- * whose names hold the query, the most credited first, for the titles it found by them.
+ * [genres] every genre in the library and [collections] every collection, for a filter. The first page in title order
+ * also counts the items under each first letter in [letters], in order, so a client can jump to one. A search names in
+ * [people] the cast and directors whose names hold the query, the most credited first, for the titles it found by them.
  */
 @Serializable data class LibraryPage(
     val items: List<LibraryItem>,
@@ -92,7 +92,12 @@ import kotlinx.serialization.Serializable
     val genres: List<String> = emptyList(),
     val letters: List<LetterCount>? = null,
     val people: List<String> = emptyList(),
+    /** The names of the library's collections, for a filter. */
+    val collections: List<String> = emptyList(),
 )
+
+/** A series of movies, such as a trilogy: its [name] and the ones the library holds, in release order. */
+@Serializable data class LibraryCollection(val name: String, val items: List<LibraryItem> = emptyList())
 
 /**
  * A run of [count] items in title order whose titles start with [letter]: an upper-case letter, or `#` for a digit
@@ -167,6 +172,8 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
     val related: List<LibraryItem> = emptyList(),
     /** For an artist, their songs ListenBrainz's listeners play most, most played first. */
     val popular: List<LibraryItem> = emptyList(),
+    /** For a movie in a collection the library holds two or more of, the collection, this movie included. */
+    val collection: LibraryCollection? = null,
 )
 
 /**

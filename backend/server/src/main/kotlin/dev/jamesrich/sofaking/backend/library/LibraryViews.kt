@@ -197,6 +197,7 @@ private fun arranged(
             view.similar,
             view.popular,
             view.credits,
+            view.collection,
         )
     }
     fun List<View>.fresh() = map { counted.getValue(it.record.id) }
@@ -249,7 +250,7 @@ private fun itemView(
     )
     return View(
         record, item, text.tagline, text.studio, text.cast, text.directors, art.poster, art.backdrop,
-        credits = text.credits,
+        credits = text.credits, collection = text.collection,
     )
 }
 
@@ -277,6 +278,7 @@ private class ItemText(record: LibraryItemRecord, facts: MetadataFacts?) {
     val genres = first(details?.genres, facts?.genres)
     val cast = first(details?.cast, facts?.cast)
     val directors = first(details?.directors, facts?.directors)
+    val collection = first(details?.collection, facts?.collection).takeIf { record.kind == ItemKind.MOVIE }
 
     /**
      * The [cast] with their roles and photos: a `.nfo` names the role, TMDB's credits the role it lacks and the photo

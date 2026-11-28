@@ -11,7 +11,7 @@ struct ItemRoute: Hashable {
 /// card opens its page. The remote's play/pause button plays a movie or episode straight from its card, and holding the
 /// touch surface on a Continue watching card offers Details, which opens its page, and Remove from Continue watching.
 /// While music plays, Now playing heads the page and opens the song's page again. Search above the page opens
-/// `LibrarySearchView`.
+/// `SearchView`.
 struct LibraryHomeView: View {
     @Environment(AppModel.self) private var model
     @State private var path = NavigationPath()

@@ -1,11 +1,11 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Live tab: the guide grid under All, Favorites and Recent, On later on a server that offers it, and Search,
-/// a page that finds a channel by name or number. Selecting a program on now plays its channel full screen, and Menu from the
-/// player comes back to the guide on the channel just watched; a later program, or a long press (or the play/pause
-/// button's context menu) on any, opens its details. A cold start opens the last watched channel, and a
-/// `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
+/// The Live tab: the guide grid under All, Favorites and Recent, On later on a server that offers it, and Search, the
+/// page that finds channels, programs and library titles (`SearchView`). Selecting a program on now plays its channel
+/// full screen, and Menu from the player comes back to the guide on the channel just watched; a later program, or a
+/// long press (or the play/pause button's context menu) on any, opens its details. A cold start opens the last watched
+/// channel, and a `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -39,7 +39,7 @@ struct ChannelListView: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 720)
                 NavigationLink {
-                    ChannelSearchView(lineup: lineup) { playing = $0 }
+                    SearchView(opensItemsHere: false)
                 } label: {
                     Label(strings.search, systemImage: "magnifyingglass")
                 }

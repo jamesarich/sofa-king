@@ -3,7 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.SearchGroup
 import dev.jamesrich.sofaking.data.SearchSections
 
-/** The library search's words in the SwiftUI Apple TV app; see [TvCopy]. */
+/** The Search page's words in the SwiftUI Apple apps; see [TvCopy]. */
 object TvSearchCopy {
     private val table = CopyTable()
 
@@ -15,6 +15,9 @@ object TvSearchCopy {
     val search = twin("library_search", "Search")
     val hint = twin("library_search_hint", "Title, show or cast")
     val none = twin("library_search_none", "Nothing matches")
+    val liveHint = twin("search_hint", "Channel, program, title or cast")
+    val onNow = twin("search_on_now", "On now")
+    val onLater = twin("search_on_later", "On later")
 
     private val movies = twin("library_search_movies", "Movies")
     private val shows = twin("library_search_shows", "Shows")

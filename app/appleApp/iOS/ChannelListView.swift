@@ -1,12 +1,12 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Live tab on a phone or tablet, under All, Favorites and Recent, with a search field and On later on a server
-/// that offers it: on an iPad in the regular width, the Apple TV's guide grid, where a tap on a program on now plays its
-/// channel and a later one opens its details; on a phone or a narrow window, the channels with what is on each now,
-/// where a tap plays the channel. Full screen either way; a long press opens the details or stars the channel. A cold
-/// start opens the last watched channel, and a `sofaking://live` link opens that one. The guide's preview is the
-/// Apple TV's.
+/// The Live tab on a phone or tablet, under All, Favorites and Recent, with a search field that filters the channels,
+/// Search (the page that finds channels, programs and library titles) and On later on a server that offers it: on an
+/// iPad in the regular width, the Apple TV's guide grid, where a tap on a program on now plays its channel and a later
+/// one opens its details; on a phone or a narrow window, the channels with what is on each now, where a tap plays the
+/// channel. Full screen either way; a long press opens the details or stars the channel. A cold start opens the last
+/// watched channel, and a `sofaking://live` link opens that one. The guide's preview is the Apple TV's.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -58,6 +58,12 @@ struct ChannelListView: View {
         .searchable(text: $query, isPresented: $searching, prompt: "Channel name or number")
         .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : strings.appName)
         .toolbar {
+            NavigationLink {
+                SearchView(opensItemsHere: false)
+            } label: {
+                Label(searchStrings.search, systemImage: "magnifyingglass")
+            }
+            .accessibilityIdentifier("search")
             if model.capabilities?.onLater == true {
                 NavigationLink {
                     OnLaterView(lineup: lineup)

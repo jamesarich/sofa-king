@@ -17,41 +17,6 @@ extension AppModel {
     }
 }
 
-/// Finds a channel by name or number, with what is on it now; selecting one plays it full screen. It is a page of its
-/// own because tvOS draws a searchable view as a search screen, keyboard on top, which would hold the guide under it.
-struct ChannelSearchView: View {
-    @Environment(AppModel.self) private var model
-    let lineup: Lineup
-    let play: (Channel) -> Void
-    @State private var query = ""
-
-    private var matches: [Channel] {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return lineup.channels }
-        return lineup.channels.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmed) || $0.number.formatted().hasPrefix(trimmed)
-        }
-    }
-
-    var body: some View {
-        List(matches) { channel in
-            Button { play(channel) } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(channel.number.formatted()) \(channel.name)")
-                    if let now = model.core.nowAndNext(lineup: lineup, channel: channel).now {
-                        Text(now.title).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .overlay {
-            if matches.isEmpty { Text(strings.noChannelMatches).foregroundStyle(.secondary) }
-        }
-        .searchable(text: $query, prompt: "Channel name or number")
-        .navigationTitle(strings.search)
-    }
-}
-
 /// Adds or removes the channel from the favorites, worded for its current state.
 struct FavoriteButton: View {
     @Environment(AppModel.self) private var model

@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +44,6 @@ import dev.jamesrich.sofaking.resources.filter_movies_now
 import dev.jamesrich.sofaking.resources.filter_news_now
 import dev.jamesrich.sofaking.resources.filter_recent
 import dev.jamesrich.sofaking.resources.filter_sports_now
-import dev.jamesrich.sofaking.resources.guide_filter_count
 import dev.jamesrich.sofaking.resources.guide_now
 import dev.jamesrich.sofaking.resources.guide_search
 import dev.jamesrich.sofaking.resources.on_later
@@ -52,6 +53,7 @@ import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.horizontalFadingEdges
 import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaChip
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.minutes
@@ -123,7 +125,7 @@ internal fun FilterChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
-            SofaActionChip(onClick = onNow, label = stringResource(Res.string.guide_now))
+            SofaActionChip(onClick = onNow, label = stringResource(Res.string.guide_now), icon = SofaIcons.Schedule)
         }
         item(key = "search") {
             SofaChip(
@@ -131,6 +133,7 @@ internal fun FilterChipRow(
                 onClick = onSearch,
                 label = stringResource(Res.string.guide_search),
                 modifier = Modifier.focusRequester(searchChip),
+                icon = Icons.Filled.Search,
             )
         }
         items(filters, key = { it.toString() }) { option ->
@@ -139,9 +142,10 @@ internal fun FilterChipRow(
             SofaChip(
                 selected = selected,
                 onClick = { onSelect(option) },
-                label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
+                label = option.label(),
                 modifier = (if (selected) Modifier.focusRequester(selectedChip) else Modifier)
                     .then(if (last) Modifier.focusProperties { right = FocusRequester.Cancel } else Modifier),
+                count = counts[option] ?: 0,
             )
         }
         // Last, so the fixed chips before the filters keep their places.

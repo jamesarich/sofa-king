@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.resumes
 import dev.jamesrich.sofaking.data.spotlightItem
 import dev.jamesrich.sofaking.data.spotlightTagline
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -43,11 +44,14 @@ class WebLibrary internal constructor(private val parts: WebParts) {
 
     /** [id]'s page, loaded on the first watch and held open until the watch is canceled. */
     fun watchItem(id: String, onChange: (WebItemState) -> Unit): Watch = parts.watch(
-        flow { library.openItem(id).use { emitAll(it.state) } }.map { state ->
+        flow { library.openItem(id).use { emitAll(it.state) } }.combine(library.watchlistMarks) { state, marks ->
             when (state) {
                 ItemDetailState.Loading -> WebItemState("loading", "", null)
+
                 is ItemDetailState.Failed -> WebItemState("failed", state.message, null)
-                is ItemDetailState.Ready -> WebItemState("ready", "", parts.toWeb(state.detail))
+
+                is ItemDetailState.Ready ->
+                    WebItemState("ready", "", parts.toWeb(state.detail), marks.listing(state.detail.item))
             }
         },
         onChange,
@@ -67,6 +71,9 @@ class WebLibrary internal constructor(private val parts: WebParts) {
     fun loadThrough(offset: Int) = library.loadThrough(offset)
 
     fun setWatched(itemId: String, watched: Boolean) = library.setWatched(parts.item(itemId), watched)
+
+    /** Adds [itemId] to the household's watchlist, or takes it off; its page's `listed` follows. */
+    fun toggleWatchlist(itemId: String) = library.toggleWatchlist(parts.item(itemId))
 }
 
 internal fun homeToWeb(

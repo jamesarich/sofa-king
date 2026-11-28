@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -44,6 +45,19 @@ class WatchlistBookTest {
         val film = news.copy(title = "Film")
         assertFalse(marks.has(film))
         assertTrue(marks.has(film.copy(channelId = "c2")))
+    }
+
+    @Test
+    fun `an item's page shows the watchlist button for a movie or show or video on a server with a list`() = runTest {
+        val http = FakeHttp(this) { json(list) }
+        val book = WatchlistBook(backgroundScope, flowOf(http.api()), flowOf(true))
+        runCurrent()
+
+        val marks = book.marks.value
+        assertEquals(true, marks.listing(movie))
+        assertEquals(false, marks.listing(movie.copy(id = "m2", kind = ItemKind.SHOW)))
+        assertNull(marks.listing(movie.copy(kind = ItemKind.EPISODE)), "an episode goes on by its show")
+        assertNull(WatchlistMarks().listing(movie), "no watchlist on this server")
     }
 
     @Test

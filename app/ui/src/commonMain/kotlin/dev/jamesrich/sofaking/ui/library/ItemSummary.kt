@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PrimaryAction
+import dev.jamesrich.sofaking.data.WATCHLIST_KINDS
 import dev.jamesrich.sofaking.data.fileFacts
 import dev.jamesrich.sofaking.data.hidesSpoilers
 import dev.jamesrich.sofaking.data.primaryAction
@@ -201,9 +202,6 @@ private fun MusicButtons(item: MediaItem, actions: ItemDetailsActions, afterPlay
     val radio = actions.onRadio?.takeIf { item.kind == ItemKind.ARTIST || item.kind == ItemKind.ALBUM }
     if (radio != null) SofaButton(onClick = radio) { Text(stringResource(Res.string.library_radio)) }
 }
-
-/** What the watchlist takes: what a library lists at its top, not a season or an episode. */
-private val WATCHLIST_KINDS = setOf(ItemKind.MOVIE, ItemKind.SHOW, ItemKind.VIDEO)
 
 @Composable
 private fun primaryLabel(action: PrimaryAction, playsItself: Boolean): String {

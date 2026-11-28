@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.ui.oneDecimal
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -92,7 +93,7 @@ internal fun BoxScope.StreamCard(
             .align(Alignment.TopEnd)
             .screenPadding()
             .width(420.dp)
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(24.dp)
             .then(if (tracks.isEmpty()) Modifier.focusRequester(focusRequester) else Modifier)
             .focusable()

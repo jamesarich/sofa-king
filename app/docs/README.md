@@ -22,6 +22,7 @@ The Sofa King app watches a Sofa King server's live TV, recordings and media lib
 | Page | What it covers |
 | --- | --- |
 | [Development](development.md) | Build and test, Android Studio, running each platform, the TV checklist and probing a TV over `adb`, CI and snapshot builds |
+| [Design system](design-system.md) | The Compose app's colors, type, shapes, spacing, motion and focus cue, its shared components, and the tests that hold screens to them |
 | [Dependencies](dependencies.md) | Pinned versions and how to change them |
 
 The app's [README](../README.md) introduces it, [CONTRIBUTING](../../CONTRIBUTING.md) and [SECURITY](../../SECURITY.md) cover conventions and reporting, and the [server's documentation](../../backend/docs/README.md) covers the lineup, sources and the API the app reads.

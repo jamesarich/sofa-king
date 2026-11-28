@@ -57,19 +57,27 @@ val SofaErrorDark = Color(0xFF7A1A12)
 val SofaOnAccent = Color(0xFFFFFFFF)
 
 /**
- * Over live video. Plum at 88% keeps dusk text above 11:1 and mauve above 7:1 even over a white picture;
- * the mini-guide's denser 92% reads 13:1 and 8:1.
+ * Over the picture: live video, artwork and whatever is drawn on them. The picture is the same in every scheme, so
+ * these are too, and they are the only colors a screen names directly; everything else comes from
+ * `MaterialTheme.colorScheme`. Plum at 88% keeps dusk text above 11:1 and mauve above 7:1 even over a white picture;
+ * the mini-guide's denser 92% reads 13:1 and 8:1. [SofaScrim] is the black behind a picture and under its shadows.
  */
 val SofaOverlayScrim = SofaPlum.copy(alpha = 0.88f)
 val SofaOverlayScrimDense = SofaPlum.copy(alpha = 0.92f)
 val SofaOverlayTrack = SofaDusk.copy(alpha = 0.3f)
+
+/** Text drawn straight on artwork or video, over a dark gradient or with a shadow, where no scrim panel backs it. */
+val SofaOnPicture = Color(0xFFFFFFFF)
+
+/** The accent on artwork: a card's progress and its watched tick, amber in every scheme. */
+val SofaOnPictureAccent = SofaAmber
 
 /**
  * The Prevue look: the 1990s TV Guide channel's deep blue grid, yellow listing text and gray channel column. WCAG 2.1
  * contrast of text pairs: yellow on blue 12.9:1, on the low, raised and high blues 10.9, 8.8 and 7.7:1, on the gray
  * column 5.9:1; cyan on blue 11.7:1, on the gray column 5.3:1; light gray on blue 10.8:1, on the gray column 4.9:1;
  * blue on yellow 12.9:1, on cyan 11.7:1; soft yellow on the airing blue 7.0:1, yellow on it 6.4:1; error on blue 9.4:1.
- * The outline against blue is 5.6:1. PrevueTest checks the pairs.
+ * The outline against blue is 5.6:1. SchemeContrastTest checks the pairs of all three schemes.
  */
 val PrevueBlue = Color(0xFF0A1070)
 val PrevueBlueLow = Color(0xFF101C8C)

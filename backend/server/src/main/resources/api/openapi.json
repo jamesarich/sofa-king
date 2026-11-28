@@ -265,6 +265,7 @@
           "item": { "$ref": "#/components/schemas/LibraryItem" }, "children": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } },
           "next": { "oneOf": [{ "$ref": "#/components/schemas/LibraryItem" }, { "type": "null" }], "description": "For a show, the episode to play next." },
           "tagline": { "type": ["string", "null"] }, "studio": { "type": ["string", "null"] }, "cast": { "type": "array", "items": { "type": "string" } }, "directors": { "type": "array", "items": { "type": "string" } },
+          "people": { "type": "array", "description": "The cast again, in the same order, each with the role they play and a photo where the server has them.", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "role": { "type": ["string", "null"], "description": "The part they play, from a .nfo or TMDB." }, "photo": { "type": ["string", "null"], "description": "A server-relative /artwork path of TMDB's picture of them." } } } },
           "audio": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } }, "subtitles": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } },
           "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] },
           "segments": { "type": "array", "items": { "$ref": "#/components/schemas/MediaSegment" }, "description": "Spans a player offers to skip, such as an episode's intro." },
@@ -1157,6 +1158,11 @@
       "get": { "tags": ["Library"], "summary": "A sheet of an item's scrub thumbnails", "description": "A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries)\n\nA path from the item's scrub.sheets, with its ?v= version. Carries Cache-Control: public, max-age=604800.", "security": [],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sheet", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }],
         "responses": { "200": { "description": "JPEG" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/artwork/{id}/cast/{index}": {
+      "get": { "tags": ["Library"], "summary": "A photo of one of an item's cast", "description": "A photo of one of an item's cast, public, see [media libraries](#media-libraries)\n\nThe path a person in the item's people names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "index", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 0 } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "JPEG, PNG or WebP" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/{role}": {
       "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries)\n\nThe path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],

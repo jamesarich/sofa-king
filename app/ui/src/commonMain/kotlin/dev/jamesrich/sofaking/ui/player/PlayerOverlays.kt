@@ -49,6 +49,7 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.overlaySurface
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
@@ -60,11 +61,11 @@ import kotlin.math.abs
 internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium, busy: Boolean = false) {
     Row(
         Modifier
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (busy) SofaLoader(size = 22.dp)
         Text(text, style = style, color = MaterialTheme.colorScheme.onSurface)
@@ -100,7 +101,7 @@ internal fun DigitsBadge(text: String) {
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .screenPadding()
-            .background(SofaOverlayScrim, MaterialTheme.shapes.small)
+            .overlaySurface()
             .padding(horizontal = 16.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     )
@@ -149,7 +150,7 @@ internal fun BoxScope.TransportDisc(hint: TransportHint?, pulse: Int) {
     }
     AnimatedVisibility(shown, Modifier.align(Alignment.Center), enter = PopIn, exit = PopOut) {
         Box(
-            Modifier.size(72.dp).background(SofaOverlayScrim, CircleShape),
+            Modifier.size(72.dp).overlaySurface(CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

@@ -25,6 +25,7 @@ import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.jamesrich.sofaking.data.ScrubTiles
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.math.roundToInt
 
 /** How wide a scrub thumbnail is drawn; its height follows the file's shape. */
@@ -51,7 +52,7 @@ internal fun ScrubThumbnail(tiles: ScrubTiles, targetMs: Long, modifier: Modifie
             .testTag(SCRUB_THUMBNAIL_TAG)
             .size(SCRUB_THUMBNAIL_WIDTH, height)
             .clip(MaterialTheme.shapes.small)
-            .background(Color.Black),
+            .background(SofaScrim),
     ) {
         // The tile filter pads the last sheet to the full grid, so every sheet is columns by rows tiles.
         val sheet = Size(size.width * tiles.columns, size.height * tiles.rows)

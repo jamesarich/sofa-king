@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -84,7 +83,7 @@ private fun SkeletonShelf(style: CardStyle, pulse: () -> Float, insets: PaddingV
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SkeletonBlock(
             pulse,
-            RoundedCornerShape(LINE_RADIUS),
+            MaterialTheme.shapes.extraSmall,
             Modifier.padding(insets.horizontalOnly()).width(TITLE_WIDTH).height(TITLE_HEIGHT),
         )
         LazyRow(
@@ -101,7 +100,7 @@ private fun SkeletonShelf(style: CardStyle, pulse: () -> Float, insets: PaddingV
 @Composable
 private fun SkeletonCard(style: CardStyle, pulse: () -> Float) {
     val (width, ratio) = skeletonCardSize(style)
-    val line = RoundedCornerShape(LINE_RADIUS)
+    val line = MaterialTheme.shapes.extraSmall
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SkeletonBlock(pulse, CardDefaults.shape, Modifier.fillMaxWidth().aspectRatio(ratio))
         SkeletonBlock(pulse, line, Modifier.fillMaxWidth(TITLE_LINE).height(LINE_HEIGHT))
@@ -135,7 +134,6 @@ private fun rememberSkeletonPulse(): State<Float> {
 
 internal val COMPACT_SPOTLIGHT_HEIGHT = 220.dp
 internal const val POSTER_RATIO = 2f / 3f
-private val LINE_RADIUS = 4.dp
 private val TITLE_WIDTH = 160.dp
 private val TITLE_HEIGHT = 18.dp
 private val LINE_HEIGHT = 12.dp

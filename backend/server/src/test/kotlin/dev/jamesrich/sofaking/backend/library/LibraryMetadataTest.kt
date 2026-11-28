@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.libraryMetadata
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -91,7 +92,8 @@ class LibraryMetadataTest {
                 "/movie/348" to
                     """{"id":348,"title":"Alien","release_date":"1979-05-25","overview":"In space.","genres":[{"name":"Horror"}],"vote_average":8.149,
                 "poster_path":"/poster.jpg","backdrop_path":"/back.jpg",
-                "credits":{"cast":[{"name":"Sigourney Weaver"}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
+                "credits":{"cast":[{"name":"Sigourney Weaver","character":"Ripley","profile_path":"/weaver.jpg"},
+                  {"name":"Tom Skerritt","character":""}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
                 "release_dates":{"results":[
                   {"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}""",
             ),
@@ -106,12 +108,27 @@ class LibraryMetadataTest {
         assertEquals("R", facts.facts?.contentRating)
         assertEquals(8.1, facts.facts?.rating)
         assertEquals(listOf("Ridley Scott"), facts.facts?.directors)
+        assertEquals(listOf("Sigourney Weaver", "Tom Skerritt"), facts.facts?.cast)
+        assertEquals(
+            listOf(Credit("Sigourney Weaver", "Ripley", "/weaver.jpg"), Credit("Tom Skerritt")),
+            facts.facts?.credits,
+        )
         assertEquals("/poster.jpg", facts.facts?.poster)
         assertEquals(listOf("/search/movie?Alien", "/movie/348"), calls)
 
         // Fresh lookups are not repeated on the next scan.
         service.scan(library.id)
         assertEquals(2, calls.size)
+
+        // One kept before the cast's roles and photos were is made again, once.
+        store.saveLibraryMetadata(listOf(facts.copy(facts = facts.facts!!.copy(credits = emptyList(), revision = 0))))
+        service.scan(library.id)
+        assertEquals(listOf("/search/movie?Alien", "/movie/348", "/search/movie?Alien", "/movie/348"), calls)
+        val again = store.libraryMetadata(listOf(movie.id)).getValue(movie.id).facts
+        assertEquals(FACTS_REVISION, again?.revision)
+        assertEquals("Ripley", again?.credits?.first()?.role)
+        service.scan(library.id)
+        assertEquals(4, calls.size)
     }
 
     @Test

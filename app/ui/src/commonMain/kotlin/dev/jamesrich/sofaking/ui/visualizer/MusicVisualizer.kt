@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.SofaOnPicture
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import dev.jamesrich.sofaking.visualizer.AudioAnalyzer
 import dev.jamesrich.sofaking.visualizer.MilkPreset
 import dev.jamesrich.sofaking.visualizer.Presets
@@ -133,13 +135,13 @@ private fun LookCaption(key: Any, look: String, title: String?, artist: String?,
         delay(CAPTION_HOLD_MS)
         alpha.animateTo(0f, tween(CAPTION_FADE_OUT_MS))
     }
-    val shadow = Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 12f)
+    val shadow = Shadow(SofaScrim.copy(alpha = 0.8f), blurRadius = 12f)
     Column(modifier.screenPadding().graphicsLayer { this.alpha = alpha.value }) {
         title?.let {
             Text(
                 it,
                 style = MaterialTheme.typography.headlineMedium.copy(shadow = shadow),
-                color = Color.White,
+                color = SofaOnPicture,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -148,7 +150,7 @@ private fun LookCaption(key: Any, look: String, title: String?, artist: String?,
             Text(
                 it,
                 style = MaterialTheme.typography.titleMedium.copy(shadow = shadow),
-                color = Color.White.copy(alpha = 0.85f),
+                color = SofaOnPicture.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -157,7 +159,7 @@ private fun LookCaption(key: Any, look: String, title: String?, artist: String?,
             look,
             Modifier.padding(top = if (title != null) 8.dp else 0.dp),
             style = MaterialTheme.typography.labelLarge.copy(shadow = shadow),
-            color = Color.White.copy(alpha = 0.7f),
+            color = SofaOnPicture.copy(alpha = 0.7f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

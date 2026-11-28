@@ -22,3 +22,18 @@ export function initials(name: string): string {
     const picked = words.length > 1 ? [words[0], words[words.length - 1]] : words;
     return picked.map((word) => (word ?? '').charAt(0).toUpperCase()).join('');
 }
+
+const EXTRA_LABELS: Record<string, string> = {
+    trailer: 'Trailer',
+    featurette: 'Featurette',
+    behind_the_scenes: 'Behind the scenes',
+    deleted_scene: 'Deleted scene',
+    interview: 'Interview',
+    scene: 'Scene',
+    short: 'Short',
+};
+
+/** What an extra is, as core names its kind; one the page does not know is an Extra. */
+export function extraLabel(kind: string | null | undefined): string {
+    return EXTRA_LABELS[kind ?? ''] ?? 'Extra';
+}

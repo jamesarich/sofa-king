@@ -105,6 +105,11 @@ class WebItem(
     val progress: Double?,
     /** True when the server found no video or audio in the file, so it cannot play. */
     val unreadable: Boolean = false,
+    /**
+     * For one of an item's extras, what it is: `trailer`, `featurette`, `behind_the_scenes`, `deleted_scene`,
+     * `interview`, `scene`, `short` or `other`.
+     */
+    val extra: String? = null,
 )
 
 @JsExport
@@ -162,14 +167,20 @@ class WebItemDetail(
     val related: Array<WebItem>,
     /** The cast with their roles and photos, where the server knows any; empty when [cast] is all there is. */
     val people: Array<WebCastPerson>,
+    /** A movie's or show's trailers, featurettes and other extras, each with its [WebItem.extra]. */
+    val extras: Array<WebItem> = emptyArray(),
 )
 
 /** One of an item's cast: the role they play and their photo's address, either of which may be missing. */
 @JsExport
 class WebCastPerson(val name: String, val role: String?, val photo: String?)
 
+/**
+ * [state] is `loading`, `failed` (with [message]) or `ready` (with [detail]). [listed] says whether the item is on the
+ * household's watchlist, and is null for an item that cannot go on it or on a server without one.
+ */
 @JsExport
-class WebItemState(val state: String, val message: String, val detail: WebItemDetail?)
+class WebItemState(val state: String, val message: String, val detail: WebItemDetail?, val listed: Boolean? = null)
 
 internal fun Program.toWeb() = WebProgram(
     title,
@@ -266,6 +277,7 @@ internal fun WebParts.toWeb(item: MediaItem): WebItem {
         progress?.watched == true,
         progress?.takeIf { it.inProgress && !it.watched }?.fraction?.toDouble(),
         item.unreadable,
+        item.extra?.name?.lowercase(),
     )
 }
 
@@ -284,4 +296,5 @@ internal fun WebParts.toWeb(detail: MediaItemDetail) = WebItemDetail(
     detail.item.genres.toTypedArray(),
     detail.related.toWeb(this),
     detail.people.map { WebCastPerson(it.name, it.role, it.photo) }.toTypedArray(),
+    detail.extras.toWeb(this),
 )

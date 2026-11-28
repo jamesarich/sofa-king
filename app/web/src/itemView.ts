@@ -1,7 +1,7 @@
 import type { WebCastPerson, WebItem, WebItemDetail, WebItemState } from '@sofaking/core';
 import { button, h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
-import { initials, length, position } from './format';
+import { extraLabel, initials, length, position } from './format';
 import { card } from './libraryView';
 import { href } from './router';
 import { Watches, type Context, type View } from './view';
@@ -18,7 +18,7 @@ export function itemView(ctx: Context, itemId: string): View {
                 replaceChildren(el, h('p', { class: 'status', text: state.state === 'failed' ? `This page did not load: ${state.message}` : 'Loading' }));
                 return;
             }
-            replaceChildren(el, page(ctx, state.detail));
+            replaceChildren(el, page(ctx, state.detail, state.listed));
         });
         if (!focused && state.state === 'ready') {
             focused = true;
@@ -29,7 +29,7 @@ export function itemView(ctx: Context, itemId: string): View {
     return { el, dispose: () => watches.cancel() };
 }
 
-function page(ctx: Context, detail: WebItemDetail): HTMLElement {
+function page(ctx: Context, detail: WebItemDetail, listed: boolean | null | undefined): HTMLElement {
     const item = detail.item;
     const target: WebItem | null = item.playable ? item : (detail.next ?? null);
     const resumes = target !== null && target.positionMs > 0 && !target.watched;
@@ -45,6 +45,12 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
         : null;
     const watched = button(item.watched ? 'Mark unwatched' : 'Mark watched', () => ctx.core.library.setWatched(item.id, !item.watched));
     watched.dataset.key = 'watched';
+    // The household's watchlist, on a server that keeps one, for what can go on it.
+    const watchlist = listed == null ? null : button(listed ? 'Remove from watchlist' : 'Add to watchlist', () => ctx.core.library.toggleWatchlist(item.id));
+    if (watchlist) {
+        watchlist.dataset.key = 'watchlist';
+        watchlist.setAttribute('aria-pressed', String(listed));
+    }
 
     // An episode's picture is a wide still, which a poster's frame would crop.
     const poster = item.kind === 'episode' ? null : item.poster;
@@ -69,7 +75,7 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
                 h('h1', { text: item.showTitle ? `${item.showTitle}: ${item.title}` : item.title }),
                 h('p', { class: 'facts', text: facts }),
                 detail.tagline ? h('p', { class: 'tagline', text: detail.tagline }) : null,
-                h('div', { class: 'actions' }, play, again, watched),
+                h('div', { class: 'actions' }, play, again, watched, watchlist),
                 item.overview ? h('p', { class: 'overview', text: item.overview }) : null,
                 detail.genres.length ? h('p', { class: 'facts', text: detail.genres.join(', ') }) : null,
                 detail.directors.length ? h('p', { class: 'facts', text: `Directed by ${detail.directors.join(', ')}` }) : null,
@@ -80,6 +86,7 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
         detail.children.length
             ? h('div', { class: 'shelf' }, h('h2', { text: item.kind === 'show' ? 'Seasons' : 'Episodes' }), h('div', { class: 'cards' }, ...detail.children.map((child) => card(child, 'child'))))
             : null,
+        detail.extras.length ? h('div', { class: 'shelf' }, h('h2', { text: 'Extras' }), h('div', { class: 'cards' }, ...detail.extras.map(extra))) : null,
         detail.related.length
             ? h('div', { class: 'shelf' }, h('h2', { text: 'More like this' }), h('div', { class: 'cards' }, ...detail.related.map((related) => card(related, 'related'))))
             : null,
@@ -87,6 +94,17 @@ function page(ctx: Context, detail: WebItemDetail): HTMLElement {
 }
 
 const CAST_SHOWN = 12;
+
+/** A trailer, featurette or other extra: a wide card that plays it, named by what it is. */
+function extra(item: WebItem): HTMLElement {
+    return h(
+        'a',
+        { class: 'card extra', attrs: { href: href({ page: 'play', id: item.id, fromStart: true }), 'data-key': `extra:${item.id}` } },
+        item.poster ? h('img', { class: 'still', attrs: { src: item.poster, alt: '', loading: 'lazy' } }) : h('span', { class: 'still blank', text: '▶', attrs: { 'aria-hidden': 'true' } }),
+        h('span', { class: 'card-title', text: item.title }),
+        h('span', { class: 'card-detail', text: [extraLabel(item.extra), length(item.durationMs)].filter(Boolean).join(' · ') }),
+    );
+}
 
 /**
  * One of the cast: their photo, or their initials where there is none, over their name and the role they play. The

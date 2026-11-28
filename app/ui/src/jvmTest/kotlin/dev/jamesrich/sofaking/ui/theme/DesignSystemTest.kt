@@ -99,12 +99,15 @@ class DesignSystemTest {
     }
 
     @Test
-    fun `the Apple apps wear the palette's own values`() {
-        fun values(pattern: Regex, file: File) = pattern.findAll(file.readText()).map { it.groupValues[1].uppercase() }
-        val values = values(COLOR_VALUE, File(themeDir, "Color.kt")).toSet()
-        val swift = values(SWIFT_HEX, File("../appleApp/Shared/Brand.swift")).toList()
-        assertTrue(swift.size >= MIN_SWIFT_COLORS, "found only $swift in Brand.swift")
-        assertEquals(emptyList(), swift.filterNot { it in values }, "Brand.swift copies ui/theme/Color.kt")
+    fun `the Apple apps and the web app wear the palette's own values`() {
+        fun values(pattern: Regex, text: String) = pattern.findAll(text).map { it.groupValues[1].uppercase() }.toList()
+        val palette = values(COLOR_VALUE, File(themeDir, "Color.kt").readText()).toSet()
+        val swift = values(SWIFT_HEX, File("../appleApp/Shared/Brand.swift").readText())
+        val web = values(CSS_HEX, File("../web/src/style.css").readText().substringBefore("}"))
+        assertTrue(swift.size >= MIN_COPIED_COLORS, "found only $swift in Brand.swift")
+        assertTrue(web.size >= MIN_COPIED_COLORS, "found only $web in style.css")
+        assertEquals(emptyList(), swift.filterNot { it in palette }, "Brand.swift copies ui/theme/Color.kt")
+        assertEquals(emptyList(), web.filterNot { it in palette }, "style.css's :root copies ui/theme/Color.kt")
     }
 
     private fun onGrid(dp: String): Boolean {
@@ -126,7 +129,7 @@ class DesignSystemTest {
 
     private companion object {
         const val MIN_SOURCES = 200
-        const val MIN_SWIFT_COLORS = 8
+        const val MIN_COPIED_COLORS = 6
         const val GRID = 4
         val DENSE_STEPS = setOf(1, 2, 6)
         val OVER_PICTURE = setOf(
@@ -142,6 +145,7 @@ class DesignSystemTest {
         val PALETTE_NAME = Regex("""^val ([A-Z][A-Za-z]+) = """, RegexOption.MULTILINE)
         val COLOR_VALUE = Regex("""Color\(0xFF([0-9A-Fa-f]{6})\)""")
         val SWIFT_HEX = Regex("""hex: 0x([0-9A-Fa-f]{6})\)""")
+        val CSS_HEX = Regex("""#([0-9A-Fa-f]{6})\b""")
         val COLOR_LITERAL = Regex("""\bColor\(\s*\d""")
         val NAMED_COLOR =
             Regex("""\bColor\.(Black|White|Red|Green|Blue|Gray|DarkGray|LightGray|Yellow|Cyan|Magenta)\b""")

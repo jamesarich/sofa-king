@@ -57,6 +57,8 @@ data class GuideActions(
     val watchlisted: (Program) -> Boolean? = { null },
     /** Opens On Later, the movies, sports, kids' programs and premieres coming up; null on a server without it. */
     val onOnLater: (() -> Unit)? = null,
+    /** The viewer started moving through the rows (true) or climbed back to the chips (false). */
+    val onBrowse: (Boolean) -> Unit = {},
 )
 
 /** A server that does not record, or keeps no watchlist, takes nothing. */

@@ -1,11 +1,12 @@
+/* The brand palette, copied from the Compose app's ui/theme/Color.kt; its DesignSystemTest compares the values. */
 :root {
     --bg: #14111f;
-    --panel: #1e1a2e;
+    --panel: #1f1a30;
     --panel-2: #2a2440;
-    --text: #ece8f7;
-    --dim: #a59fba;
+    --text: #f4effa;
+    --dim: #c4bad9;
     --accent: #c9b8ff;
-    --accent-ink: #1b1530;
+    --accent-ink: #14111f;
     --line: #3a3354;
     color-scheme: dark;
 }

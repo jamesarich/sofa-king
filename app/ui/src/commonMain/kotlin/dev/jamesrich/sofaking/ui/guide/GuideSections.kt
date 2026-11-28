@@ -287,6 +287,7 @@ internal fun PreviewBand(
                     live = cell?.cell?.program?.let { isAiring(it, now) } == true,
                     guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+                    previewFailed = failed,
                 )
             }
         }

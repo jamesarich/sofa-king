@@ -157,45 +157,45 @@ private fun TR.scanResult(library: LibraryRecord, now: Instant) = td {
     }
 }
 
-private fun TR.libraryActions(chrome: Chrome, library: LibraryRecord) = td("nowrap") {
-    postForm("/admin/library/${library.id}/scan", chrome.session, keepScroll = true) {
-        button(type = ButtonType.submit, classes = "small") {
-            attributes["aria-label"] =
-                "Scan ${library.name} now"
-            +"Scan now"
-        }
-    }
-    +" "
-    if (library.kind == LibraryKind.MUSIC) {
-        // A match is kept for 30 days; this asks MusicBrainz again for every album and artist now.
-        postForm("/admin/library/${library.id}/refresh", chrome.session, keepScroll = true) {
-            button(type = ButtonType.submit, classes = "small quiet") {
-                attributes["aria-label"] = "Look ${library.name} up on MusicBrainz again"
-                +"Refresh details"
-            }
-        }
-        +" "
-    }
-    details("inline") {
-        summary("small quiet") { +"Rename" }
-        postForm("/admin/library/${library.id}/rename", chrome.session) {
-            textInput(name = "name") {
-                value = library.name
-                required = true
-                maxLength = "100"
+private fun TR.libraryActions(chrome: Chrome, library: LibraryRecord) = td {
+    // One line of actions, the harmless ones first and Remove, in the error color, last.
+    div("row-actions") {
+        postForm("/admin/library/${library.id}/scan", chrome.session, keepScroll = true) {
+            button(type = ButtonType.submit, classes = "small") {
                 attributes["aria-label"] =
-                    "New name for ${library.name}"
+                    "Scan ${library.name} now"
+                +"Scan now"
             }
-            +" "
-            button(type = ButtonType.submit, classes = "small") { +"Save" }
         }
-    }
-    +" "
-    postForm("/admin/library/${library.id}/remove", chrome.session) {
-        button(type = ButtonType.submit, classes = "small quiet") {
-            attributes["aria-label"] =
-                "Remove ${library.name}"
-            +"Remove"
+        if (library.kind == LibraryKind.MUSIC) {
+            // A match is kept for 30 days; this asks MusicBrainz again for every album and artist now.
+            postForm("/admin/library/${library.id}/refresh", chrome.session, keepScroll = true) {
+                button(type = ButtonType.submit, classes = "small quiet") {
+                    attributes["aria-label"] = "Look ${library.name} up on MusicBrainz again"
+                    +"Refresh details"
+                }
+            }
+        }
+        details("inline") {
+            summary("small quiet") { +"Rename" }
+            postForm("/admin/library/${library.id}/rename", chrome.session) {
+                textInput(name = "name") {
+                    value = library.name
+                    required = true
+                    maxLength = "100"
+                    attributes["aria-label"] =
+                        "New name for ${library.name}"
+                }
+                +" "
+                button(type = ButtonType.submit, classes = "small") { +"Save" }
+            }
+        }
+        postForm("/admin/library/${library.id}/remove", chrome.session) {
+            button(type = ButtonType.submit, classes = "small quiet destructive") {
+                attributes["aria-label"] =
+                    "Remove ${library.name}"
+                +"Remove"
+            }
         }
     }
 }

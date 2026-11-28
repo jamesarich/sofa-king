@@ -6,7 +6,7 @@ The code is `ui/src/commonMain/kotlin/dev/jamesrich/sofaking/ui/theme` plus the 
 
 | Check | What it holds |
 | --- | --- |
-| `DesignSystemTest` (`ui` `jvmTest`) | Reads the sources: colors, corner shapes, text sizes and the theme come from this system, durations have names, spacing is on the grid, and the Apple apps copy the palette's values |
+| `DesignSystemTest` (`ui` `jvmTest`) | Reads the sources: colors, corner shapes, text sizes and the theme come from this system, durations have names, spacing is on the grid, and the Apple apps and the web app copy the palette's values |
 | `SchemeContrastTest` (`ui` `commonTest`) | WCAG 2.1 contrast of every text pair in the three schemes and on the over-picture scrim |
 | `DesignSystem*` screenshot references | The color roles, type, shapes and components on one page (`DesignSystemPreview`), in dark at TV size and in light and Prevue at phone width, so a token change shows as a picture's diff ([screenshot tests](development.md#build-and-test)) |
 
@@ -144,7 +144,7 @@ The palette in `theme/Color.kt` is the source. The other platforms copy its valu
 | Platform | Copy |
 | --- | --- |
 | iPhone, iPad and Apple TV | `appleApp/Shared/Brand.swift`, which `DesignSystemTest` compares with the palette |
-| Web app | The custom properties at the top of `web/src/style.css` |
+| Web app | The custom properties at the top of `web/src/style.css`, which `DesignSystemTest` compares too |
 | Admin portal | The custom properties at the top of the server's `admin.css`, dark and light, with the contrast of each pair |
 | Documentation site | `docs/site/brand.css` |
 | Android launch screen and icons | `androidApp/src/main/res/values/colors.xml` and the launcher drawables |

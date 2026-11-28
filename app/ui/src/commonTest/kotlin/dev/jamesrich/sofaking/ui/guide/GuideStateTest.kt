@@ -270,6 +270,28 @@ class GuideStateTest {
         assertEquals(listOf(2), moves)
     }
 
+    // browsing
+
+    @Test
+    fun `the viewer is browsing from the first move to another row until focus climbs to the chips`() {
+        state.cellFocused(channels[0], cell(0, 30))
+        assertFalse(state.browsing)
+        grid(Key.DirectionDown)
+        assertTrue(state.browsing)
+        state.chipsFocusChanged(true)
+        assertFalse(state.browsing)
+        // Back in the grid the header stays until the rows move again.
+        state.chipsFocusChanged(false)
+        assertFalse(state.browsing)
+    }
+
+    @Test
+    fun `Up from the first row leaves the grid without browsing`() {
+        state.cellFocused(channels[0], cell(0, 30))
+        assertFalse(grid(Key.DirectionUp))
+        assertFalse(state.browsing)
+    }
+
     // gridTarget
 
     @Test

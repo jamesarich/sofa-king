@@ -90,6 +90,23 @@ struct ItemDetailView: View {
                         Text("Extras").font(.title3).pageMargin(metrics)
                     }
                 }
+                if let collection = detail.collection {
+                    // The rest of the movie's collection, in release order.
+                    let others = collection.items.filter { $0.id != detail.item.id }
+                    if !others.isEmpty {
+                        Section {
+                            CardRow {
+                                ForEach(others) { other in
+                                    NavigationLink(value: other) { LibraryCard(item: other, wide: false) }
+                                        .buttonStyle(.card)
+                                        .playsOnPlayPause(other)
+                                }
+                            }
+                        } header: {
+                            Text(collection.name).font(.title3)
+                        }
+                    }
+                }
                 if !detail.related.isEmpty {
                     Section {
                         CardRow {

@@ -200,7 +200,12 @@ data class MediaItemDetail(
     val related: List<MediaItem> = emptyList(),
     /** For an artist, their songs listeners play most, most played first. */
     val popular: List<MediaItem> = emptyList(),
+    /** For a movie in a collection the library holds two or more of, the collection, this movie included. */
+    val collection: MediaCollection? = null,
 )
+
+/** A series of movies, such as a trilogy: its [name] and the ones the library holds, in release order. */
+data class MediaCollection(val name: String, val items: List<MediaItem> = emptyList())
 
 /** The cast to list on the item's page: [MediaItemDetail.people], or the names alone where that is all there is. */
 val MediaItemDetail.billed: List<CastPerson> get() = people.ifEmpty { cast.map { CastPerson(it) } }
@@ -275,6 +280,8 @@ data class MediaPage(
     val genres: List<String> = emptyList(),
     /** Where each first letter starts, on the first page in title order; null otherwise. */
     val letters: List<LetterJump>? = null,
+    /** The names of the library's collections, for a filter. */
+    val collections: List<String> = emptyList(),
 )
 
 /**

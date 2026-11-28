@@ -360,6 +360,59 @@ class LibraryCatalogTest {
         assertEquals(listOf(true, true), nfo.people.map { it.photo != null })
     }
 
+    @Test fun `movies of one collection are listed together, by a nfo's set or TMDB's`() = runBlocking<Unit> {
+        val s = setup()
+        val movies = s.root.resolve("movies")
+        movies.file("Alien (1979)/Alien (1979).mkv")
+        movies.file("Aliens (1986)/Aliens (1986).mkv")
+        movies.file(
+            "Aliens (1986)/Aliens (1986).nfo",
+            "<movie><title>Aliens</title><year>1986</year><set><name>alien collection</name></set></movie>",
+        )
+        movies.file("Alien 3 (1992)/Alien 3 (1992).mkv")
+        movies.file("Heat (1995)/Heat (1995).mkv")
+        val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
+        s.service.scan(library.id)
+        val ids = s.store.libraryItems(library.id).associate { it.title to it.id }
+        fun found(title: String, collection: String) = MetadataRecord(
+            ids.getValue(title),
+            1,
+            "2026-01-01T00:00:00Z",
+            MetadataFacts(title = title, collection = collection),
+        )
+        s.store.saveLibraryMetadata(
+            listOf(
+                found("Alien", "Alien Collection"),
+                found("Alien 3", "Alien Collection"),
+                found("Heat", "Heat Collection"),
+            ),
+        )
+        s.service.scan(library.id)
+        val catalog = s.service.catalog
+
+        // Named as its first movie names it; a collection of one movie is not listed.
+        val page = catalog.items(library.id, null, unwatched = false, cursor = null, limit = 10)
+        assertEquals(listOf("Alien Collection"), page.collections)
+        assertEquals(4, page.total)
+
+        val listed = catalog.items(
+            library.id,
+            "year",
+            unwatched = false,
+            cursor = null,
+            limit = 10,
+            collection = "ALIEN collection",
+        )
+        assertEquals(listOf("Alien 3", "Aliens", "Alien"), listed.items.map { it.title }, "newest first, by year")
+        assertEquals(3, listed.total)
+        assertEquals(0, catalog.items(library.id, null, false, null, 10, collection = "Heat Collection").total)
+
+        val alien = catalog.item(ids.getValue("Aliens")).collection
+        assertEquals("Alien Collection", alien?.name)
+        assertEquals(listOf("Alien", "Aliens", "Alien 3"), alien?.items?.map { it.title }, "in release order")
+        assertNull(catalog.item(ids.getValue("Heat")).collection)
+    }
+
     @Test fun `a TMDB image is downloaded once, and no path leads outside`() = runBlocking<Unit> {
         val calls = mutableListOf<String>()
         val s = twoMovies(

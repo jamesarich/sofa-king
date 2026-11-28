@@ -197,7 +197,7 @@ internal fun art(root: Path, vararg bases: Path?): String? {
 }
 
 private fun Nfo.details(tagged: ProviderIds = ProviderIds()): ItemDetails = ItemDetails(
-    tagline, genres, studio, contentRating, rating, cast, roles, directors,
+    tagline, genres, studio, contentRating, rating, cast, roles, directors, collection,
     tmdbId ?: tagged.tmdb, tvdbId ?: tagged.tvdb, imdbId ?: tagged.imdb, nfo = true,
 )
 

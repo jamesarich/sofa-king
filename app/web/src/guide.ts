@@ -41,6 +41,19 @@ export function chipsFor(channels: readonly ChannelLike[], prefs: GuidePrefs): C
     return chips;
 }
 
+/** More groups than this go in one menu instead of a chip each. */
+export const GROUP_CHIPS_MAX = 8;
+
+/**
+ * [chips] as the guide's bar draws them: a chip each while the groups are few, else All, Favorites and Recent as
+ * chips and the groups in a menu.
+ */
+export function chipBar(chips: readonly Chip[], max = GROUP_CHIPS_MAX): { chips: Chip[]; menu: Chip[] } {
+    const groups = chips.filter((chip) => chip.key?.startsWith(GROUP));
+    if (groups.length <= max) return { chips: [...chips], menu: [] };
+    return { chips: chips.filter((chip) => !chip.key?.startsWith(GROUP)), menu: groups };
+}
+
 /** The channels [key] keeps, by number; Recent keeps the order the channels were watched in. A search narrows by name. */
 export function filterChannels<C extends ChannelLike>(
     channels: readonly C[],

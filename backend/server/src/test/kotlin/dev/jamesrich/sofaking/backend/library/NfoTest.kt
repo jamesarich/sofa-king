@@ -37,6 +37,18 @@ class NfoTest {
         assertEquals(mapOf("Sigourney Weaver" to "Ripley"), nfo.roles)
     }
 
+    @Test fun `an nfo names a movie's collection in set, as a name inside it or as its text`() {
+        fun collection(xml: String) = parseNfo("<movie>$xml</movie>".byteInputStream())!!.collection
+        assertEquals(
+            "Alien Collection",
+            collection("<set><name> Alien Collection </name><overview>All of them.</overview></set>"),
+        )
+        assertEquals("Alien Collection", collection("<set>Alien Collection</set>"))
+        assertEquals(null, collection("<set><overview>No name.</overview></set>"))
+        assertEquals(null, collection("<set></set>"))
+        assertEquals(null, collection("<title>Alien</title>"))
+    }
+
     @Test fun `an nfo gives its TMDB, TheTVDB and IMDb ids from uniqueid or the older tags`() {
         val show = parseNfo(
             (

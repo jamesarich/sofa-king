@@ -37,6 +37,35 @@ class NfoTest {
         assertEquals(mapOf("Sigourney Weaver" to "Ripley"), nfo.roles)
     }
 
+    @Test fun `an nfo's ratings give each named source's score once, under the names the tools write`() {
+        val nfo = parseNfo(
+            (
+                "<movie><ratings>" +
+                    """<rating name="imdb" max="10" default="true"><value>7.8</value><votes>1,234</votes></rating>""" +
+                    """<rating name="themoviedb" max="10"><value>7.4</value><votes>900</votes></rating>""" +
+                    """<rating name="tomatometerallcritics" max="100"><value>91</value></rating>""" +
+                    """<rating name="tomatometerallaudience" max="100"><value>85</value></rating>""" +
+                    """<rating name="metacritic" max="100"><value>74</value></rating>""" +
+                    """<rating name="imdb"><value>6.0</value></rating>""" +
+                    """<rating name="someone"><value>5</value></rating>""" +
+                    """<rating name="trakt"><value>11</value></rating>""" +
+                    """<rating name="letterboxd" max="5"><value></value></rating>""" +
+                    "</ratings></movie>"
+                ).byteInputStream(),
+        )!!
+        assertEquals(
+            listOf(
+                Rating("imdb", 7.8, 10.0, 1234),
+                Rating("tmdb", 7.4, 10.0, 900),
+                Rating("rotten_tomatoes", 91.0, 100.0),
+                Rating("rotten_tomatoes_audience", 85.0, 100.0),
+                Rating("metacritic", 74.0, 100.0),
+            ),
+            nfo.ratings,
+        )
+        assertEquals(7.8, nfo.rating, "the default rating stays the one a card shows")
+    }
+
     @Test fun `an nfo names a movie's collection in set, as a name inside it or as its text`() {
         fun collection(xml: String) = parseNfo("<movie>$xml</movie>".byteInputStream())!!.collection
         assertEquals(

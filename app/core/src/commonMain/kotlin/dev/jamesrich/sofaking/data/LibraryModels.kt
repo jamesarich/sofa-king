@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.Wire
+import kotlin.math.roundToInt
 import kotlin.time.Instant
 
 /** What a library holds; [OTHER] stands for a kind a newer server added. */
@@ -172,6 +173,43 @@ data class MediaTrackInfo(
 /** Someone in an item's cast: the [role] they play and their [photo]'s address, where the server knows them. */
 data class CastPerson(val name: String, val role: String? = null, val photo: String? = null)
 
+/**
+ * A score for an item from one [source], a `Wire.RatingSource` value, out of [max], with the [votes] behind it where
+ * the source gives them.
+ */
+data class ItemScore(val source: String, val value: Double, val max: Double = 10.0, val votes: Int? = null) {
+    /** The source as the page names it, as in "IMDb" or "Rotten Tomatoes"; a source the app does not know, as sent. */
+    val sourceName: String
+        get() = when (source) {
+            Wire.RatingSource.IMDB -> "IMDb"
+            Wire.RatingSource.TMDB -> "TMDB"
+            Wire.RatingSource.TRAKT -> "Trakt"
+            Wire.RatingSource.TVDB -> "TheTVDB"
+            Wire.RatingSource.LETTERBOXD -> "Letterboxd"
+            Wire.RatingSource.METACRITIC -> "Metacritic"
+            Wire.RatingSource.ROTTEN_TOMATOES -> "Rotten Tomatoes"
+            Wire.RatingSource.ROTTEN_TOMATOES_AUDIENCE -> "RT Audience"
+            else -> source
+        }
+
+    /**
+     * The score as the source shows it: a percentage for Rotten Tomatoes, a whole number for another score out of
+     * 100, one decimal out of 10 or 5.
+     */
+    val score: String
+        get() = when {
+            source == Wire.RatingSource.ROTTEN_TOMATOES || source == Wire.RatingSource.ROTTEN_TOMATOES_AUDIENCE ->
+                "${(value / max * 100).roundToInt()}%"
+
+            max >= 100 -> value.roundToInt().toString()
+
+            else -> (value * 10).roundToInt().let { "${it / 10}.${it % 10}" }
+        }
+
+    /** "IMDb 7.8", "Rotten Tomatoes 91%" or "Metacritic 74". */
+    val label: String get() = "$sourceName $score"
+}
+
 /** An item with what its page shows: a show's seasons or a season's episodes in [children], and what to play [next]. */
 data class MediaItemDetail(
     val item: MediaItem,
@@ -183,6 +221,8 @@ data class MediaItemDetail(
     val cast: List<String> = emptyList(),
     /** The [cast] in the same order with their roles and photos; empty from a server that sends only the names. */
     val people: List<CastPerson> = emptyList(),
+    /** Each source's score, as the server lists them; empty from a server that sends only [MediaItem.rating]. */
+    val ratings: List<ItemScore> = emptyList(),
     val directors: List<String> = emptyList(),
     val audio: List<MediaTrackInfo> = emptyList(),
     val subtitles: List<MediaTrackInfo> = emptyList(),

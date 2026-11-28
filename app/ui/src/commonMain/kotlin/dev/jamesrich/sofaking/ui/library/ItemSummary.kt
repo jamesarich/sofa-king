@@ -260,7 +260,10 @@ private fun Overview(text: String) {
 
 private const val OVERVIEW_LINES = 4
 
-/** Year, length or seasons, rating and the picture's badges on one line. */
+/** The most of an item's scores the line under its title names, in the order the server lists them. */
+private const val RATINGS_SHOWN = 4
+
+/** Year, length or seasons, each source's score (or the one rating) and the picture's badges on one line. */
 @Composable
 private fun MetaLine(detail: MediaItemDetail) {
     val item = detail.item
@@ -281,7 +284,9 @@ private fun MetaLine(detail: MediaItemDetail) {
 
             else -> runtime(item.durationMs)?.let { add(it.hoursAndMinutes()) }
         }
-        item.rating?.let { add(stringResource(Res.string.library_rating, oneDecimal(it))) }
+        // Each source's score, or from a server that sends none, the item's one rating.
+        val rated = item.rating?.let { stringResource(Res.string.library_rating, oneDecimal(it)) }
+        addAll(detail.ratings.take(RATINGS_SHOWN).map { it.label }.ifEmpty { listOfNotNull(rated) })
         if (item.genres.isNotEmpty()) add(item.genres.take(3).joinToString(", "))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

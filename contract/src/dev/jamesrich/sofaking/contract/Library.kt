@@ -139,6 +139,13 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
 @Serializable data class CastMember(val name: String, val role: String? = null, val photo: String? = null)
 
 /**
+ * A score for an item from one [source], a [Wire.RatingSource] value, out of [max]: IMDb's 7.8 of 10, or Rotten
+ * Tomatoes' 91 of 100. [votes] counts the votes behind it, where the source gives them.
+ */
+@Serializable
+data class ItemRating(val source: String, val value: Double, val max: Double = 10.0, val votes: Int? = null)
+
+/**
  * An item with what its page shows: for a show its seasons, for a season or a show without seasons its episodes,
  * for a show the episode to play [next]; for a file its tracks and the [segments] the server found in it, such as
  * an episode's intro.
@@ -153,6 +160,8 @@ data class LibraryShelf(val id: String, val title: String, val items: List<Libra
     val directors: List<String> = emptyList(),
     /** The [cast] again, in the same order, each with the role they play and a photo where the server has them. */
     val people: List<CastMember> = emptyList(),
+    /** The item's scores, one for each source the server has one from: a `.nfo`'s ratings, then TMDB's vote. */
+    val ratings: List<ItemRating> = emptyList(),
     val audio: List<MediaTrack> = emptyList(),
     val subtitles: List<MediaTrack> = emptyList(),
     val container: String? = null,

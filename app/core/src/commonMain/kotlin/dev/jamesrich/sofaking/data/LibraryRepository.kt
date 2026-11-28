@@ -47,6 +47,7 @@ class LibraryRepository(internal val api: SofaKingApi) {
             studio = dto.studio,
             cast = dto.cast,
             people = dto.people.map { CastPerson(it.name, it.role, it.photo?.let(api::logoUrl)) },
+            ratings = dto.ratings.map { ItemScore(it.source, it.value, it.max, it.votes) },
             directors = dto.directors,
             audio = dto.audio.map(::mediaTrack),
             subtitles = dto.subtitles.map(::mediaTrack),

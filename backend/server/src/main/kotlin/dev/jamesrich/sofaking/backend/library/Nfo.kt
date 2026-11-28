@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.contract.Wire
 import org.w3c.dom.Element
 import java.io.InputStream
 import java.nio.file.Files
@@ -25,6 +26,8 @@ internal data class Nfo(
     val studio: String? = null,
     val contentRating: String? = null,
     val rating: Double? = null,
+    /** Each source's score from `<ratings>`, for the sources a client names. */
+    val ratings: List<Rating> = emptyList(),
     val cast: List<String> = emptyList(),
     /** The role each of the [cast] plays, by name, for those the `.nfo` gives one. */
     val roles: Map<String, String> = emptyMap(),
@@ -102,6 +105,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
         studio = text("studio"),
         contentRating = text("mpaa") ?: text("certification"),
         rating = rating,
+        ratings = root.ratings(),
         cast = actors.map { it.first },
         roles = actors.mapNotNull { (name, role) -> role?.let { name to it } }.toMap(),
         directors = all("director"),
@@ -121,6 +125,34 @@ private fun Element.providerIds(): ProviderIds {
         imdb = (uniqueId("imdb") ?: text("imdbid") ?: text("imdb_id") ?: text("id"))
             ?.lowercase()?.takeIf { IMDB_ID.matches(it) },
     )
+}
+
+/**
+ * The scores `<ratings>` lists, one for each source a client names, the first of each kept: Kodi, tinyMediaManager,
+ * Radarr and Sonarr write `<rating name="imdb" max="10"><value>7.8</value><votes>1234</votes></rating>`, each under
+ * names of their own for the same source. A score outside 0 to its maximum is dropped.
+ */
+private fun Element.ratings(): List<Rating> = child("ratings")?.children("rating").orEmpty().mapNotNull { rating ->
+    val source = RATING_SOURCES[rating.getAttribute("name").lowercase().filter { it.isLetterOrDigit() }]
+    val max = rating.getAttribute("max").trim().toDoubleOrNull()?.takeIf { it > 0 } ?: DEFAULT_RATING_MAX
+    val value = rating.child("value")?.textContent?.trim()?.toDoubleOrNull()?.takeIf { it > 0 && it <= max }
+    val votes = rating.child("votes")?.textContent?.filter { it.isDigit() }?.toIntOrNull()
+    if (source == null || value == null) null else Rating(source, value, max, votes)
+}.distinctBy { it.source }
+
+private const val DEFAULT_RATING_MAX = 10.0
+
+/** The `<rating name>`s the tools write, lowercased with only letters and digits, by the source each one names. */
+private val RATING_SOURCES: Map<String, String> = buildMap {
+    fun source(wire: String, vararg names: String) = names.forEach { put(it, wire) }
+    source(Wire.RatingSource.IMDB, "imdb")
+    source(Wire.RatingSource.TMDB, "tmdb", "themoviedb")
+    source(Wire.RatingSource.TRAKT, "trakt")
+    source(Wire.RatingSource.TVDB, "tvdb", "thetvdb")
+    source(Wire.RatingSource.LETTERBOXD, "letterboxd")
+    source(Wire.RatingSource.METACRITIC, "metacritic")
+    source(Wire.RatingSource.ROTTEN_TOMATOES, "tomatometerallcritics", "rottentomatoes", "tomatometer")
+    source(Wire.RatingSource.ROTTEN_TOMATOES_AUDIENCE, "tomatometerallaudience", "rottentomatoesaudience")
 }
 
 /** An IMDb title id: `tt` and digits. Kodi writes it in `<id>` too, where other scrapers write their own ids. */

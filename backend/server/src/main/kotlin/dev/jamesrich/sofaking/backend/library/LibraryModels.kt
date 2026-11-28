@@ -75,6 +75,8 @@ data class ItemDetails(
     val studio: String? = null,
     val contentRating: String? = null,
     val rating: Double? = null,
+    /** The scores a `.nfo`'s `<ratings>` gives, one for each source. */
+    val ratings: List<Rating> = emptyList(),
     val cast: List<String> = emptyList(),
     /** The roles a `.nfo` gives its [cast], by name. */
     val roles: Map<String, String> = emptyMap(),
@@ -150,6 +152,10 @@ data class ScanResult(
         "$files files, $added new, $updated changed, $missing missing, $removed removed"
     }
 }
+
+/** A score from one [source], a `Wire.RatingSource` value, out of [max], with the [votes] behind it where known. */
+@Serializable
+data class Rating(val source: String, val value: Double, val max: Double = 10.0, val votes: Int? = null)
 
 /**
  * One of the cast as TMDB credits them: the [role] they play and TMDB's image path of their [photo], such as

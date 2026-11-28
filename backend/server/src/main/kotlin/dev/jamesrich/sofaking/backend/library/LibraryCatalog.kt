@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.backend.store.playStates
 import dev.jamesrich.sofaking.backend.store.savePlayStates
 import dev.jamesrich.sofaking.backend.store.watchlist
 import dev.jamesrich.sofaking.contract.CastMember
+import dev.jamesrich.sofaking.contract.ItemRating
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryCollection
 import dev.jamesrich.sofaking.contract.LibraryHome
@@ -99,6 +100,8 @@ internal class View(
     val credits: List<Credit> = emptyList(),
     /** For a movie, the collection its `.nfo` or TMDB puts it in, whether or not the library holds any other of it. */
     val collection: String? = null,
+    /** Each source's score: a `.nfo`'s ratings, then TMDB's vote when the `.nfo` has none from TMDB. */
+    val ratings: List<ItemRating> = emptyList(),
 ) {
     /** The [credits] as a client reads them, each photo at `/artwork/{id}/cast/{n}`. */
     val people: List<CastMember>
@@ -357,7 +360,7 @@ class LibraryCatalog internal constructor(
                 null
             },
             tagline = view.tagline, studio = view.studio, cast = view.cast, directors = view.directors,
-            people = view.people,
+            people = view.people, ratings = view.ratings,
             audio = media?.audio.orEmpty().map {
                 MediaTrack(it.index, it.codec, it.language, it.title, it.channels, it.default)
             },

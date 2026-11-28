@@ -18,6 +18,14 @@ internal fun AppShellState.openLibrary(libraryId: String) {
     nav = nav.closeSettings().openLibrary(libraryId)
 }
 
+/**
+ * Search picked in the header or the navigation bar: its page opens over the one that is open, with Settings closed,
+ * so Back returns there.
+ */
+internal fun AppShellState.openSearch() {
+    nav = nav.closeSettings().push(Route.Search())
+}
+
 /** Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button. */
 internal fun AppShellState.leaveSettings() {
     headerReturn = HeaderReturn.SETTINGS

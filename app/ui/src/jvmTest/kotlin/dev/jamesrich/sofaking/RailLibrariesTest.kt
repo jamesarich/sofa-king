@@ -34,6 +34,7 @@ class RailLibrariesTest {
         libraries: List<MediaLibrary> = listOf(movies, shows),
         libraryOpen: String? = null,
         onLibrary: (String) -> Unit = {},
+        searchShown: Boolean = true,
     ) = TabsModel(
         selected = Tab.LIBRARY,
         libraryShown = true,
@@ -42,6 +43,7 @@ class RailLibrariesTest {
         libraries = libraries,
         libraryOpen = libraryOpen,
         onLibrary = onLibrary,
+        searchShown = searchShown,
     )
 
     private fun ComposeUiTest.show(tabs: TabsModel) {
@@ -66,12 +68,38 @@ class RailLibrariesTest {
     @Test
     fun `a rail lists every library and a bar none`() {
         val rail = NavigationSuiteType.NavigationRail
-        assertEquals(listOf(movies, shows), railLibraries(rail, compactHeight = false, tabs()))
-        assertEquals(emptyList(), railLibraries(rail, compactHeight = true, tabs()))
-        assertEquals(emptyList(), railLibraries(NavigationSuiteType.ShortNavigationBarCompact, false, tabs()))
+        assertEquals(listOf(movies, shows), railLibraries(rail, 800.dp, tabs()))
+        assertEquals(emptyList(), railLibraries(NavigationSuiteType.ShortNavigationBarCompact, 800.dp, tabs()))
         val many = (1..5).map { MediaLibrary("l$it", "Library $it", LibraryKind.VIDEOS, itemCount = 1) }
-        assertEquals(emptyList(), railLibraries(rail, compactHeight = false, tabs(many)))
+        assertEquals(emptyList(), railLibraries(rail, 1200.dp, tabs(many)))
     }
+
+    @Test
+    fun `a rail lists the libraries only in a window tall enough to keep Settings on screen`() {
+        val rail = NavigationSuiteType.NavigationRail
+        // Live, Library, two libraries, DVR, Search and Settings.
+        assertEquals(listOf(movies, shows), railLibraries(rail, 572.dp, tabs()))
+        assertEquals(emptyList(), railLibraries(rail, 571.dp, tabs()))
+        assertEquals(listOf(movies, shows), railLibraries(rail, 504.dp, tabs(searchShown = false)), "one item fewer")
+    }
+
+    @Test
+    fun `the rail's items all fit in the shortest window that lists the libraries`() =
+        runSkikoComposeUiTest(Size(2560f, 1144f), Density(2f)) {
+            show(tabs())
+            onNodeWithText("TV Shows", useUnmergedTree = true).assertExists()
+            val settings = onNodeWithText("Settings", useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue(settings.bottom <= 572.dp, "Settings ends at ${settings.bottom} in a 572 dp window")
+        }
+
+    @Test
+    fun `a window too short for them leaves the libraries to the Library home`() =
+        runSkikoComposeUiTest(Size(2560f, 1100f), Density(2f)) {
+            show(tabs())
+            onNodeWithText("TV Shows").assertDoesNotExist()
+            val settings = onNodeWithText("Settings", useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue(settings.bottom <= 550.dp, "Settings ends at ${settings.bottom} in a 550 dp window")
+        }
 
     @Test
     fun `a wide window shows the libraries in the rail between Library and DVR`() =

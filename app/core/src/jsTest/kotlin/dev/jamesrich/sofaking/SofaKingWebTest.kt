@@ -1,12 +1,18 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.contract.AdDateRange
+import dev.jamesrich.sofaking.data.CONTINUE_SHELF
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.MediaHome
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Program
+import dev.jamesrich.sofaking.data.RECENT_SHELF
 import dev.jamesrich.sofaking.data.SofaKingException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,11 +76,51 @@ class SofaKingWebTest {
     @Test
     fun `a library home the server turned away crosses as signed out`() {
         val toShelf: (MediaShelf) -> WebShelf = { error("no shelves in a failure") }
-        val signedOut = homeToWeb(LibraryHomeState.Failed("401", signedOut = true), toShelf)
+        val toItem: (MediaItem) -> WebItem = { error("no items in a failure") }
+        val signedOut = homeToWeb(LibraryHomeState.Failed("401", signedOut = true), toItem, toShelf)
         assertEquals("failed", signedOut.state)
         assertTrue(signedOut.signedOut)
-        assertFalse(homeToWeb(LibraryHomeState.Failed("no route"), toShelf).signedOut)
-        assertFalse(homeToWeb(LibraryHomeState.Loading, toShelf).signedOut)
+        assertFalse(homeToWeb(LibraryHomeState.Failed("no route"), toItem, toShelf).signedOut)
+        assertFalse(homeToWeb(LibraryHomeState.Loading, toItem, toShelf).signedOut)
+    }
+
+    private fun web(item: MediaItem) = WebItem(
+        item.id, item.libraryId, item.kind.name.lowercase(), item.title, null, null, null, null, null, null, null,
+        true, 0, 0, 0.0, false, null,
+    )
+
+    @Test
+    fun `the home leads with what Continue watching resumes and says its first sentence`() {
+        val resumed = MediaItem(
+            "m2",
+            "movies",
+            ItemKind.MOVIE,
+            "Night Train",
+            overview = "A train leaves at dusk. Nobody gets off.",
+            progress = PlayProgress(60_000, 600_000, watched = false),
+        )
+        val added = MediaItem("m1", "movies", ItemKind.MOVIE, "Amber Road")
+        val recent = MediaShelf(RECENT_SHELF, "Recently added", listOf(added))
+        val toShelf: (MediaShelf) -> WebShelf = { WebShelf(it.id, it.title, emptyArray()) }
+
+        val continued = MediaHome(listOf(MediaShelf(CONTINUE_SHELF, "Continue", listOf(resumed)), recent), emptyList())
+        val lead = homeToWeb(LibraryHomeState.Ready(continued), ::web, toShelf).spotlight
+        val newest = homeToWeb(LibraryHomeState.Ready(MediaHome(listOf(recent), emptyList())), ::web, toShelf).spotlight
+
+        assertEquals("m2", lead?.item?.id)
+        assertEquals(true, lead?.resumes)
+        assertEquals("A train leaves at dusk.", lead?.tagline)
+        assertEquals("m1", newest?.item?.id)
+        assertEquals(false, newest?.resumes)
+        assertNull(newest?.tagline)
+    }
+
+    @Test
+    fun `a home with nothing to resume or newly added leads with nothing`() {
+        val drama = MediaShelf("genre:drama", "Drama", listOf(MediaItem("m1", "movies", ItemKind.MOVIE, "Amber Road")))
+        val home = MediaHome(listOf(drama), emptyList())
+
+        assertNull(homeToWeb(LibraryHomeState.Ready(home), ::web) { WebShelf(it.id, it.title, emptyArray()) }.spotlight)
     }
 
     @Test

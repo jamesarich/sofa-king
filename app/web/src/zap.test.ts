@@ -8,6 +8,7 @@ import {
     DIGIT_COMMIT_MS,
     DigitEntry,
     Fade,
+    channelRows,
     liveKey,
     neighbor,
     stepVolume,
@@ -224,4 +225,18 @@ test('a second show replaces the hide the first one left pending', () => {
     assert.deepEqual(states, [true, true]);
     timers.advance(1_500);
     assert.deepEqual(states, [true, true, false]);
+});
+
+test('G opens the channel list from the picture or a button', () => {
+    assert.deepEqual(liveKey('g', true), { kind: 'channels' });
+    assert.deepEqual(liveKey('G', false), { kind: 'channels' });
+});
+
+test('the channel list names each channel with what is on and marks the one playing', () => {
+    const on = (channel: { id: string }) => ({ now: channel.id === 'c' ? null : { title: `On ${channel.id}` } });
+    assert.deepEqual(channelRows(channels, 'b', 0, on), [
+        { id: 'a', heading: '2 Two', now: 'On a', current: false },
+        { id: 'b', heading: '5 Five', now: 'On b', current: true },
+        { id: 'c', heading: '57 Fifty-seven', now: 'Nothing listed', current: false },
+    ]);
 });

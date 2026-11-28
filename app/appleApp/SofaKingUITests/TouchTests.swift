@@ -44,6 +44,33 @@ final class TouchTests: XCTestCase {
         XCTAssertTrue(about.exists, "No About section in Settings\n\(screen)")
     }
 
+    /// Plays Sofa Sports from a row tapped while the channel search's keyboard is up, then opens the player's menu,
+    /// which must not bring that keyboard back over the picture to type into the search behind it.
+    @MainActor
+    func testPlayerMenuKeepsTheSearchKeyboardAway() throws {
+        let server = try FixtureServer.fromEnvironment(since: Date())
+        launch(["-serverUrl", server.url.absoluteString, "-apiToken", server.token])
+        let close = element("player-close")
+        if close.exists {
+            close.tap()
+            eventually("the channel list to come back") { element("channel-list").exists }
+        }
+        let field = app.searchFields.firstMatch
+        if !field.waitForExistence(timeout: 5) {
+            swipe(app, from: CGVector(dx: 0.5, dy: 0.3), to: CGVector(dx: 0.5, dy: 0.7))
+        }
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "No channel search\n\(screen)")
+        field.tap()
+        app.typeText("Sofa")
+        let row = element("channel-Sofa Sports")
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "No Sofa Sports among the matches\n\(screen)")
+        row.tap()
+        eventually("Sofa Sports to open full screen", timeout: 60) { close.exists }
+        element("player-menu").tap()
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "The search keyboard came up over the player\n\(screen)")
+    }
+
     /// Random taps, swipes, back swipes from the screen's left edge and long presses against the fixture server, seeded
     /// so a walk replays from SOFAKING_WALK_SEED (and SOFAKING_WALK_STEPS, 150 by default). The app must keep running,
     /// and release its session once it is behind the home screen.

@@ -85,6 +85,7 @@ import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.artworkMark
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
@@ -195,7 +196,7 @@ private fun CoverOrLyrics(music: MusicPlayback, song: MediaItem, lyrics: LyricsC
         if (lyrics?.shown == true) {
             LyricsPanel(music, lyrics.lyrics)
         } else {
-            Artwork(song.poster, label = null)
+            Artwork(song.poster, label = null, mark = artworkMark(song.kind))
         }
     }
 }

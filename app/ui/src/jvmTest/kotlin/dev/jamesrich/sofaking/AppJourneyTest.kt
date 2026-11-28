@@ -1,8 +1,10 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.ui.test.onAllNodesWithText
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Walks of the whole app on the remote, from the focus items of the checks on a TV, against a [FakeServer]. Each one
@@ -21,6 +23,27 @@ class AppJourneyTest {
         assertFocused(ALL_CHIP)
         keys("Down")
         assertFocused(cell)
+    }
+
+    @Test
+    fun `the TV's tabs make way for the guide's rows and come back at the chips`() = journey(tv = true) {
+        guideCell()
+        assertTrue(headerShown(), "the header is up on arrival")
+        keys("Down")
+        waitFor("the header to slide away", HEADER_MS) { !headerShown() }
+        keys("Back")
+        assertFocused(ALL_CHIP)
+        waitFor("the header to come back", HEADER_MS) { headerShown() }
+        keys("Back")
+        assertFocused("Live")
+    }
+
+    @Test
+    fun `a desktop keeps its header while moving through the guide's rows`() = journey(tv = false) {
+        guideCell()
+        keys("Down", "Down")
+        ui.mainClock.advanceTimeBy(HEADER_MS)
+        assertTrue(headerShown(), "the header left a desktop window")
     }
 
     @Test
@@ -149,6 +172,9 @@ class AppJourneyTest {
         return checkNotNull(focusedLabel())
     }
 
+    /** Whether the header is on screen, by the app's name in it. */
+    private fun AppDriver.headerShown() = ui.onAllNodesWithText("Sofa King").fetchSemanticsNodes().isNotEmpty()
+
     private fun journey(tv: Boolean, server: FakeServer = FakeServer(), block: AppDriver.() -> Unit) =
         runSofaKing(tv, File("build/journeys", if (tv) "tv" else "desktop"), server, block = block)
 
@@ -158,5 +184,6 @@ class AppJourneyTest {
         const val CONTINUE_CARD = "Show 1, S1 E2 · Episode 2"
         const val MOVIE_CARD = "Movie 1, 1990"
         const val MAX_ROWS_TO_MOVIES = 3
+        const val HEADER_MS = 2_000L
     }
 }

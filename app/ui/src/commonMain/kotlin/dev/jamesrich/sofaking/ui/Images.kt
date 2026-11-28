@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,6 +26,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.mediaHttpClient
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 
@@ -52,14 +54,19 @@ internal fun rememberFadingRequest(url: String): ImageRequest {
 
 /**
  * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
- * or the library mark when the card's own caption already names the item. [hidden] blurs and dims the picture, for
- * Hide spoilers; Android before 12 has no blur, so there it is only dimmed.
+ * or [mark] when the card's own caption already names the item. [hidden] blurs and dims the picture, for Hide
+ * spoilers; Android before 12 has no blur, so there it is only dimmed.
  */
 @Composable
-internal fun BoxScope.Artwork(url: String?, label: String?, hidden: Boolean = false) {
+internal fun BoxScope.Artwork(
+    url: String?,
+    label: String?,
+    hidden: Boolean = false,
+    mark: ImageVector = SofaIcons.VideoLibrary,
+) {
     if (label == null) {
         Icon(
-            SofaIcons.VideoLibrary,
+            mark,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.align(Alignment.Center).size(48.dp),
@@ -87,6 +94,17 @@ internal fun BoxScope.Artwork(url: String?, label: String?, hidden: Boolean = fa
             Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = HIDDEN_DIM)),
         )
     }
+}
+
+/**
+ * The mark that stands in for a title's missing picture, by what the title is: a note for music, a film strip for a
+ * movie, a television for a show and its seasons and episodes, and the library mark for the rest.
+ */
+internal fun artworkMark(kind: ItemKind): ImageVector = when (kind) {
+    ItemKind.ARTIST, ItemKind.ALBUM, ItemKind.TRACK -> SofaIcons.Audiotrack
+    ItemKind.MOVIE -> SofaIcons.Movie
+    ItemKind.SHOW, ItemKind.SEASON, ItemKind.EPISODE -> SofaIcons.Tv
+    ItemKind.VIDEO, ItemKind.EXTRA, ItemKind.OTHER -> SofaIcons.VideoLibrary
 }
 
 private val HIDDEN_BLUR = 16.dp

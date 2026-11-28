@@ -73,12 +73,15 @@ internal fun EpisodeRow(
     }
 }
 
-/** The episode's still, with its watched tick and progress. */
+/**
+ * The episode's still, with its watched tick and progress. Its frame is a step above the row's own container, which
+ * `surfaceVariant` is not in the dark and light schemes, so an episode without a still shows where one would be.
+ */
 @Composable
 private fun EpisodeThumb(episode: MediaItem, spoilersHidden: Boolean) {
     Box(
         Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(WIDESCREEN)
-            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.medium),
     ) {
         Artwork(
             episode.stillOrBackdrop(),

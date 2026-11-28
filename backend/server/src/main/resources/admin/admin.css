@@ -178,6 +178,9 @@ button.small,.btn.small{min-height:32px;padding:3px 10px;font-size:.85rem}
 button[disabled]{opacity:.5;cursor:default}
 button[disabled]:hover{border-color:var(--outline);color:inherit}
 form.inline{display:inline}
+.row-actions{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.row-actions details{display:inline-block}
+button.quiet.destructive{color:var(--error)}
 .actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field label,.field .label{font-size:.8rem;font-weight:600;color:var(--mauve)}
@@ -201,6 +204,14 @@ th.sel,td.sel{width:1%;padding-right:4px}
 td.sel input{width:18px;height:18px;margin:0}
 .runtime{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px 18px;align-items:start}
 .runtime .field input,.runtime .field select{max-width:12em}
+.setting-control input,.setting-control select{max-width:16em}
+.runtime-group{border:0;margin:0 0 20px;padding:0;min-width:0}
+.runtime-group legend{padding:0 0 6px;font-weight:600}
+.setting-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(12em,16em);gap:6px 24px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.setting-text,.setting-control{display:flex;flex-direction:column;gap:4px;min-width:0}
+.setting-text label{font-weight:600}
+.setting-row .hint{font-size:.8rem;color:var(--mauve)}
+@media (max-width:720px){.setting-row{grid-template-columns:1fr}}
 .connect .checks{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 16px}
 .connect .field input[name=url]{max-width:none}
 .api-op{display:grid;grid-template-columns:5.5em 1fr;gap:4px 12px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line)}

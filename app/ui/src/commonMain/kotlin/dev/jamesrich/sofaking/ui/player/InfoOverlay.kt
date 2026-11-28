@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -136,7 +137,10 @@ private fun InfoHeader(channel: Channel, scope: String?, captionsOn: Boolean, ca
     }
 }
 
-/** How far the captions are moved, on a badge: earlier or later by the channel's lead. */
+/**
+ * How far the captions are moved, on an outlined badge like the rating's: a detail, so it stays quieter than the
+ * channel and the program.
+ */
 @Composable
 private fun CaptionTimingBadge(captionAdvanceMs: Int) {
     val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
@@ -155,12 +159,12 @@ private fun CaptionTimingBadge(captionAdvanceMs: Int) {
             if (late) Res.string.captions_indicator_timing_late else Res.string.captions_indicator_timing,
             advance,
         ),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onPrimary,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 6.dp)
             .semantics { contentDescription = advanceDescription },
     )
 }

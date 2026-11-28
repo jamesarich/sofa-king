@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SpotlightChoicesTest {
     private fun item(
@@ -16,6 +18,24 @@ class SpotlightChoicesTest {
     private val recent =
         MediaShelf(RECENT_SHELF, "Recently added", listOf(item("r1"), item("r2")), libraryId = "movies")
     private val watchlist = MediaShelf("watchlist", "Watchlist", listOf(item("w1")))
+
+    @Test
+    fun `the spotlight is pictured when any item it can show has a poster or a backdrop`() {
+        assertFalse(spotlightPictured(listOf(continuing, recent)))
+        val posterOnly = recent.copy(items = recent.items + item("r3").copy(poster = "/artwork/r3/poster"))
+        assertTrue(spotlightPictured(listOf(continuing, posterOnly)))
+        // A watchlist's art is not the spotlight's.
+        val pictured = watchlist.copy(items = listOf(item("w2").copy(backdrop = "/artwork/w2/backdrop")))
+        assertFalse(spotlightPictured(listOf(continuing, pictured)))
+    }
+
+    @Test
+    fun `a library is artless only when no item on any shelf has a picture`() {
+        assertTrue(libraryArtless(listOf(continuing, recent, watchlist)))
+        val pictured = watchlist.copy(items = listOf(item("w2").copy(poster = "/artwork/w2/poster")))
+        assertFalse(libraryArtless(listOf(continuing, recent, pictured)))
+        assertTrue(libraryArtless(emptyList()))
+    }
 
     @Test
     fun `the spotlight shows the first Continue watching item until focus moves`() {

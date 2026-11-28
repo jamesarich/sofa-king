@@ -15,6 +15,7 @@ struct ChannelListView: View {
     @State private var detail: ProgramChoice?
     @State private var filter = ChannelFilter.all
     @State private var query = ""
+    @State private var searching = false
     /// The channel the grid scrolls to; nothing asks for one on a tablet yet.
     @State private var arrival: String?
 
@@ -54,7 +55,7 @@ struct ChannelListView: View {
         Group {
             if showsGrid { grid } else { list }
         }
-        .searchable(text: $query, prompt: "Channel name or number")
+        .searchable(text: $query, isPresented: $searching, prompt: "Channel name or number")
         .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : strings.appName)
         .toolbar {
             if model.capabilities?.onLater == true {
@@ -70,6 +71,11 @@ struct ChannelListView: View {
         }
         .fullScreenCover(item: $playing) { channel in
             PlayerView(channel: channel)
+        }
+        .onChange(of: playing) { _, now in
+            // A search field still focused under the player brings its keyboard up over the picture when the player's
+            // menu opens, and taps then type into the search behind it, so a channel that plays ends the search.
+            if now != nil { searching = false }
         }
         .background(Color.sofaPlum.ignoresSafeArea())
         .scrollContentBackground(.hidden)

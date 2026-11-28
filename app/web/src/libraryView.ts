@@ -1,4 +1,4 @@
-import type { WebGrid, WebHome, WebItem } from '@sofaking/core';
+import type { WebGrid, WebHome, WebItem, WebSpotlight } from '@sofaking/core';
 import { button, h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
 import { length } from './format';
@@ -31,7 +31,38 @@ export function card(item: WebItem, keyPrefix: string): HTMLElement {
     );
 }
 
-/** The library home: its shelves and the libraries to open. */
+/**
+ * What the home leads with: the picture, title and first sentence of the item Continue watching resumes or, without
+ * one, the newest addition, with Resume or Play and the way to its page.
+ */
+function spotlight(lead: WebSpotlight): HTMLElement {
+    const item = lead.item;
+    const facts = [item.showTitle ? item.title : '', item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs)].filter(Boolean).join(' · ');
+    return h(
+        'div',
+        {
+            class: 'spotlight',
+            style: item.backdrop ? { 'background-image': `linear-gradient(90deg,#14111Fee,#14111F99 45%,#14111F22),url("${item.backdrop}")` } : {},
+        },
+        h('h1', { text: item.showTitle ?? item.title }),
+        facts ? h('p', { class: 'facts', text: facts }) : null,
+        lead.tagline ? h('p', { class: 'overview', text: lead.tagline }) : null,
+        h(
+            'div',
+            { class: 'actions' },
+            item.playable && !item.unreadable
+                ? h('a', {
+                      class: 'button primary',
+                      text: lead.resumes ? 'Resume' : 'Play',
+                      attrs: { href: href({ page: 'play', id: item.id, fromStart: false }), 'data-key': 'lead:play' },
+                  })
+                : null,
+            h('a', { class: 'button', text: 'Details', attrs: { href: href({ page: 'item', id: item.id }), 'data-key': 'lead:open' } }),
+        ),
+    );
+}
+
+/** The library home: what it leads with, the libraries to open and its shelves. */
 export function libraryView(ctx: Context): View {
     const watches = new Watches();
     const el = h('section', { class: 'library' });
@@ -48,6 +79,7 @@ export function libraryView(ctx: Context): View {
             }
             replaceChildren(
                 el,
+                home.spotlight ? spotlight(home.spotlight) : null,
                 h(
                     'div',
                     { class: 'chips' },

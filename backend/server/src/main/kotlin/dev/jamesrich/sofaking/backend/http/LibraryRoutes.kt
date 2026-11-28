@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.library.ArtSource
 import dev.jamesrich.sofaking.backend.library.IMDB_ID
 import dev.jamesrich.sofaking.backend.library.LibraryLyrics
 import dev.jamesrich.sofaking.backend.library.LibraryService
@@ -120,9 +121,9 @@ private fun badLookup(): Nothing = throw ApiFailure(
 )
 
 /**
- * Posters and backdrops under `/artwork/{item}/{poster|backdrop}`, and scrub thumbnail sheets under
- * `/artwork/{item}/scrub/{n}`. Image loaders fetch these with no credentials, like logos, so the routes take none;
- * they serve only the images the library holds for that item.
+ * Posters and backdrops under `/artwork/{item}/{poster|backdrop}`, the cast's photos under `/artwork/{item}/cast/{n}`
+ * and scrub thumbnail sheets under `/artwork/{item}/scrub/{n}`. Image loaders fetch these with no credentials, like
+ * logos, so the routes take none; they serve only the images the library holds for that item.
  */
 fun Route.artworkRoutes(libraries: LibraryService) {
     get("/artwork/{id}/scrub/{sheet}") {
@@ -134,27 +135,38 @@ fun Route.artworkRoutes(libraries: LibraryService) {
         call.response.header("X-Content-Type-Options", "nosniff")
         call.respond(LocalPathContent(sheet, ContentType.Image.JPEG))
     }
-    get("/artwork/{id}/{role}") {
-        val artwork =
-            libraries.artwork ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
-        val view =
-            libraries.catalog.snapshot().views[call.parameters["id"]!!]
-                ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
-        val source = when (call.parameters["role"]) {
-            "poster" -> view.poster
-            "backdrop" -> view.backdrop
-            else -> null
-        } ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
-        val etag = "\"${source.version}\""
-        call.response.header(HttpHeaders.ETag, etag)
-        // The URL carries the version, so a changed image gets a new URL and the old one may be kept.
-        call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
-        call.response.header("X-Content-Type-Options", "nosniff")
-        if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) return@get call.respond(HttpStatusCode.NotModified)
-        val image =
-            artwork.image(source) ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
-        call.respond(LocalPathContent(image.file, ContentType.parse(image.contentType)))
+    get("/artwork/{id}/cast/{index}") {
+        val source = call.parameters["index"]?.toIntOrNull()?.let { index ->
+            libraries.catalog.snapshot().views[call.parameters["id"]!!]?.castPhoto(index)
+        }
+        call.respondArtwork(libraries, source)
     }
+    get("/artwork/{id}/{role}") {
+        val view = libraries.catalog.snapshot().views[call.parameters["id"]!!]
+        val source = when (call.parameters["role"]) {
+            "poster" -> view?.poster
+            "backdrop" -> view?.backdrop
+            else -> null
+        }
+        call.respondArtwork(libraries, source)
+    }
+}
+
+/** The image [source] names, kept by its version; 404 for none, or one the library cannot supply. */
+private suspend fun ApplicationCall.respondArtwork(libraries: LibraryService, source: ArtSource?) {
+    val artwork = libraries.artwork
+    if (artwork == null || source == null) {
+        throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
+    }
+    val etag = "\"${source.version}\""
+    response.header(HttpHeaders.ETag, etag)
+    // The URL carries the version, so a changed image gets a new URL and the old one may be kept.
+    response.header(HttpHeaders.CacheControl, "public, max-age=604800")
+    response.header("X-Content-Type-Options", "nosniff")
+    if (request.headers[HttpHeaders.IfNoneMatch] == etag) return respond(HttpStatusCode.NotModified)
+    val image =
+        artwork.image(source) ?: throw ApiFailure(HttpStatusCode.NotFound, "RESOURCE_NOT_FOUND", "Unknown artwork")
+    respond(LocalPathContent(image.file, ContentType.parse(image.contentType)))
 }
 
 /**

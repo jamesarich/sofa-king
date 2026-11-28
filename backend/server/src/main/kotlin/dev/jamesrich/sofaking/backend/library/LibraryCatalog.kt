@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.store.libraries
 import dev.jamesrich.sofaking.backend.store.playStates
 import dev.jamesrich.sofaking.backend.store.savePlayStates
 import dev.jamesrich.sofaking.backend.store.watchlist
+import dev.jamesrich.sofaking.contract.CastMember
 import dev.jamesrich.sofaking.contract.Library
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
@@ -73,6 +74,9 @@ sealed interface ArtSource {
     val version: String get() = hash(toString()).take(12)
 }
 
+/** The TMDB size a cast photo is fetched at: a face on a chip or a card, never a full page. */
+private const val CAST_PHOTO_SIZE = "w185"
+
 /** A present item as clients read it: its record with the TMDB lookup folded in, and where its artwork comes from. */
 internal class View(
     val record: LibraryItemRecord,
@@ -87,7 +91,19 @@ internal class View(
     val similar: List<String> = emptyList(),
     /** For an artist, the ids of their songs ListenBrainz's listeners play most, most played first. */
     val popular: List<String> = emptyList(),
+    /** The [cast] in the same order, each with the role they play and TMDB's image path of their photo. */
+    val credits: List<Credit> = emptyList(),
 ) {
+    /** The [credits] as a client reads them, each photo at `/artwork/{id}/cast/{n}`. */
+    val people: List<CastMember>
+        get() = credits.mapIndexed { index, credit ->
+            val photo = credit.photo?.let { ArtSource.Tmdb(it, CAST_PHOTO_SIZE) }
+            CastMember(credit.name, credit.role, photo?.let { artworkUrl(record.id, "cast/$index", it) })
+        }
+
+    /** Where the photo of the [index]th of the [credits] comes from, if TMDB has one. */
+    fun castPhoto(index: Int): ArtSource? = credits.getOrNull(index)?.photo?.let { ArtSource.Tmdb(it, CAST_PHOTO_SIZE) }
+
     /** [sortTitle] of the title, built once on first sort instead of on every comparison. */
     val sortKey: String by lazy(LazyThreadSafetyMode.PUBLICATION) { sortTitle(item.title) }
 }
@@ -310,6 +326,7 @@ class LibraryCatalog internal constructor(
                 null
             },
             tagline = view.tagline, studio = view.studio, cast = view.cast, directors = view.directors,
+            people = view.people,
             audio = media?.audio.orEmpty().map {
                 MediaTrack(it.index, it.codec, it.language, it.title, it.channels, it.default)
             },

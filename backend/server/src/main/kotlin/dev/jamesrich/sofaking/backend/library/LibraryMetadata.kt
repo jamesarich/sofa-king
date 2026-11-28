@@ -95,7 +95,7 @@ class LibraryMetadata internal constructor(
         suspend fun lookUp(item: LibraryItemRecord): Boolean {
             val hint = chosen[item.id] ?: item.details?.tmdbId
             val row = known[item.id]?.takeIf { row ->
-                (hint == null || row.tmdbId == hint) && pinnedAs(item, row) &&
+                (hint == null || row.tmdbId == hint) && pinnedAs(item, row) && row.current &&
                     Instant.parse(row.checkedAt).plus(if (row.tmdbId == null) UNMATCHED_FOR else MATCHED_FOR) > now
             }
             if (row != null && !hasNewEpisodes(item, row)) return true
@@ -308,8 +308,9 @@ internal fun TmdbMovie.facts(region: String) = MetadataFacts(
     contentRating = releaseDates?.results?.firstOrNull {
         it.country == region
     }?.dates?.firstOrNull { it.certification.isNotBlank() }?.certification,
-    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(CAST_LIMIT),
+    rating = voteAverage.rating(), cast = credits.cast().map { it.name }, credits = credits.cast(),
     directors = credits?.crew.orEmpty().filter { it.job == "Director" }.map { it.name },
+    revision = FACTS_REVISION,
     runtimeMinutes = runtime?.takeIf { it > 0 }, poster = posterPath, backdrop = backdropPath,
 )
 
@@ -321,6 +322,14 @@ internal fun TmdbShow.facts(region: String) = MetadataFacts(
     tagline = tagline?.ifEmpty { null }, genres = genres.map { it.name }.filter { it.isNotEmpty() },
     studio = networks.firstOrNull()?.name?.ifEmpty { null },
     contentRating = contentRatings?.results?.firstOrNull { it.country == region }?.rating?.ifEmpty { null },
-    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(CAST_LIMIT),
+    rating = voteAverage.rating(), cast = credits.cast().map { it.name }, credits = credits.cast(),
+    revision = FACTS_REVISION,
     runtimeMinutes = episodeRunTime.firstOrNull(), poster = posterPath, backdrop = backdropPath,
 )
+
+/** Whether a matched row holds everything a lookup keeps now; an unmatched one has nothing to add to. */
+private val MetadataRecord.current: Boolean get() = facts == null || facts.revision >= FACTS_REVISION
+
+/** The first [CAST_LIMIT] of the cast in billing order, each with their role and photo. */
+private fun TmdbCredits?.cast(): List<Credit> = this?.cast.orEmpty().filter { it.name.isNotEmpty() }.take(CAST_LIMIT)
+    .map { Credit(it.name, it.character?.trim()?.ifEmpty { null }, it.profilePath?.ifEmpty { null }) }

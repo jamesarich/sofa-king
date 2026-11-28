@@ -25,6 +25,22 @@ fun spotlightItem(shelves: List<MediaShelf>, focusedId: String?): MediaItem? {
     return candidates.firstOrNull { it.id == focusedId } ?: candidates.firstOrNull()
 }
 
+/**
+ * True when some item the spotlight can show has a picture. Without one, the spotlight is only a title and a year, so
+ * it takes the height of its text rather than a share of the page. Decided for the shelves as a whole, not the
+ * focused item, so the shelves do not jump as focus moves between items with and without art.
+ */
+fun spotlightPictured(shelves: List<MediaShelf>): Boolean =
+    shelves.filter(::feedsSpotlight).flatMap { it.items }.filterNot { it.kind.music }.any { it.pictured }
+
+/**
+ * True when no item on the home's shelves has a poster or a backdrop: the server has found no artwork, which on a new
+ * server means it has no TMDB token yet.
+ */
+fun libraryArtless(shelves: List<MediaShelf>): Boolean = shelves.none { shelf -> shelf.items.any { it.pictured } }
+
+private val MediaItem.pictured: Boolean get() = poster != null || backdrop != null
+
 /** True when the spotlight's item is in progress, so its button reads Resume rather than Play. */
 fun resumes(item: MediaItem): Boolean = item.progress?.inProgress == true
 

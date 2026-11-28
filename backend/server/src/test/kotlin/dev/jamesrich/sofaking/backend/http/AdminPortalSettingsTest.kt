@@ -346,6 +346,10 @@ class AdminPortalSettingsTest : AdminPortalCase() {
                 Settings.runtime.all { page.contains(it.help) },
                 "each runtime field carries its own help",
             )
+            assertTrue(
+                Settings.runtime.map { it.area }.distinct().all { page.contains("<legend>${it.title}</legend>") },
+                "the runtime settings stand under their areas' headings",
+            )
             assertFalse(
                 Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page),
                 "a runtime setting is not listed among the startup ones",

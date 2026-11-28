@@ -13,7 +13,8 @@ internal val COMPACT_PIN_WIDTH = 104.dp
 internal val MINUTE_WIDTH = 6.dp
 
 // 1080p TV budget (540dp tall): app header, band 144 + 8 and the time header 32 leave four whole 48dp rows above the
-// overscan, and the top of a fifth; a row fits Material's body medium title and body small times.
+// overscan, and the top of a fifth; with the header slid away while browsing, the fifth is whole. A row fits Material's
+// body medium title and body small times.
 internal val ROW_HEIGHT = 48.dp
 
 /** The compact density's row: one more channel on a 1080p TV, with the row's type a step smaller. */

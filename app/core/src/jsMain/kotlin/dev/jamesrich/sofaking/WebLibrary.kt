@@ -1,7 +1,11 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.resumes
+import dev.jamesrich.sofaking.data.spotlightItem
+import dev.jamesrich.sofaking.data.spotlightTagline
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -15,7 +19,7 @@ class WebLibrary internal constructor(private val parts: WebParts) {
     private val library = parts.library
 
     fun watchHome(onChange: (WebHome) -> Unit): Watch = parts.watch(
-        library.home.map { homeToWeb(it) { shelf -> parts.toWeb(shelf) } },
+        library.home.map { homeToWeb(it, { item -> parts.toWeb(item) }) { shelf -> parts.toWeb(shelf) } },
         onChange,
     )
 
@@ -72,7 +76,11 @@ class WebLibrary internal constructor(private val parts: WebParts) {
     fun toggleWatchlist(itemId: String) = library.toggleWatchlist(parts.item(itemId))
 }
 
-internal fun homeToWeb(state: LibraryHomeState, shelf: (MediaShelf) -> WebShelf): WebHome = when (state) {
+internal fun homeToWeb(
+    state: LibraryHomeState,
+    item: (MediaItem) -> WebItem,
+    shelf: (MediaShelf) -> WebShelf,
+): WebHome = when (state) {
     LibraryHomeState.Loading -> WebHome("loading", "", emptyArray(), emptyArray())
 
     LibraryHomeState.Unconfigured -> WebHome("unconfigured", "", emptyArray(), emptyArray())
@@ -88,6 +96,9 @@ internal fun homeToWeb(state: LibraryHomeState, shelf: (MediaShelf) -> WebShelf)
         state.home.libraries
             .map { WebLibraryInfo(it.id, it.name, it.kind.name.lowercase(), it.itemCount) }
             .toTypedArray(),
+        spotlight = spotlightItem(state.home.shelves, focusedId = null)?.let {
+            WebSpotlight(item(it), spotlightTagline(it), resumes(it))
+        },
     )
 }
 

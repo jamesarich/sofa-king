@@ -150,7 +150,7 @@ struct VodPlayerView: View {
                     play(next)
                 }, onCancel: { dismiss() })
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(60)
+                    .padding(UpNextCard.margin)
             }
         }
         .task { await open() }
@@ -646,7 +646,7 @@ private struct UpNextCard: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(stillWatching ? "Still watching?" : "Up next").font(.headline).foregroundStyle(.tint)
             Artwork(url: next.backdrop ?? next.poster, title: next.title)
-                .frame(width: 480, height: 270)
+                .upNextArtFrame()
                 .clipShape(.rect(cornerRadius: 12))
             if let subtitle = [next.showTitle, next.episodeLabel].compactMap({ $0 }).joined(separator: " · ").nilIfEmpty {
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
@@ -663,8 +663,7 @@ private struct UpNextCard: View {
                 }
             }
         }
-        .frame(width: 480)
-        .padding(32)
+        .upNextCardFrame()
         .background(.thinMaterial, in: .rect(cornerRadius: 24))
         .onAppear { playFocused = true }
         .onExitCommand(perform: onCancel)
@@ -677,6 +676,34 @@ private struct UpNextCard: View {
             }
             if stillWatching { onCancel() } else { onPlay(false) }
         }
+    }
+}
+
+/// The Up next card's sizes: fixed on Apple TV, and on an iPhone or iPad as wide as the screen leaves, up to the TV's
+/// width, so the card never runs off a phone held upright.
+private extension UpNextCard {
+    #if os(tvOS)
+    static let margin: CGFloat = 60
+    #else
+    static let margin: CGFloat = 16
+    #endif
+}
+
+private extension View {
+    @ViewBuilder func upNextArtFrame() -> some View {
+        #if os(tvOS)
+        frame(width: 480, height: 270)
+        #else
+        aspectRatio(16.0 / 9.0, contentMode: .fit).frame(maxWidth: 480)
+        #endif
+    }
+
+    @ViewBuilder func upNextCardFrame() -> some View {
+        #if os(tvOS)
+        frame(width: 480).padding(32)
+        #else
+        frame(maxWidth: 480).padding(20)
+        #endif
     }
 }
 

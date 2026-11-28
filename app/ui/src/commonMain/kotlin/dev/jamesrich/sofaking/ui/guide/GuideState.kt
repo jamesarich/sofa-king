@@ -133,10 +133,32 @@ internal class GuideState(
     var focused by mutableStateOf<FocusedCell?>(null)
     var gridFocused by mutableStateOf(false)
     var chipsFocused by mutableStateOf(false)
+        private set
+
+    /**
+     * True while the viewer is moving through the rows: from the first move to another row until focus climbs back to
+     * the chips. A TV's header gives its height to the grid meanwhile, and is there on arrival and from the chips up.
+     */
+    var browsing by mutableStateOf(false)
+        private set
+
+    /** Focus moved to another row of the grid. */
+    fun rowMoved() {
+        browsing = true
+    }
+
+    /** Focus came to the chips or left them; coming to them ends [browsing]. */
+    fun chipsFocusChanged(focused: Boolean) {
+        chipsFocused = focused
+        if (focused) browsing = false
+    }
 
     /** Bumped by each input that restarts the preview's rest, which the rest timers watch. */
     var dwellNonce by mutableIntStateOf(0)
     var previewMuted by mutableStateOf(true)
+
+    /** The seconds left before the preview opens full screen by itself, through its last few; null otherwise. */
+    var previewOpensIn by mutableStateOf<Int?>(null)
     var previewFailed by mutableStateOf(false)
 
     var jump by mutableStateOf<GuideJump?>(null)

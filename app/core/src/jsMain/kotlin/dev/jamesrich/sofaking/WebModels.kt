@@ -126,7 +126,16 @@ class WebHome(
     val libraries: Array<WebLibraryInfo>,
     /** True when [state] is `failed` because the server turned this device's token away. */
     val signedOut: Boolean = false,
+    /** The item the home leads with, or null when no row offers one. */
+    val spotlight: WebSpotlight? = null,
 )
+
+/**
+ * The item the library home leads with, as the Compose apps choose it: the first of Continue watching or, without
+ * one, of Recently added. [tagline] is the first sentence of its overview, and Play [resumes] an item in progress.
+ */
+@JsExport
+class WebSpotlight(val item: WebItem, val tagline: String?, val resumes: Boolean)
 
 /** The first item in title order under [letter] is at [offset] in the grid. */
 @JsExport

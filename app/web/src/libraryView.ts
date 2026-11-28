@@ -1,12 +1,18 @@
-import type { WebGrid, WebHome, WebItem } from '@sofaking/core';
+import type { WebGrid, WebHome, WebItem, WebSpotlight } from '@sofaking/core';
 import { button, h, replaceChildren } from './dom';
 import { focusFirst, keepFocus } from './focus';
 import { length } from './format';
 import { homeStatus, isSignedOut } from './messages';
 import { showsLetters, titleCount } from './letters';
+import { extendsShown, loadsItself, moreLabel, NEAR_END_PX, nearEnd } from './paging';
 import { href } from './router';
 import { signedOutNotice } from './signedOut';
 import { Watches, type Context, type View } from './view';
+
+/** What [card] shows of [item]: a card whose key is unchanged need not be drawn again. */
+function cardKey(item: WebItem): string {
+    return JSON.stringify([item.id, item.title, item.showTitle, item.episodeLabel, item.year, item.durationMs, item.poster, item.progress, item.unreadable]);
+}
 
 /** A card for [item], which opens its page. */
 export function card(item: WebItem, keyPrefix: string): HTMLElement {
@@ -25,7 +31,38 @@ export function card(item: WebItem, keyPrefix: string): HTMLElement {
     );
 }
 
-/** The library home: its shelves and the libraries to open. */
+/**
+ * What the home leads with: the picture, title and first sentence of the item Continue watching resumes or, without
+ * one, the newest addition, with Resume or Play and the way to its page.
+ */
+function spotlight(lead: WebSpotlight): HTMLElement {
+    const item = lead.item;
+    const facts = [item.showTitle ? item.title : '', item.episodeLabel, item.year ? String(item.year) : '', length(item.durationMs)].filter(Boolean).join(' · ');
+    return h(
+        'div',
+        {
+            class: 'spotlight',
+            style: item.backdrop ? { 'background-image': `linear-gradient(90deg,#14111Fee,#14111F99 45%,#14111F22),url("${item.backdrop}")` } : {},
+        },
+        h('h1', { text: item.showTitle ?? item.title }),
+        facts ? h('p', { class: 'facts', text: facts }) : null,
+        lead.tagline ? h('p', { class: 'overview', text: lead.tagline }) : null,
+        h(
+            'div',
+            { class: 'actions' },
+            item.playable && !item.unreadable
+                ? h('a', {
+                      class: 'button primary',
+                      text: lead.resumes ? 'Resume' : 'Play',
+                      attrs: { href: href({ page: 'play', id: item.id, fromStart: false }), 'data-key': 'lead:play' },
+                  })
+                : null,
+            h('a', { class: 'button', text: 'Details', attrs: { href: href({ page: 'item', id: item.id }), 'data-key': 'lead:open' } }),
+        ),
+    );
+}
+
+/** The library home: what it leads with, the libraries to open and its shelves. */
 export function libraryView(ctx: Context): View {
     const watches = new Watches();
     const el = h('section', { class: 'library' });
@@ -42,6 +79,7 @@ export function libraryView(ctx: Context): View {
             }
             replaceChildren(
                 el,
+                home.spotlight ? spotlight(home.spotlight) : null,
                 h(
                     'div',
                     { class: 'chips' },
@@ -80,7 +118,7 @@ const SORTS: Array<[string, string]> = [
     ['watched', 'Recently watched'],
 ];
 
-/** One library's grid, in the order chosen, a page at a time. */
+/** One library's grid, in the order chosen; the next page loads as the reader nears the end. */
 export function gridView(ctx: Context, libraryId: string): View {
     const watches = new Watches();
     const sort = h('select', { attrs: { 'aria-label': 'Sort by' } }, ...SORTS.map(([value, label]) => h('option', { text: label, attrs: { value } })));
@@ -92,6 +130,9 @@ export function gridView(ctx: Context, libraryId: string): View {
     const count = h('span', { class: 'count' });
     const letters = h('nav', { class: 'letters', attrs: { 'aria-label': 'Jump to a letter' } });
     letters.hidden = true;
+    // The grid's end, which the page watches come near.
+    const end = h('div', { class: 'grid-end', attrs: { 'aria-hidden': 'true' } });
+    more.hidden = true;
     const el = h(
         'section',
         { class: 'library' },
@@ -100,11 +141,22 @@ export function gridView(ctx: Context, libraryId: string): View {
         cards,
         status,
         more,
+        end,
     );
     const open = () => ctx.core.library.openGrid(libraryId, sort.value, unwatched.checked, genre.value || null);
     sort.addEventListener('change', open);
     unwatched.addEventListener('change', open);
     genre.addEventListener('change', open);
+
+    let shown: WebGrid | null = null;
+    // The cards drawn, by what each shows, so a page that follows them adds its own and leaves the rest in place.
+    let drawn: string[] = [];
+    const page = () => {
+        if (shown && loadsItself(shown, nearEnd(end.getBoundingClientRect().top, window.innerHeight))) ctx.core.library.loadMore();
+    };
+    // Scrolling the end near loads the next page; a browser without the observer keeps the button.
+    const watcher = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(page, { rootMargin: `${NEAR_END_PX}px 0px` });
+    watcher?.observe(end);
 
     let focused = false;
     let genresKey = '';
@@ -144,17 +196,32 @@ export function gridView(ctx: Context, libraryId: string): View {
                 );
             }
             count.textContent = grid.total > 0 ? titleCount(grid.total) : '';
-            replaceChildren(cards, ...grid.items.map((item) => card(item, 'grid')));
+            const keys = grid.items.map(cardKey);
+            if (extendsShown(drawn, keys)) cards.append(...grid.items.slice(drawn.length).map((item) => card(item, 'grid')));
+            else replaceChildren(cards, ...grid.items.map((item) => card(item, 'grid')));
+            drawn = keys;
             arrive();
-            more.hidden = !grid.hasMore;
+            const label = moreLabel(grid, watcher !== null);
+            more.hidden = label === null;
+            if (label) more.textContent = label;
             status.textContent = grid.error ? `Some of it did not load: ${grid.error}` : grid.loading ? 'Loading' : grid.items.length === 0 ? 'Nothing here.' : '';
         });
         if (!focused && grid.items.length > 0) {
             focused = true;
             focusFirst(cards);
         }
+        // A page that leaves the end near, as the first does in a tall window, is followed by the next.
+        shown = grid;
+        requestAnimationFrame(page);
     };
     watches.add(ctx.core.library.watchGrid(draw));
     open();
-    return { el, dispose: () => watches.cancel() };
+    return {
+        el,
+        dispose() {
+            watcher?.disconnect();
+            shown = null;
+            watches.cancel();
+        },
+    };
 }

@@ -93,3 +93,60 @@ export function elapsed(program: ProgramLike, atMs: number): number {
 export function clock(ms: number, locale?: string): string {
     return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
 }
+
+// The grid: every channel's programs laid out on one timeline, from the half hour now is in to six hours ahead, which
+// is as far as core hands programs over.
+
+export const GRID_HOURS = 6;
+export const SLOT_MINUTES = 30;
+/** The width of a minute in the grid, in CSS pixels: a half hour is 180 wide. */
+export const PX_PER_MINUTE = 6;
+
+/** The start of the grid's window: the half hour [atMs] is in, by the wall clock. */
+export function gridStart(atMs: number): number {
+    const start = new Date(atMs);
+    start.setMinutes(start.getMinutes() < SLOT_MINUTES ? 0 : SLOT_MINUTES, 0, 0);
+    return start.getTime();
+}
+
+/** The start of each half hour in a window of [hours] from [startMs], for the row of times. */
+export function gridSlots(startMs: number, hours = GRID_HOURS): number[] {
+    return Array.from({ length: (hours * 60) / SLOT_MINUTES }, (_, index) => startMs + index * SLOT_MINUTES * 60_000);
+}
+
+/** How far [ms] of time reaches across the grid, in CSS pixels. */
+export function gridPx(ms: number): number {
+    return (ms / 60_000) * PX_PER_MINUTE;
+}
+
+/** One cell of a channel's row: a program, or a stretch the guide lists nothing for ([program] null). */
+export interface GridCell<P extends ProgramLike = ProgramLike> {
+    program: P | null;
+    startMs: number;
+    stopMs: number;
+}
+
+/**
+ * A channel's row from [startMs] to [endMs]: its programs in order, each cut to the window and to the end of the one
+ * before it, with a gap wherever the guide lists nothing, so the cells fill the row without overlapping.
+ */
+export function gridCells<P extends ProgramLike>(programs: readonly P[], startMs: number, endMs: number): GridCell<P>[] {
+    const cells: GridCell<P>[] = [];
+    let cursor = startMs;
+    for (const program of [...programs].sort((a, b) => a.startMs - b.startMs)) {
+        if (cursor >= endMs) break;
+        if (program.stopMs <= cursor || program.startMs >= endMs) continue;
+        if (program.startMs > cursor) cells.push({ program: null, startMs: cursor, stopMs: program.startMs });
+        const from = Math.max(program.startMs, cursor);
+        const to = Math.min(program.stopMs, endMs);
+        cells.push({ program, startMs: from, stopMs: to });
+        cursor = to;
+    }
+    if (cursor < endMs) cells.push({ program: null, startMs: cursor, stopMs: endMs });
+    return cells;
+}
+
+/** The line under a program's title in its details: "8:00 PM to 9:00 PM · 5 News 5". */
+export function programWhen(program: ProgramLike, channel: { number: number; name: string }, locale?: string): string {
+    return `${clock(program.startMs, locale)} to ${clock(program.stopMs, locale)} · ${channel.number} ${channel.name}`;
+}

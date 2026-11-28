@@ -18,6 +18,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.Volatile
 
+/** What the watchlist takes: what a library lists at its top, not a season or an episode. */
+val WATCHLIST_KINDS = setOf(ItemKind.MOVIE, ItemKind.SHOW, ItemKind.VIDEO)
+
 /**
  * What the household's watchlist holds, as the library's pages and the guide's program details mark it: library items
  * by id and guide titles, each to its entry's id.
@@ -30,6 +33,12 @@ data class WatchlistMarks(
     internal val titles: Map<String, String> = emptyMap(),
 ) {
     fun has(item: MediaItem): Boolean = item.id in items
+
+    /**
+     * Whether [item] is on the list, for its page's button; null hides the button, on a server without a watchlist
+     * and for an item that cannot go on one ([WATCHLIST_KINDS]).
+     */
+    fun listing(item: MediaItem): Boolean? = has(item).takeIf { offered && item.kind in WATCHLIST_KINDS }
 
     /** Whether [program]'s title is on the list, for any channel or for its own. */
     fun has(program: Program): Boolean = titleIds(program).isNotEmpty()

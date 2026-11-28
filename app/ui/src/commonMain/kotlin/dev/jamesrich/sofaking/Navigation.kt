@@ -78,9 +78,9 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "library"
     }
 
-    /** Search across the libraries; [query] searches for a name from an item's page. */
+    /** Search across live TV and the libraries, over any tab; [query] searches for a name from an item's page. */
     @Serializable
-    data class LibrarySearch(val query: String? = null) : Route {
+    data class Search(val query: String? = null) : Route {
         override val id: String get() = "search:${query.orEmpty()}"
     }
 
@@ -151,7 +151,7 @@ internal sealed interface Route : NavKey {
     val hidesTabs: Boolean get() = playsFullScreen || this is NowPlaying
 
     /** The pages under the tabs: the header (or, away from a TV, the navigation bar or rail) shows above them. */
-    val hasTabs: Boolean get() = this is Guide || this is OnLater || this is Library || this is LibrarySearch ||
+    val hasTabs: Boolean get() = this is Guide || this is OnLater || this is Library || this is Search ||
         this is LibraryGrid || this is Recordings
 
     /** What the page below focuses when the viewer leaves this one; the player's channel is the app's to know. */
@@ -161,7 +161,7 @@ internal sealed interface Route : NavKey {
             is Vod -> itemId
             is Recording -> recordingId
             is LibraryGrid -> libraryFocusKey(libraryId)
-            is LibrarySearch -> SEARCH_FOCUS_KEY
+            is Search -> SEARCH_FOCUS_KEY
             is SettingsSection -> page.focusKey
             Channels -> CHANNELS_FOCUS_KEY
             StartupChannel -> STARTUP_FOCUS_KEY
@@ -182,7 +182,7 @@ internal val Tab.root: Route
  * One-shot details for the page just arrived at, which a restore drops. [returnedFrom] is what the page focuses
  * as the viewer comes back to it (an item, a library's chip, the channel the player was left on, which the
  * preview must not reopen by itself until focus moves); [atNow] moves the guide's cursor to the current time (the
- * Guide key from the player); [search] opens the guide's search, or the library's by voice; [inHeader] keeps
+ * Guide key from the player); [search] opens the guide's search, or the search page by voice; [inHeader] keeps
  * focus in the header (on the open tab after Back from another tab, so one more Back exits; on Settings after
  * leaving it) until focus comes down into the page.
  */
@@ -206,6 +206,9 @@ internal data class Navigation(
     fun stack(tab: Tab): List<Route> = stacks[tab] ?: listOf(tab.root)
 
     val top: Route get() = stack(tab).last()
+
+    /** The page under the one on top of the open tab, which Back returns to; null on a tab's first page. */
+    val below: Route? get() = stack(tab).dropLast(1).lastOrNull()
 
     /** Live's stack with the open tab's above it, so Back from another tab's first page lands on the guide. */
     val shown: List<Route> get() = if (tab == Tab.LIVE) stack(Tab.LIVE) else stack(Tab.LIVE) + stack(tab)

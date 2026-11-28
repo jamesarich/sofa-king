@@ -46,6 +46,7 @@ import dev.jamesrich.sofaking.resources.library_extra_short
 import dev.jamesrich.sofaking.resources.library_extra_trailer
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.WIDESCREEN
+import dev.jamesrich.sofaking.ui.artworkMark
 import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.StringResource
@@ -103,7 +104,7 @@ private fun SquareCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Unit
             aspectRatio = 1f,
             focusScale = null,
         ) {
-            Artwork(item.poster, label = null)
+            Artwork(item.poster, label = null, mark = artworkMark(item.kind))
         }
         CardLabel(item.title, subtitle)
     }
@@ -134,7 +135,7 @@ private fun PosterCard(
             focusScale = null,
         ) {
             // A file without a poster still has a frame from the server, cropped to the poster's shape.
-            Artwork(item.poster ?: item.backdrop, label = null)
+            Artwork(item.poster ?: item.backdrop, label = null, mark = artworkMark(item.kind))
         }
         CardLabel(item.title, subtitle)
     }
@@ -173,7 +174,7 @@ private fun WideCard(
             aspectRatio = WIDESCREEN,
             focusScale = WIDE_FOCUS_SCALE,
         ) {
-            Artwork(item.backdrop ?: item.poster, label = null)
+            Artwork(item.backdrop ?: item.poster, label = null, mark = artworkMark(item.kind))
         }
         CardLabel(title, subtitle)
     }

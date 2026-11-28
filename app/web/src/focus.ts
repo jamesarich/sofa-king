@@ -51,6 +51,11 @@ export function nextFocus(from: Point, candidates: Array<{ element: HTMLElement;
     return best;
 }
 
+/** True for a control in the header, which is pinned to the top of the window. */
+function pinned(element: Element): boolean {
+    return element.closest('.nav') !== null;
+}
+
 export function moveFocus(root: ParentNode, direction: Direction): boolean {
     const all = focusables(root);
     const active = document.activeElement as HTMLElement | null;
@@ -59,8 +64,12 @@ export function moveFocus(root: ParentNode, direction: Direction): boolean {
         return all.length > 0;
     }
     const at = center(active);
-    const candidates = all.filter((element) => element !== active).map((element) => ({ element, at: center(element) }));
-    const target = nextFocus(at, candidates, direction);
+    const placed = (elements: HTMLElement[]) => elements.map((element) => ({ element, at: center(element) }));
+    const others = all.filter((element) => element !== active);
+    // The header stays at the top of the window while the page scrolls under it, so from the page it is only where
+    // focus goes once nothing on the page lies that way.
+    const onPage = pinned(active) ? others : others.filter((element) => !pinned(element));
+    const target = nextFocus(at, placed(onPage), direction) ?? nextFocus(at, placed(others.filter(pinned)), direction);
     target?.focus();
     target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     return target !== null;
@@ -73,7 +82,10 @@ export function focusFirst(root: ParentNode, preferred?: string): void {
     (wanted ?? all[0])?.focus();
 }
 
-/** Runs [render], which redraws [container], and puts focus back on the control that had it, by its `data-key`. */
+/**
+ * Runs [render], which redraws [container], and puts focus back on the control that had it, by its `data-key`. The
+ * page stays where the reader scrolled it: a redraw is not a move.
+ */
 export function keepFocus(container: HTMLElement, render: () => void): void {
     const active = document.activeElement;
     const key = active instanceof HTMLElement && container.contains(active) ? active.dataset.key : undefined;
@@ -81,7 +93,7 @@ export function keepFocus(container: HTMLElement, render: () => void): void {
     if (key === undefined) return;
     for (const element of focusables(container)) {
         if (element.dataset.key === key) {
-            element.focus();
+            element.focus({ preventScroll: true });
             return;
         }
     }

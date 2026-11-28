@@ -1,6 +1,10 @@
 package dev.jamesrich.sofaking
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +35,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,7 +88,9 @@ import androidx.compose.material3.Tab as MaterialTab
 
 /**
  * A page under the tabs: the header above [content], with the TV's tabs in it. [content] gets whether the header
- * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live.
+ * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live. A page
+ * that says its viewer is moving through its rows ([TabPageScope.onBrowse]) gets the TV header's height for them:
+ * the header slides away until the page says the viewer is back at its top, where Up reaches the tabs again.
  */
 @Composable
 internal fun TabPage(
@@ -100,10 +107,11 @@ internal fun TabPage(
     focusHeaderIfIdle: Boolean,
     nowPlaying: MediaItem?,
     onNowPlaying: () -> Unit,
-    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
+    content: @Composable TabPageScope.(showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
 ) {
     val showsTabs = tv
     var pageFocused by remember { mutableStateOf(false) }
+    val scope = remember { TabPageScope() }
     val currentOnHeaderFocusRequest by rememberUpdatedState(onHeaderFocusRequest)
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     val nowPlayingFocus = remember { FocusRequester() }
@@ -139,22 +147,49 @@ internal fun TabPage(
             TabBack.OPEN_LIVE -> onBackToLive()
         }
     }
-    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }) {
-        Header(
-            modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
-            refreshing = refreshing,
-            notice = notice,
-            onSettings = onSettings.takeIf { showsTabs },
-            settingsFocus = settingsFocus,
-            tabs = tabs.takeIf { showsTabs },
-            tabFocus = tabFocus,
-            nowPlaying = nowPlaying.takeIf { showsTabs },
-            nowPlayingFocus = nowPlayingFocus,
-            onNowPlaying = onNowPlaying,
-        )
-        content(showsTabs, tabBack, headerFocused)
+    // The top margin stays when the header goes, so the page never rises into the overscan.
+    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }.screenPadding(WindowInsetsSides.Top)) {
+        val motion = MaterialTheme.motionScheme
+        AnimatedVisibility(
+            // A notice has nowhere else to show, so it brings the header back for as long as it is up.
+            visible = headerShown(showsTabs, scope.browsing, notice != null),
+            // Effects specs: a spatial spring would overshoot the header's height and bounce the page under it.
+            enter = expandVertically(motion.defaultEffectsSpec()) + fadeIn(motion.defaultEffectsSpec()),
+            exit = shrinkVertically(motion.defaultEffectsSpec()) + fadeOut(motion.fastEffectsSpec()),
+        ) {
+            Header(
+                modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
+                refreshing = refreshing,
+                notice = notice,
+                onSettings = onSettings.takeIf { showsTabs },
+                settingsFocus = settingsFocus,
+                tabs = tabs.takeIf { showsTabs },
+                tabFocus = tabFocus,
+                nowPlaying = nowPlaying.takeIf { showsTabs },
+                nowPlayingFocus = nowPlayingFocus,
+                onNowPlaying = onNowPlaying,
+            )
+        }
+        scope.content(showsTabs, tabBack, headerFocused)
     }
 }
+
+/** What a page under the tabs can tell its [TabPage]. */
+@Stable
+internal class TabPageScope {
+    var browsing by mutableStateOf(false)
+        private set
+
+    /** The viewer started moving through the page's rows (true) or came back to its top (false). */
+    val onBrowse: (Boolean) -> Unit = { browsing = it }
+}
+
+/**
+ * Whether the header is up. Only a TV's header, which holds the tabs, makes way while the viewer is [browsing]: the
+ * other windows' header is the page's title bar and their tabs sit in the rail or bar. A [notice] keeps it up.
+ */
+internal fun headerShown(showsTabs: Boolean, browsing: Boolean, notice: Boolean): Boolean =
+    !showsTabs || !browsing || notice
 
 /** Frames a tab page gets to focus something of its own before its tab takes focus. */
 private const val IDLE_FOCUS_FRAMES = 3

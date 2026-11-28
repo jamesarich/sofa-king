@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
@@ -47,8 +48,9 @@ import dev.jamesrich.sofaking.ui.screenInsets
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The library home while it loads: the spotlight's frame and a placeholder row for Continue watching and for the
- * recent additions, each card at the size the real one takes. Nothing in it takes focus, so the header keeps it.
+ * The library home while it loads: the spotlight's frame, the chip row and a placeholder row for Continue watching and
+ * for the recent additions, each at the place and size the real one takes, so nothing moves when the page arrives.
+ * Nothing in it takes focus, so the header keeps it.
  */
 @Composable
 internal fun LibrarySkeleton(modifier: Modifier = Modifier) {
@@ -61,19 +63,42 @@ internal fun LibrarySkeleton(modifier: Modifier = Modifier) {
         if (staysPut) {
             SkeletonBlock(pulse, RectangleShape, Modifier.fillMaxWidth().weight(SPOTLIGHT_HEIGHT_SHARE))
         } else {
+            // The real spotlight card is the list's first item, under the list's top padding.
             SkeletonBlock(
                 pulse,
                 CardDefaults.shape,
-                Modifier.padding(insets.horizontalOnly()).fillMaxWidth().height(COMPACT_SPOTLIGHT_HEIGHT),
+                Modifier
+                    .padding(top = HOME_TOP)
+                    .padding(insets.horizontalOnly())
+                    .fillMaxWidth()
+                    .height(COMPACT_SPOTLIGHT_HEIGHT),
             )
         }
         Column(
             // The rows keep their real size and the window cuts them off, as it does the real shelves.
             Modifier.fillMaxWidth().weight(if (staysPut) 1f - SPOTLIGHT_HEIGHT_SHARE else 1f).clipToBounds()
-                .wrapContentHeight(Alignment.Top, unbounded = true).padding(top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(28.dp),
+                .wrapContentHeight(
+                    Alignment.Top,
+                    unbounded = true,
+                ).padding(top = if (staysPut) HOME_TOP else HOME_GAP),
+            verticalArrangement = Arrangement.spacedBy(HOME_GAP),
         ) {
+            SkeletonChips(pulse, insets)
             skeletonStyles().forEach { style -> SkeletonShelf(style, pulse, insets) }
+        }
+    }
+}
+
+/** The chip row's place: Search and a library or two, each a chip's size inside the row's touch height. */
+@Composable
+private fun SkeletonChips(pulse: () -> Float, insets: PaddingValues) {
+    Row(
+        Modifier.padding(insets.horizontalOnly()).height(CHIP_ROW_HEIGHT),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CHIP_WIDTHS.forEach { width ->
+            SkeletonBlock(pulse, MaterialTheme.shapes.small, Modifier.width(width).height(CHIP_HEIGHT))
         }
     }
 }
@@ -133,6 +158,15 @@ private fun rememberSkeletonPulse(): State<Float> {
 }
 
 internal val COMPACT_SPOTLIGHT_HEIGHT = 220.dp
+
+/** The library home's list: its top padding and the gap between its rows, which the skeleton keeps too. */
+internal val HOME_TOP = 8.dp
+internal val HOME_GAP = 28.dp
+
+/** A chip is 32dp tall in a row as tall as Material's minimum touch target. */
+private val CHIP_ROW_HEIGHT = 48.dp
+private val CHIP_HEIGHT = 32.dp
+private val CHIP_WIDTHS = listOf(76.dp, 96.dp, 116.dp)
 internal const val POSTER_RATIO = 2f / 3f
 private val TITLE_WIDTH = 160.dp
 private val TITLE_HEIGHT = 18.dp

@@ -137,9 +137,9 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
 }
 
 /**
- * App bar above the guide and the library, with the TV's [tabs], inside the overscan margins; the mark sits within the
- * buttons' height so no grid row is lost. Search is an icon beside Settings, so the status keeps its room on a 960 dp
- * screen.
+ * App bar above the guide and the library, with the TV's [tabs], inside the side overscan margins ([TabPage] keeps the
+ * top one); the mark sits within the buttons' height so no grid row is lost. Search is an icon beside Settings, so
+ * the status keeps its room on a 960 dp screen.
  */
 @Composable
 internal fun Header(
@@ -155,7 +155,7 @@ internal fun Header(
     onNowPlaying: () -> Unit = {},
 ) {
     Row(
-        modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+        modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

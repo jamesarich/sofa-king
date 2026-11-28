@@ -5,7 +5,8 @@ import SofaKingCore
 
 /// The guide's preview, as on the other apps: the focused channel plays muted after 350 ms, its sound comes on after
 /// 5 seconds of rest (unless Settings turns preview sound off), and after the rest Settings sets (10 seconds unless
-/// changed, or never) it opens full screen through `openFullScreen`, continuing the preview's stream and session. Each move
+/// changed, or never) it opens full screen through `openFullScreen`, continuing the preview's stream and session, with
+/// the last three seconds counted down over the picture. Each move
 /// of focus starts the rest again, muted. The channel just watched does not open by itself again until focus moves to another,
 /// nor does any while VoiceOver runs or the preview failed. It plays on the app's one live `AVPlayer`, which the full
 /// screen player takes over.
@@ -22,6 +23,8 @@ final class GuidePreview {
     private(set) var failed = false
     /// The channel the player was just left on, which does not open by itself until focus moves.
     var suppressed: String?
+    /// The seconds left before the focused channel opens full screen by itself, through its last three; nil otherwise.
+    private(set) var opensIn: Int?
     @ObservationIgnored private weak var model: AppModel?
     @ObservationIgnored var openFullScreen: (String) -> Void = { _ in }
     @ObservationIgnored private var tuning: Task<Void, Never>?
@@ -44,6 +47,7 @@ final class GuidePreview {
         active = false
         tuning?.cancel()
         resting?.cancel()
+        opensIn = nil
         guard !handoff, let model else { return }
         model.livePlayer.replaceCurrentItem(with: nil)
         playingId = nil
@@ -91,6 +95,7 @@ final class GuidePreview {
     private func restart() {
         model?.livePlayer.isMuted = true
         resting?.cancel()
+        opensIn = nil
         guard active, let channelId, let model else { return }
         let sound = model.settings?.previewSound ?? true
         // The rest timers are core's `PreviewDwell`, as on the other apps; this only acts on what it says.
@@ -109,9 +114,13 @@ final class GuidePreview {
                 if sound && !dwell.isMuted(nowMs: now) && self.playingId == channelId && (model.music.queue == nil || model.music.paused) {
                     model.livePlayer.isMuted = false
                 }
+                // The countdown shows only where the channel is going to open: the guards below, ahead of time.
+                let opens = self.playingId == channelId && !self.failed && !UIAccessibility.isVoiceOverRunning
+                self.opensIn = opens ? dwell.opensInSeconds(nowMs: now).map { Int($0.int32Value) } : nil
                 guard dwell.opensFullScreen(nowMs: now) else { continue }
                 guard self.active, self.channelId == channelId, self.playingId == channelId,
                       !self.failed, self.suppressed != channelId, !UIAccessibility.isVoiceOverRunning else { return }
+                self.opensIn = nil
                 self.openFullScreen(channelId)
                 return
             }
@@ -139,6 +148,17 @@ struct PreviewBand: View {
                 .clipShape(.rect(cornerRadius: 16))
                 .overlay {
                     if preview.failed { Text("Preview unavailable").font(.callout).foregroundStyle(.secondary) }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if let seconds = preview.opensIn {
+                        Text("Full screen in \(seconds)")
+                            .font(.callout)
+                            .foregroundStyle(Color.sofaDusk)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.sofaOverlayScrim, in: .rect(cornerRadius: 8))
+                            .padding(12)
+                    }
                 }
             VStack(alignment: .leading, spacing: 10) {
                 if let channel {

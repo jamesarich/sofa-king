@@ -12,69 +12,95 @@ struct ProgramDetailView: View {
     var airing: Program? = nil
     let watch: () -> Void
     @State private var opened: Airing?
+    @PageLayout private var metrics
 
     var body: some View {
         let nowNext = model.core.nowAndNext(lineup: lineup, channel: channel)
         let shown = airing ?? nowNext.now
         ScrollView {
-            HStack(alignment: .top, spacing: 48) {
-                if let icon = shown?.icon, let url = URL(string: icon) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().scaledToFit()
-                    } placeholder: {
-                        Color.clear
+            if metrics.touch {
+                // The picture beside the details where both fit, above them where not.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 24) {
+                        picture(shown)
+                        details(nowNext, shown).frame(minWidth: 0, idealWidth: 400, maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(width: 400, height: 300)
-                    .clipShape(.rect(cornerRadius: 16))
+                    VStack(alignment: .leading, spacing: 20) {
+                        picture(shown)
+                        details(nowNext, shown)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("\(channel.number.formatted()) \(channel.name)").font(.headline).foregroundStyle(.secondary)
-                    if let shown {
-                        Text(shown.title).font(.title)
-                        if let line = episodeLine(shown) {
-                            Text(line).foregroundStyle(.secondary)
-                        }
-                        Text(timing(shown)).foregroundStyle(.secondary)
-                        if let summary = model.core.summary(program: shown), !summary.isEmpty {
-                            Text(summary).font(.body)
-                        }
-                        RecordButtons(program: shown)
-                        WatchlistButton(program: shown)
-                    } else {
-                        Text("No program information").font(.title2)
-                    }
-                    if airing == nil, let next = nowNext.next {
-                        Divider()
-                        Text("Next").font(.headline)
-                        Text("\(next.title) at \(model.core.startTime(of: next))").foregroundStyle(.secondary)
-                        if let line = episodeLine(next) {
-                            Text(line).font(.caption).foregroundStyle(.tertiary)
-                        }
-                        RecordButtons(program: next)
-                    }
-                    HStack(spacing: 24) {
-                        Button("Watch", systemImage: "play.fill", action: watch)
-                        FavoriteButton(channel: channel)
-                    }
-                    .padding(.top, 16)
-                    if let shown {
-                        MoreAirings(airings: model.core.airings(lineup: lineup, program: shown)) { other in
-                            if model.core.start(of: other.program) <= .now {
-                                model.requestedChannel = other.channel.guideId
-                            } else {
-                                opened = other
-                            }
-                        }
-                    }
+                .padding(metrics.margin)
+            } else {
+                HStack(alignment: .top, spacing: 48) {
+                    picture(shown)
+                    details(nowNext, shown)
+                    Spacer()
                 }
-                Spacer()
+                .padding(48)
             }
-            .padding(48)
         }
         .navigationTitle(channel.name)
         .navigationDestination(item: $opened) { other in
             ProgramDetailView(lineup: lineup, channel: other.channel, airing: other.program) {
                 model.requestedChannel = other.channel.guideId
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func picture(_ shown: Program?) -> some View {
+        if let icon = shown?.icon, let url = URL(string: icon) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                Color.clear
+            }
+            .frame(width: metrics.touch ? 240 : 400, height: metrics.touch ? 180 : 300)
+            .clipShape(.rect(cornerRadius: 16))
+        }
+    }
+
+    private func details(_ nowNext: NowNext, _ shown: Program?) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("\(channel.number.formatted()) \(channel.name)").font(.headline).foregroundStyle(.secondary)
+            if let shown {
+                Text(shown.title).font(.title)
+                if let line = episodeLine(shown) {
+                    Text(line).foregroundStyle(.secondary)
+                }
+                Text(timing(shown)).foregroundStyle(.secondary)
+                if let summary = model.core.summary(program: shown), !summary.isEmpty {
+                    Text(summary).font(.body)
+                }
+                RecordButtons(program: shown)
+                WatchlistButton(program: shown)
+            } else {
+                Text("No program information").font(.title2)
+            }
+            if airing == nil, let next = nowNext.next {
+                Divider()
+                Text("Next").font(.headline)
+                Text("\(next.title) at \(model.core.startTime(of: next))").foregroundStyle(.secondary)
+                if let line = episodeLine(next) {
+                    Text(line).font(.caption).foregroundStyle(.tertiary)
+                }
+                RecordButtons(program: next)
+            }
+            HStack(spacing: 24) {
+                Button("Watch", systemImage: "play.fill", action: watch)
+                FavoriteButton(channel: channel)
+            }
+            .padding(.top, 16)
+            if let shown {
+                MoreAirings(airings: model.core.airings(lineup: lineup, program: shown)) { other in
+                    if model.core.start(of: other.program) <= .now {
+                        model.requestedChannel = other.channel.guideId
+                    } else {
+                        opened = other
+                    }
+                }
             }
         }
     }

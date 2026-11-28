@@ -1,17 +1,23 @@
 import SwiftUI
 import SofaKingCore
 
-/// The Live tab on a phone or tablet: the channels under All, Favorites and Recent, each with what is on it now, and a
-/// search field and On later on a server that offers it. A tap plays the channel full screen; a long press opens its
-/// details or stars it. A cold start opens the last watched channel, and a `sofaking://live` link opens that one.
-/// The guide grid and its preview are the Apple TV's.
+/// The Live tab on a phone or tablet, under All, Favorites and Recent, with a search field and On later on a server
+/// that offers it: on an iPad in the regular width, the Apple TV's guide grid, where a tap on a program on now plays its
+/// channel and a later one opens its details; on a phone or a narrow window, the channels with what is on each now,
+/// where a tap plays the channel. Full screen either way; a long press opens the details or stars the channel. A cold
+/// start opens the last watched channel, and a `sofaking://live` link opens that one. The guide's preview is the
+/// Apple TV's.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let lineup: Lineup
     @State private var playing: Channel?
     @State private var detail: ProgramChoice?
     @State private var filter = ChannelFilter.all
     @State private var query = ""
+    @State private var searching = false
+    /// The channel the grid scrolls to; nothing asks for one on a tablet yet.
+    @State private var arrival: String?
 
     /// A program's details to open: the channel's on now.
     struct ProgramChoice: Hashable {
@@ -26,39 +32,30 @@ struct ChannelListView: View {
         return all.filter { $0.name.localizedCaseInsensitiveContains(text) || $0.number.formatted().hasPrefix(text) }
     }
 
+    /// The grid needs a tablet's width: a phone in landscape, even one in the regular width, keeps the list.
+    private var showsGrid: Bool {
+        sizeClass == .regular && UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    private var emptyText: String {
+        filter == .favorites ? strings.favoritesNone : (query.isEmpty ? strings.noChannels : strings.noChannelMatches)
+    }
+
+    private var filterPicker: some View {
+        Picker(strings.channelsSection, selection: $filter) {
+            Text(strings.filterAll).tag(ChannelFilter.all)
+            Text(strings.filterFavorites).tag(ChannelFilter.favorites)
+            if !model.recentChannels.isEmpty { Text(strings.filterRecent).tag(ChannelFilter.recent) }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("channel-filter")
+    }
+
     var body: some View {
-        List {
-            Picker(strings.channelsSection, selection: $filter) {
-                Text(strings.filterAll).tag(ChannelFilter.all)
-                Text(strings.filterFavorites).tag(ChannelFilter.favorites)
-                if !model.recentChannels.isEmpty { Text(strings.filterRecent).tag(ChannelFilter.recent) }
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .accessibilityIdentifier("channel-filter")
-            ForEach(channels) { channel in
-                Button { playing = channel } label: {
-                    ChannelRow(channel: channel, lineup: lineup, playing: false)
-                }
-                .listRowBackground(Color.sofaPlum)
-                .accessibilityIdentifier("channel-\(channel.name)")
-                .contextMenu {
-                    Button("Details", systemImage: "info.circle") {
-                        detail = ProgramChoice(channel: channel, program: model.core.nowAndNext(lineup: lineup, channel: channel).now)
-                    }
-                    FavoriteButton(channel: channel)
-                }
-            }
+        Group {
+            if showsGrid { grid } else { list }
         }
-        .listStyle(.plain)
-        .accessibilityIdentifier("channel-list")
-        .overlay {
-            if channels.isEmpty {
-                Text(filter == .favorites ? strings.favoritesNone : (query.isEmpty ? strings.noChannels : strings.noChannelMatches))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .searchable(text: $query, prompt: "Channel name or number")
+        .searchable(text: $query, isPresented: $searching, prompt: "Channel name or number")
         .navigationTitle(model.settings?.kidsMode == true ? "Sofa King Kids" : strings.appName)
         .toolbar {
             if model.capabilities?.onLater == true {
@@ -74,6 +71,11 @@ struct ChannelListView: View {
         }
         .fullScreenCover(item: $playing) { channel in
             PlayerView(channel: channel)
+        }
+        .onChange(of: playing) { _, now in
+            // A search field still focused under the player brings its keyboard up over the picture when the player's
+            // menu opens, and taps then type into the search behind it, so a channel that plays ends the search.
+            if now != nil { searching = false }
         }
         .background(Color.sofaPlum.ignoresSafeArea())
         .scrollContentBackground(.hidden)
@@ -93,6 +95,53 @@ struct ChannelListView: View {
             guard playing == nil, let requested else { return }
             model.requestedChannel = nil
             if let channel = lineup.channels.first(where: { $0.guideId == requested }) { playing = channel }
+        }
+    }
+
+    private var grid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            filterPicker.frame(maxWidth: 480)
+            let shown = channels
+            if shown.isEmpty {
+                Text(emptyText).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GuideGrid(
+                    lineup: lineup,
+                    channels: shown,
+                    arrival: $arrival,
+                    play: { playing = $0 },
+                    details: { channel, program in detail = ProgramChoice(channel: channel, program: program) }
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("channel-list")
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var list: some View {
+        List {
+            filterPicker.listRowBackground(Color.clear)
+            ForEach(channels) { channel in
+                Button { playing = channel } label: {
+                    ChannelRow(channel: channel, lineup: lineup, playing: false)
+                }
+                .listRowBackground(Color.sofaPlum)
+                .accessibilityIdentifier("channel-\(channel.name)")
+                .contextMenu {
+                    Button("Details", systemImage: "info.circle") {
+                        detail = ProgramChoice(channel: channel, program: model.core.nowAndNext(lineup: lineup, channel: channel).now)
+                    }
+                    FavoriteButton(channel: channel)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .accessibilityIdentifier("channel-list")
+        .overlay {
+            if channels.isEmpty {
+                Text(emptyText).foregroundStyle(.secondary)
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.library
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -64,7 +65,8 @@ internal val LayoutProfile.spotlightStaysPut: Boolean get() = tv || (!compactWid
 /**
  * The backdrop, title, tagline and (off a TV) a Resume or Play button of [item]; [item] changes crossfade. It is never
  * a focus target on a TV: it only draws what [item] says, and the shelves' cards choose [item]. [onPlay] is null on a
- * TV, which has the cards and its Play key.
+ * TV, which has the cards and its Play key. A [pictured] spotlight fills the height it is given for its picture; one
+ * whose shelves have no pictures to show takes only its text's height.
  */
 @Composable
 internal fun Spotlight(
@@ -73,29 +75,45 @@ internal fun Spotlight(
     insets: PaddingValues,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    pictured: Boolean = true,
 ) {
     val motion = rememberMotionEnabled()
     val colors = MaterialTheme.colorScheme
     // With no art the panel fades from a raised surface into the page, so it never reads as a bright block.
     val panel = Brush.verticalGradient(listOf(colors.surfaceContainerHigh, colors.background))
-    Box(modifier.fillMaxWidth().background(panel)) {
+    val fill = if (pictured) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+    // Without a picture the height is the text's, which changes with the item; it eases rather than jumps.
+    val size = if (pictured ||
+        !motion
+    ) {
+        Modifier
+    } else {
+        Modifier.animateContentSize(MaterialTheme.motionScheme.defaultEffectsSpec())
+    }
+    Box(modifier.fillMaxWidth().background(panel).then(size)) {
         Crossfade(
             targetState = item,
             animationSpec = if (motion) tween(FADE_MS) else snap(),
-            modifier = Modifier.fillMaxSize(),
+            modifier = fill,
             label = "spotlight",
         ) { shown ->
-            if (shown != null) SpotlightContent(shown, onPlay, insets, compact)
+            if (shown != null) SpotlightContent(shown, onPlay, insets, compact, fill)
         }
     }
 }
 
 @Composable
-private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, insets: PaddingValues, compact: Boolean) {
+private fun SpotlightContent(
+    item: MediaItem,
+    onPlay: ((MediaItem) -> Unit)?,
+    insets: PaddingValues,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val art = item.spotlightArt()
     // A poster stands in for a missing backdrop, blurred so its grain does not read as a picture.
     val artModifier = if (item.backdrop == null) Modifier.fillMaxSize().blur(POSTER_BLUR) else Modifier.fillMaxSize()
-    Box(Modifier.fillMaxSize()) {
+    Box(modifier) {
         if (art != null) {
             Box(Modifier.fillMaxSize().background(SofaScrim))
             AsyncImage(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = artModifier)
@@ -109,7 +127,7 @@ private fun SpotlightContent(item: MediaItem, onPlay: ((MediaItem) -> Unit)?, in
                 16.dp,
             )
         } else {
-            Modifier.padding(insets.horizontalOnly()).padding(bottom = 20.dp)
+            Modifier.padding(insets.horizontalOnly()).padding(top = 16.dp, bottom = 20.dp)
         }
         Column(
             Modifier.align(Alignment.BottomStart).widthIn(max = TEXT_MAX_WIDTH).then(padding),

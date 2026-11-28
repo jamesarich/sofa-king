@@ -23,6 +23,7 @@ export type LiveKey =
     | { kind: 'volume'; step: 1 | -1 }
     | { kind: 'captions' }
     | { kind: 'fullscreen' }
+    | { kind: 'channels' }
     | { kind: 'pause' };
 
 /**
@@ -60,6 +61,9 @@ export function liveKey(key: string, onPicture: boolean): LiveKey | null {
         case 'f':
         case 'F':
             return { kind: 'fullscreen' };
+        case 'g':
+        case 'G':
+            return { kind: 'channels' };
         case ' ':
             return onPicture ? { kind: 'pause' } : null;
         default:
@@ -243,4 +247,27 @@ export function bannerText(
         now: nowNext.now ? `${nowNext.now.title}, ${clock(nowNext.now.startMs)} to ${clock(nowNext.now.stopMs)}` : '',
         next: nowNext.next ? `Next: ${nowNext.next.title}` : '',
     };
+}
+
+/** One row of the player's channel list: the channel, what is on it, and whether it is the one playing. */
+export interface ChannelRow {
+    id: string;
+    heading: string;
+    now: string;
+    current: boolean;
+}
+
+/** The player's channel list at [atMs]: [channels] in their order, each with the program on now. */
+export function channelRows<C extends { id: string; number: number; name: string }>(
+    channels: readonly C[],
+    currentId: string,
+    atMs: number,
+    nowNext: (channel: C, atMs: number) => { now: { title: string } | null },
+): ChannelRow[] {
+    return channels.map((channel) => ({
+        id: channel.id,
+        heading: `${channel.number} ${channel.name}`,
+        now: nowNext(channel, atMs).now?.title ?? 'Nothing listed',
+        current: channel.id === currentId,
+    }));
 }

@@ -30,7 +30,7 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class NavigationLabelTest {
-    private val labels = listOf("Live", "Library", "DVR", "Settings")
+    private val labels = listOf("Live", "Library", "DVR", "Search", "Settings")
 
     private fun ComposeUiTest.showTabs(font: FontFamily?) {
         setContent {
@@ -48,7 +48,13 @@ class NavigationLabelTest {
                 MaterialTheme(colorScheme = MaterialTheme.colorScheme, typography = typography) {
                     TopLevel(
                         tv = false,
-                        tabs = TabsModel(Tab.LIVE, libraryShown = true, recordingsShown = true, onTab = {}),
+                        tabs = TabsModel(
+                            Tab.LIVE,
+                            libraryShown = true,
+                            recordingsShown = true,
+                            onTab = {},
+                            searchShown = true,
+                        ),
                         shown = true,
                         settingsOpen = false,
                         onSettings = {},

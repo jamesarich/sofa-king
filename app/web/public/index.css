@@ -1,1 +1,2 @@
-html, body { margin: 0; height: 100%; overflow: hidden; background: #14111F; }
+/* Painted before the bundle's styles load. The page scrolls; the players stop it (body.playing). */
+html, body { margin: 0; background: #14111F; }

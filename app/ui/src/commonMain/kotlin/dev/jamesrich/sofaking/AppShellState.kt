@@ -87,8 +87,8 @@ internal class AppShellState(
     var nowPlayingReturn = NowPlayingReturn()
 
     /**
-     * Back one page. The player hands the guide the channel it was left on, which may not be the one it opened, and
-     * Now playing the song it was opened on.
+     * Back one page. The player hands the page below the channel it was left on, which may not be the one it opened,
+     * and Now playing the song it was opened on.
      */
     fun back() {
         val top = nav.top
@@ -96,7 +96,16 @@ internal class AppShellState(
         nav = nav.pop(
             when (top) {
                 is Route.Player -> history.watching
+
                 Route.NowPlaying -> nowPlayingReturn.item
+
+                // The search opens over any page: the guide comes back on its channel, the Library on its chip.
+                is Route.Search -> when (nav.below) {
+                    Route.Guide -> history.watching
+                    Route.Library -> top.focusKey
+                    else -> null
+                }
+
                 else -> top.focusKey
             },
         )
@@ -192,16 +201,21 @@ internal fun rememberAppShellState(): AppShellState {
     return remember { AppShellState(nav, history, launchDecided, settingsUnlocked) }
 }
 
-/** Which of Library and Recordings the header offers, and the [libraries] a rail lists under Library. */
+/**
+ * Which of Library and Recordings the header offers, the [libraries] a rail lists under Library, and whether there is
+ * anything to [search].
+ */
 internal data class TabsOffered(
     val library: Boolean,
     val recordings: Boolean,
     val libraries: List<MediaLibrary> = emptyList(),
+    val search: Boolean = false,
 )
 
 /**
  * The Library tab shows when the server's bootstrap says it serves libraries and it has at least one, and the
  * Recordings tab when it records, except in [kids] mode. A start on either shows its tab before the bootstrap answers.
+ * Search shows once there is a lineup ([live]) or a library to search, so a signed-out app offers only Settings.
  */
 internal fun tabsOffered(
     capabilities: ServerCapabilities,
@@ -209,13 +223,18 @@ internal fun tabsOffered(
     libraryHome: LibraryHomeState,
     recordings: RecordingsState,
     kids: Boolean = false,
-): TabsOffered = TabsOffered(
-    library = (capabilities.library || open == Tab.LIBRARY) && when (libraryHome) {
+    live: Boolean = false,
+): TabsOffered {
+    val library = (capabilities.library || open == Tab.LIBRARY) && when (libraryHome) {
         LibraryHomeState.Unavailable -> false
         is LibraryHomeState.Ready -> libraryHome.home.libraries.isNotEmpty()
         else -> true
-    },
-    recordings = !kids &&
-        (capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable)),
-    libraries = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries.orEmpty(),
-)
+    }
+    return TabsOffered(
+        library = library,
+        recordings = !kids &&
+            (capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable)),
+        libraries = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries.orEmpty(),
+        search = live || library,
+    )
+}

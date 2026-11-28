@@ -65,6 +65,10 @@ on:
       - ".github/version.sh"
       - ".github/actions/apt-install/**"
   workflow_dispatch:
+    inputs:
+      walk_seed:
+        description: Seed of an iOS touch walk to replay (empty for a new one)
+        default: ""
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -235,6 +239,8 @@ jobs:
         run: scripts/dist.sh
       # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
       - name: Test the iOS app by touch
+        env:
+          WALK_SEED: ${{ inputs.walk_seed }}
         run: |
           out=build/ios-ui
           mkdir -p "$out"
@@ -249,6 +255,8 @@ jobs:
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
           # A pull request walks 60 touches; main walks the full 150.
           if [ "${{ github.event_name }}" = pull_request ]; then export TEST_RUNNER_SOFAKING_WALK_STEPS=60; fi
+          # A run by hand replays a failed walk from the seed its failure names.
+          if [ -n "$WALK_SEED" ]; then export TEST_RUNNER_SOFAKING_WALK_SEED="$WALK_SEED"; fi
           # The newest iOS runtime's first iPhone.
           device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
           devices = json.load(sys.stdin)["devices"]

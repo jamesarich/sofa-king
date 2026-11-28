@@ -50,6 +50,7 @@ import dev.jamesrich.sofaking.resources.on_later_sports
 import dev.jamesrich.sofaking.resources.on_later_when
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.ProgramBadges
+import dev.jamesrich.sofaking.ui.airingWhen
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.listRowColors
 import dev.jamesrich.sofaking.ui.listRowShapes
@@ -129,7 +130,7 @@ internal fun OnLaterScreen(
         }
         val open = details
         if (open != null) {
-            OnLaterDetails(
+            AiringSheet(
                 open,
                 now,
                 lineup,
@@ -150,9 +151,12 @@ internal fun OnLaterScreen(
     }
 }
 
-/** The details of [open]: [onShow] swaps in another airing's, or none as a recording opens from its start. */
+/**
+ * The details of [open], an airing picked outside the guide's grid, from On Later or the search: [onShow] swaps in
+ * another airing's, or none as a recording opens from its start.
+ */
 @Composable
-private fun OnLaterDetails(
+internal fun AiringSheet(
     open: ProgramDetails,
     now: Instant,
     lineup: Lineup,
@@ -227,7 +231,7 @@ private fun OnLaterList(airings: List<Airing>, now: Instant, returnTo: Program?,
                 live = isAiring(airing.program, now),
                 whenText = stringResource(
                     Res.string.on_later_when,
-                    airingWhen(airing, now, timeFormat, today, tomorrow),
+                    airingWhen(airing.program.start, now, timeFormat, today, tomorrow),
                     airing.channel.label(),
                 ),
                 onClick = { onOpen(airing) },

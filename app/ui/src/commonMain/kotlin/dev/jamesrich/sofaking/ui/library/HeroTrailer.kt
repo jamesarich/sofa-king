@@ -13,10 +13,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -148,10 +150,22 @@ internal class TrailerPlayback(
 @Composable
 internal fun DetailsHero(detail: MediaItemDetail, trailer: TrailerSource?, modifier: Modifier = Modifier) {
     val item = detail.item
-    Hero(item.backdrop ?: item.poster, modifier) {
+    Hero(item.heroArt(), modifier) {
         if (trailer != null) TrailerVideo(trailer, detail)
     }
 }
+
+/** The picture behind an item's page: its backdrop, or its poster; with neither the page has no hero. */
+internal fun MediaItem.heroArt(): String? = backdrop ?: poster
+
+/**
+ * Where the title starts: a third of the way down a [pictured] hero, so the picture shows above it, or at the top
+ * margin ([top]) when there is no picture to leave room for.
+ */
+internal fun summaryTop(pictured: Boolean, heroHeight: Dp, top: Dp): Dp =
+    if (pictured) (heroHeight * HERO_TEXT_FRACTION).coerceAtLeast(top) else top
+
+private const val HERO_TEXT_FRACTION = 0.3f
 
 /**
  * [detail]'s trailer, drawn over the backdrop it sits in once the page has rested: it opens when [TrailerDwell] says

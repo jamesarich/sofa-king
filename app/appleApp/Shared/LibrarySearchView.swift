@@ -8,14 +8,20 @@ extension View {
     /// A Search button above the Library tab's page, which pushes the search page; only while the library is showing.
     func librarySearchButton(shown: Bool) -> some View {
         safeAreaInset(edge: .top, alignment: .leading) {
-            if shown {
-                NavigationLink(value: LibrarySearchRoute()) {
-                    Label(searchStrings.search, systemImage: "magnifyingglass")
-                }
-                .padding(.horizontal, 48)
-            }
+            if shown { LibrarySearchLink() }
         }
         .navigationDestination(for: LibrarySearchRoute.self) { _ in LibrarySearchView() }
+    }
+}
+
+private struct LibrarySearchLink: View {
+    @PageLayout private var metrics
+
+    var body: some View {
+        NavigationLink(value: LibrarySearchRoute()) {
+            Label(searchStrings.search, systemImage: "magnifyingglass")
+        }
+        .padding(.horizontal, metrics.touch ? metrics.margin : 48)
     }
 }
 
@@ -27,12 +33,13 @@ struct LibrarySearchView: View {
     @State private var query = ""
     @State private var found: SearchSections?
     @State private var searching = false
+    @PageLayout private var metrics
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 48) {
+            LazyVStack(alignment: .leading, spacing: metrics.sectionSpacing) {
                 if let found {
                     if found.found {
                         ForEach(found.rows, id: \.group) { row in
@@ -46,11 +53,11 @@ struct LibrarySearchView: View {
                                     }
                                 }
                             } header: {
-                                Text(searchStrings.groupTitle(group: row.group, sections: found)).font(.title3)
+                                Text(searchStrings.groupTitle(group: row.group, sections: found)).font(.title3).pageMargin(metrics)
                             }
                         }
                     } else if !searching {
-                        Text(searchStrings.none).font(.title3).foregroundStyle(.secondary)
+                        Text(searchStrings.none).font(.title3).foregroundStyle(.secondary).pageMargin(metrics)
                     }
                 }
                 if searching { ProgressView() }

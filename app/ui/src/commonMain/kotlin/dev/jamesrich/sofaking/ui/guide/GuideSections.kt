@@ -269,6 +269,7 @@ internal fun PreviewBand(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    opensIn: Int?,
     ownsVolume: Boolean,
     failed: Boolean,
     onFailedChange: (Boolean) -> Unit,
@@ -287,6 +288,7 @@ internal fun PreviewBand(
                     live = cell?.cell?.program?.let { isAiring(it, now) } == true,
                     guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+                    previewFailed = failed,
                 )
             }
         }
@@ -297,6 +299,7 @@ internal fun PreviewBand(
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
             muted = muted,
+            opensIn = opensIn,
             ownsVolume = ownsVolume,
             failed = failed,
             onFailedChange = onFailedChange,

@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.music_next
 import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.artworkMark
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.stringResource
 
@@ -54,7 +55,7 @@ internal fun MiniPlayer(music: MusicPlayback, onOpen: () -> Unit, modifier: Modi
                     Modifier.size(COVER_SIZE).clip(MaterialTheme.shapes.small)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    Artwork(song.poster, label = null)
+                    Artwork(song.poster, label = null, mark = artworkMark(song.kind))
                 }
             },
             trailingContent = {

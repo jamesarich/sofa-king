@@ -75,7 +75,7 @@ class NavigationTest {
     fun `back from a grid or search focuses its chip on the library home`() {
         val library = start.open(Tab.LIBRARY)
         assertEquals(libraryFocusKey("tv"), library.push(Route.LibraryGrid("tv")).pop().arrival.returnedFrom)
-        assertEquals(SEARCH_FOCUS_KEY, library.push(Route.LibrarySearch()).pop().arrival.returnedFrom)
+        assertEquals(SEARCH_FOCUS_KEY, library.push(Route.Search()).pop().arrival.returnedFrom)
     }
 
     @Test
@@ -101,7 +101,7 @@ class NavigationTest {
     fun `a page already open is returned to rather than opened twice`() {
         val nav = start.open(Tab.LIBRARY)
             .push(Route.LibraryItem("show"))
-            .push(Route.LibrarySearch(query = "Ann"))
+            .push(Route.Search(query = "Ann"))
             .push(Route.LibraryItem("show"))
         assertEquals(listOf(Route.Library, Route.LibraryItem("show")), nav.stack(Tab.LIBRARY))
     }

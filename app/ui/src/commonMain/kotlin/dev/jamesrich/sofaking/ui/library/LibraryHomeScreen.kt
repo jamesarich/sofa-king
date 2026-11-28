@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,7 +59,6 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_artwork_hint
 import dev.jamesrich.sofaking.resources.library_empty
 import dev.jamesrich.sofaking.resources.library_empty_hint
-import dev.jamesrich.sofaking.resources.library_library_chip
 import dev.jamesrich.sofaking.resources.library_load_failed
 import dev.jamesrich.sofaking.resources.library_search
 import dev.jamesrich.sofaking.resources.library_unavailable
@@ -308,9 +309,12 @@ private fun LibraryChips(
                     Modifier
                 }
                 ).focusRequester(searchFocus)
-            SofaActionChip(onClick = {
-                actions.onSearch(false)
-            }, label = stringResource(Res.string.library_search), modifier = focus)
+            SofaActionChip(
+                onClick = { actions.onSearch(false) },
+                label = stringResource(Res.string.library_search),
+                modifier = focus,
+                icon = Icons.Filled.Search,
+            )
         }
         items(libraries, key = { it.id }) { library ->
             val focus = if (returnedFrom == libraryFocusKey(library.id)) {
@@ -320,8 +324,9 @@ private fun LibraryChips(
             }
             SofaActionChip(
                 onClick = { actions.onOpenLibrary(library) },
-                label = stringResource(Res.string.library_library_chip, library.name, library.itemCount),
+                label = library.name,
                 modifier = focus,
+                count = library.itemCount,
             )
         }
     }

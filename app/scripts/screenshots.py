@@ -84,7 +84,8 @@ def web(args, out):
     width, height = args.size
     with showcase_server(out, SOFA_WEB_DIR=str(Path(args.app).resolve())) as base, sync_playwright() as playwright:
         browser = playwright.chromium.launch(channel=args.channel, args=['--mute-audio', '--autoplay-policy=no-user-gesture-required'])
-        context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale)
+        # The web app follows the device's scheme; the docs show it dark like the other apps.
+        context = browser.new_context(viewport={'width': width, 'height': height}, device_scale_factor=args.scale, color_scheme='dark')
         page = context.new_page()
         page.on('pageerror', lambda error: print(f'page error: {error}', file=sys.stderr))
         settings = {'backend_url': {'t': 's', 'v': base}, 'api_token': {'t': 's', 'v': TOKEN}}

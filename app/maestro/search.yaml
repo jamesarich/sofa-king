@@ -22,12 +22,12 @@ name: Header search
 - extendedWaitUntil:
     visible: "On now"
     timeout: 20000
-# Programs coming up load after the channels on now.
+# The keyboard's Search action closes the keyboard, which covers the On later row, and moves focus to the first
+# result, the channel on now.
+- pressKey: Enter
 - extendedWaitUntil:
     visible: "On later"
     timeout: 20000
-# The keyboard's Search action moves focus to the first result, the channel on now.
-- pressKey: Enter
 - pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible:

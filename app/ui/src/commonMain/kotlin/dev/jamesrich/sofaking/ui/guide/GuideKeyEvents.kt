@@ -56,7 +56,10 @@ internal fun GuideState.onGridKey(
         pendingRow = null
         return false
     }
-    if (target != current) focusRow(target)
+    if (target != current) {
+        focusRow(target)
+        rowMoved()
+    }
     return true
 }
 

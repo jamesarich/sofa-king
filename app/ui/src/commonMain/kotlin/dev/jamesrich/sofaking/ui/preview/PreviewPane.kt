@@ -92,7 +92,17 @@ private const val MAX_STREAM_GONE_RETUNES = 2
 internal fun showPreviewCaptions(captionsEnabled: Boolean, hasChannel: Boolean, failed: Boolean): Boolean =
     captionsEnabled && hasChannel && !failed
 
-/** Program details for the focused cell. [live] is whether the program is airing now. */
+/**
+ * Whether the focused program's own image shows beside its details. The preview beside them is the channel as it is
+ * now, so it already pictures a program that is on ([live]) while it has a picture ([previewFailed] false); the image
+ * would be a second picture of the same thing, and the description reads better with its width.
+ */
+internal fun showsProgramImage(live: Boolean, previewFailed: Boolean): Boolean = !live || previewFailed
+
+/**
+ * Program details for the focused cell. [live] is whether the program is airing now, and [previewFailed] whether
+ * the preview beside the details has no picture.
+ */
 @Composable
 internal fun PreviewDetails(
     channel: Channel?,
@@ -100,11 +110,12 @@ internal fun PreviewDetails(
     live: Boolean,
     guideLoading: Boolean,
     modifier: Modifier = Modifier,
+    previewFailed: Boolean = false,
 ) {
     val timeFormat = rememberTimeFormatter()
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     // Title, one line of details, then as much description as the band has room for in whole lines; the
-    // program's image, when the guide has one, sits beside the text at the band's height.
+    // program's image, when the guide has one and the preview is not already its picture, sits beside the text.
     Row(modifier) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (channel == null) return@Column
@@ -138,7 +149,7 @@ internal fun PreviewDetails(
                 WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
             }
         }
-        program?.icon?.let { icon ->
+        program?.icon?.takeIf { showsProgramImage(live, previewFailed) }?.let { icon ->
             // The frame holds its place at once; the image loads only once focus has rested on the program, so
             // holding a key down the grid starts no image request per cell.
             val settled = key(icon) { rememberSettled(true, showAfterMs = DETAIL_IMAGE_SETTLE_MS) }

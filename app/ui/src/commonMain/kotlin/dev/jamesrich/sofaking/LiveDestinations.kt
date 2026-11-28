@@ -60,7 +60,10 @@ private fun guidePreview(player: LivePlayer, vm: LineupViewModel, prefs: AppSett
     sound = prefs.previewSound,
 )
 
-/** The guide, once the cold start has decided where to land, or what stands in for it while there is no lineup. */
+/**
+ * The guide, once the cold start has decided where to land, or what stands in for it while there is no lineup.
+ * [onBrowse] hears when the viewer starts moving through its rows and when they are back at the chips.
+ */
 @Composable
 internal fun GuideDestination(
     arrival: Arrival,
@@ -69,6 +72,7 @@ internal fun GuideDestination(
     player: LivePlayer,
     settingsFocus: FocusRequester,
     headerFocus: FocusRequester?,
+    onBrowse: (Boolean) -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -123,6 +127,7 @@ internal fun GuideDestination(
                 onToggleWatchlist = vm::toggleWatchlist,
                 watchlisted = { program -> watchlist.has(program).takeIf { watchlist.offered } },
                 onOnLater = { shell.push(Route.OnLater) }.takeIf { capabilities.onLater },
+                onBrowse = onBrowse,
             ),
             preview = guidePreview(player, vm, prefs),
             recordingMarks = recordingMarks.takeIf { capabilities.recordings },

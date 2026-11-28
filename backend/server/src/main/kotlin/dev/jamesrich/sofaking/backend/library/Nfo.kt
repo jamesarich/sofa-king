@@ -26,6 +26,8 @@ internal data class Nfo(
     val contentRating: String? = null,
     val rating: Double? = null,
     val cast: List<String> = emptyList(),
+    /** The role each of the [cast] plays, by name, for those the `.nfo` gives one. */
+    val roles: Map<String, String> = emptyMap(),
     val directors: List<String> = emptyList(),
     val tmdbId: Int? = null,
     val tvdbId: Int? = null,
@@ -53,6 +55,12 @@ internal fun readNfo(path: Path): Nfo? = try {
     null
 }
 
+/** The first [CAST_LIMIT] `<actor>`s that have a name, each with the role it gives them. */
+private fun Element.actors(): List<Pair<String, String?>> = children("actor").mapNotNull { actor ->
+    fun text(name: String): String? = actor.child(name)?.textContent?.trim()?.ifEmpty { null }
+    text("name")?.let { it to text("role") }
+}.take(CAST_LIMIT)
+
 internal fun parseNfo(input: InputStream): Nfo? {
     val root = try {
         factory.newDocumentBuilder().apply { setErrorHandler(null) }.parse(input).documentElement
@@ -72,6 +80,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
             ?.child("value")?.textContent?.trim()?.toDoubleOrNull()
     val aired = text("aired") ?: text("premiered")
     val ids = root.providerIds()
+    val actors = root.actors()
     return Nfo(
         title = text("title"),
         sortTitle = text("sorttitle"),
@@ -86,9 +95,8 @@ internal fun parseNfo(input: InputStream): Nfo? {
         studio = text("studio"),
         contentRating = text("mpaa") ?: text("certification"),
         rating = rating,
-        cast = root.children("actor").mapNotNull {
-            it.child("name")?.textContent?.trim()?.ifEmpty { null }
-        }.take(CAST_LIMIT),
+        cast = actors.map { it.first },
+        roles = actors.mapNotNull { (name, role) -> role?.let { name to it } }.toMap(),
         directors = all("director"),
         tmdbId = ids.tmdb,
         tvdbId = ids.tvdb,

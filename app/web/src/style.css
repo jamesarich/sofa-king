@@ -1,11 +1,12 @@
+/* The brand palette, copied from the Compose app's ui/theme/Color.kt; its DesignSystemTest compares the values. */
 :root {
     --bg: #14111f;
-    --panel: #1e1a2e;
+    --panel: #1f1a30;
     --panel-2: #2a2440;
-    --text: #ece8f7;
-    --dim: #a59fba;
+    --text: #f4effa;
+    --dim: #c4bad9;
     --accent: #c9b8ff;
-    --accent-ink: #1b1530;
+    --accent-ink: #14111f;
     --line: #3a3354;
     color-scheme: dark;
 }
@@ -107,6 +108,9 @@ body.playing .page { padding: 0; }
 .card .poster.blank { display: grid; place-items: center; font-size: 40px; color: var(--dim); }
 .card-title { font-weight: 600; font-size: 14px; }
 .card-detail { color: var(--dim); font-size: 13px; }
+.person { flex: 0 0 120px; display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; }
+.person .photo { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; background: var(--panel); }
+.person .photo.blank { display: grid; place-items: center; font-size: 24px; color: var(--dim); }
 .more { display: block; margin: 16px auto; }
 
 .detail { padding: 24px; border-radius: 16px; background-size: cover; background-position: center top; }

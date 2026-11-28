@@ -15,3 +15,10 @@ export function position(seconds: number): string {
     const s = String(whole % 60).padStart(2, '0');
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
+
+/** The first letters of a name's first and last words, which stand in for a photo. */
+export function initials(name: string): string {
+    const words = name.split(/\s+/).filter(Boolean);
+    const picked = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+    return picked.map((word) => (word ?? '').charAt(0).toUpperCase()).join('');
+}

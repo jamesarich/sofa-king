@@ -25,6 +25,18 @@ class NfoTest {
         assertEquals(listOf("Sigourney Weaver"), nfo.cast)
     }
 
+    @Test fun `an nfo gives each actor's role, and leaves out the role of one it has none for`() {
+        val nfo = parseNfo(
+            (
+                "<movie><actor><name>Sigourney Weaver</name><role>Ripley</role><thumb>https://x.test/w.jpg</thumb>" +
+                    "</actor><actor><name>Tom Skerritt</name><role> </role></actor><actor><role>Nobody</role></actor>" +
+                    "</movie>"
+                ).byteInputStream(),
+        )!!
+        assertEquals(listOf("Sigourney Weaver", "Tom Skerritt"), nfo.cast)
+        assertEquals(mapOf("Sigourney Weaver" to "Ripley"), nfo.roles)
+    }
+
     @Test fun `an nfo gives its TMDB, TheTVDB and IMDb ids from uniqueid or the older tags`() {
         val show = parseNfo(
             (

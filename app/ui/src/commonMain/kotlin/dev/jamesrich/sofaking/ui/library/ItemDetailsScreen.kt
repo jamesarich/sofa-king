@@ -31,14 +31,13 @@ import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.billed
 import dev.jamesrich.sofaking.data.hidesSpoilers
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.library_albums
-import dev.jamesrich.sofaking.resources.library_cast
 import dev.jamesrich.sofaking.resources.library_extras
 import dev.jamesrich.sofaking.resources.library_load_failed
 import dev.jamesrich.sofaking.resources.library_loading
-import dev.jamesrich.sofaking.resources.library_members
 import dev.jamesrich.sofaking.resources.library_popular
 import dev.jamesrich.sofaking.resources.library_related
 import dev.jamesrich.sofaking.resources.library_season
@@ -52,7 +51,6 @@ import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.sectionHeading
-import dev.jamesrich.sofaking.ui.theme.SofaActionChip
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import org.jetbrains.compose.resources.stringResource
@@ -134,7 +132,7 @@ private fun Details(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 item(key = "summary") { Summary(detail, actions, primaryFocus, hideSpoilers, Modifier.padding(sides)) }
-                if (detail.cast.isNotEmpty()) {
+                if (detail.billed.isNotEmpty()) {
                     item(key = "cast") { Cast(detail, actions.onPerson, sides) }
                 }
                 if (seasons.size > 1) {
@@ -357,31 +355,6 @@ private fun ItemRow(
     }
 }
 
-/** The cast, or a band's members, as chips; OK on one searches the libraries for what else they are in. */
-@Composable
-private fun Cast(detail: MediaItemDetail, onPerson: (String) -> Unit, sides: PaddingValues) {
-    val cast = detail.cast.take(CAST_SHOWN)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(
-                if (detail.item.kind == ItemKind.ARTIST) Res.string.library_members else Res.string.library_cast,
-            ),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(sides).sectionHeading(),
-        )
-        LazyRow(
-            contentPadding = sides,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.focusRestorer(),
-        ) {
-            items(cast, key = {
-                it
-            }) { person -> SofaActionChip(onClick = { onPerson(person) }, label = person) }
-        }
-    }
-}
-
 @Composable
 private fun seasonLabel(season: MediaItem): String = when (val number = season.season) {
     null -> season.title
@@ -390,5 +363,3 @@ private fun seasonLabel(season: MediaItem): String = when (val number = season.s
 }
 
 private const val HERO_FRACTION = 0.6f
-
-private const val CAST_SHOWN = 6

@@ -112,6 +112,8 @@ class LibraryApiTest {
         )
         assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${episodes().first.id}/poster").status)
         assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${show.id}/thumb").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${show.id}/cast/0").status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${show.id}/cast/x").status)
     }
 
     @Test fun `watch state marks an episode watched and fills the home shelves`() = twoEpisodes {

@@ -168,8 +168,8 @@ private fun Shelves(
                     // The remote's Search key opens the search by voice from anywhere on the page.
                     Modifier.fillMaxSize().searchKey { actions.onSearch(true) },
                     state = listState,
-                    contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                    contentPadding = PaddingValues(top = HOME_TOP, bottom = insets.calculateBottomPadding() + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(HOME_GAP),
                 ) {
                     // Without room to stay put, the spotlight is the list's first card and shows the first item.
                     if (!staysPut) {

@@ -166,6 +166,7 @@ The tables are generated from the [OpenAPI document](../server/src/main/resource
 | GET | `/api/v1/vod-sessions/{id}` | Read a library playback session |
 | PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
 | DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
+| GET | `/artwork/{id}/cast/{index}` | A photo of one of an item's cast, public, see [media libraries](#media-libraries) |
 | GET | `/artwork/{id}/scrub/{sheet}` | A sheet of an item's scrub thumbnails, public, see [media libraries](#media-libraries) |
 | GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
 | GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
@@ -402,7 +403,7 @@ A Music library lists its artists (`kind` `artist`), and with `kind=album` its a
 
 `PUT /api/v1/library/items/{id}/play-state` takes `positionMs`, `durationMs`, `watched` and `dismissed`, and answers the item. A stop in the first 5% leaves the item where it was, and one at 90% or later marks it watched and back at the start. `watched` set by hand wins over the position; it is the only field a show or season takes, and it marks every episode in it. Watch state belongs to the household, not one device. Continue watching lists, newest first, the movies, videos and episodes stopped part way, rewatches included (a rewatch keeps `watched` and carries the position), and the next episode of each show whose last-played episode was finished, one entry per show. `dismissed: true` alone takes a movie, video or episode off Continue watching and leaves its place and `watched` as they are (the item's `playState.dismissed` says so); `dismissed: false` puts it back, and the next play-state write with a position clears it too.
 
-`poster` and `backdrop` are server-relative `/artwork/ID/ROLE?v=VERSION` paths a client resolves against its API base URL. A season without its own poster, and a season or episode without its own backdrop, name their show's. The route takes no token, as image loaders fetch with none, and serves only the image the library holds for that item; the version changes with the image, so a client may cache it for good. TMDB's images are downloaded once into `SOFA_DATA_DIR/artwork`, which can be deleted at any time. Scrub thumbnail sheets are served the same way under `/artwork/ID/scrub/N?v=VERSION`.
+`poster` and `backdrop` are server-relative `/artwork/ID/ROLE?v=VERSION` paths a client resolves against its API base URL. A season without its own poster, and a season or episode without its own backdrop, name their show's. The route takes no token, as image loaders fetch with none, and serves only the image the library holds for that item; the version changes with the image, so a client may cache it for good. TMDB's images are downloaded once into `SOFA_DATA_DIR/artwork`, which can be deleted at any time. Scrub thumbnail sheets are served the same way under `/artwork/ID/scrub/N?v=VERSION`, and the cast's photos under `/artwork/ID/cast/N?v=VERSION`: an item's `people` lists its `cast` again in the same order, each with the `role` they play and a `photo` path, where a `.nfo` or TMDB gives them.
 
 ## Play library files
 

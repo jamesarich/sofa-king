@@ -450,6 +450,7 @@ class VodApiTest {
         browser.submitForm("/admin/login", parameters { append("token", admin) })
         val home = browser.get("/admin").bodyAsText()
         assertTrue("Show · S1E1 · Pilot" in home && "transcode" in home, "Watching now lists the converting episode")
+        assertTrue("What do these mean?" in home, "the columns' key comes with the table")
         val id = runtime.vod!!.snapshot().single().id
         val csrf = Regex("""name="csrf" value="([^"]*)"""").find(home)!!.groupValues[1]
         assertEquals(

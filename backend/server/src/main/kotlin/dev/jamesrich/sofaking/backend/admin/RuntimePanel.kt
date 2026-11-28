@@ -1,15 +1,19 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.settings.SettingDef
 import dev.jamesrich.sofaking.backend.settings.SettingType
 import dev.jamesrich.sofaking.backend.settings.Settings
 import kotlinx.html.DIV
+import kotlinx.html.FIELDSET
 import kotlinx.html.FlowContent
 import kotlinx.html.FormMethod
 import kotlinx.html.div
+import kotlinx.html.fieldSet
 import kotlinx.html.form
 import kotlinx.html.hiddenInput
 import kotlinx.html.id
 import kotlinx.html.label
+import kotlinx.html.legend
 import kotlinx.html.numberInput
 import kotlinx.html.option
 import kotlinx.html.p
@@ -36,62 +40,70 @@ internal fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView)
             attributes["hx-select"] = "#runtime-save"
             attributes["hx-swap"] = "outerHTML"
             hiddenInput(name = "csrf") { value = chrome.session.csrf }
-            div("runtime") { RuntimeFields(view).render(this) }
+            div("runtime-settings") { RuntimeFields(view).render(this) }
             runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))
         }
     }
 
 /**
- * The runtime settings' fields, one per registry entry, filled with the proposed or current values, each saying where
- * its value is from and what it does.
+ * The runtime settings' fields, filled with the proposed or current values, one row per registry entry under its
+ * area's heading: the label and what it does on the left, the control on the right. Where the value comes from shows
+ * only when it was saved here; the environment is the usual place and goes unsaid.
  */
 private class RuntimeFields(private val view: RuntimeSettingsView) {
     private val values = view.proposed ?: view.current.byName()
     private val environment = view.environment.byName()
 
     fun render(div: DIV) = with(div) {
-        for (def in Settings.runtime) {
-            div("field") {
-                label {
-                    htmlFor = def.name
-                    +def.label
-                }
-                when (val type = def.type) {
-                    is SettingType.Choice -> select {
-                        id = def.name
-                        name = def.name
-                        for (choice in type.values) {
-                            option {
-                                value = choice
-                                selected = choice == values[def.name]
-                                +choice
-                            }
-                        }
-                    }
+        for ((area, defs) in Settings.runtime.groupBy { it.area }) {
+            fieldSet("runtime-group") {
+                legend { +area.title }
+                for (def in defs) row(def)
+            }
+        }
+    }
 
-                    SettingType.Text -> textInput(name = def.name) {
-                        id = def.name
-                        value = values.getValue(def.name)
-                    }
+    private fun FIELDSET.row(def: SettingDef) = div("setting-row") {
+        div("setting-text") {
+            label {
+                htmlFor = def.name
+                +def.label
+            }
+            span("hint") { +def.help }
+        }
+        div("setting-control") {
+            control(def)
+            if (def.name in view.saved) {
+                span("hint") { +"Saved here; the environment has ${environment.getValue(def.name)}." }
+            }
+        }
+    }
 
-                    else -> numberInput(name = def.name) {
-                        id = def.name
-                        value = values.getValue(def.name)
-                        min = def.range.first.toString()
-                        max = def.range.last.toString()
-                        required = true
+    private fun DIV.control(def: SettingDef) {
+        when (val type = def.type) {
+            is SettingType.Choice -> select {
+                id = def.name
+                name = def.name
+                for (choice in type.values) {
+                    option {
+                        value = choice
+                        selected = choice == values[def.name]
+                        +choice
                     }
                 }
-                span("hint") {
-                    +(
-                        if (def.name in view.saved) {
-                            "Saved here; the environment has ${environment.getValue(def.name)}."
-                        } else {
-                            "From the environment."
-                        }
-                        )
-                }
-                span("hint") { +def.help }
+            }
+
+            SettingType.Text -> textInput(name = def.name) {
+                id = def.name
+                value = values.getValue(def.name)
+            }
+
+            else -> numberInput(name = def.name) {
+                id = def.name
+                value = values.getValue(def.name)
+                min = def.range.first.toString()
+                max = def.range.last.toString()
+                required = true
             }
         }
     }

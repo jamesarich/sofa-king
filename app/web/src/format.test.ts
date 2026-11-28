@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { length, position } from './format';
+import { initials, length, position } from './format';
 
 test('a length reads in hours and minutes', () => {
     assert.equal(length(45 * 60_000), '45 min');
@@ -14,4 +14,11 @@ test('a position reads as the player shows it', () => {
     assert.equal(position(65), '1:05');
     assert.equal(position(3723), '1:02:03');
     assert.equal(position(-4), '0:00');
+});
+
+test("a name's initials are its first and last words' first letters", () => {
+    assert.equal(initials('Ana Reyes'), 'AR');
+    assert.equal(initials('Mary Jo  van Dyke'), 'MD');
+    assert.equal(initials('cher'), 'C');
+    assert.equal(initials(''), '');
 });

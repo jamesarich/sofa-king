@@ -74,7 +74,13 @@ private val tmdbJson = Json {
 
 @Serializable internal data class TmdbCompany(val name: String = "")
 
-@Serializable internal data class TmdbPerson(val name: String = "", val job: String? = null)
+@Serializable internal data class TmdbPerson(
+    val name: String = "",
+    val job: String? = null,
+    /** For one of the cast, the part they play. */
+    val character: String? = null,
+    @SerialName("profile_path") val profilePath: String? = null,
+)
 
 @Serializable
 internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val crew: List<TmdbPerson> = emptyList())

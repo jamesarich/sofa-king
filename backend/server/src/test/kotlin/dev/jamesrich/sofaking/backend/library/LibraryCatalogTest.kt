@@ -259,7 +259,8 @@ class LibraryCatalogTest {
         movies.file("Heat (1995)/Heat (1995).mkv")
         movies.file(
             "Heat (1995)/Heat (1995).nfo",
-            "<movie><title>Heat</title><genre>Crime</genre><plot>A heist.</plot></movie>",
+            "<movie><title>Heat</title><genre>Crime</genre><plot>A heist.</plot><actor><name>Al Pacino</name>" +
+                "<role>Vincent Hanna</role></actor><actor><name>Val Kilmer</name></actor></movie>",
         )
         Files.write(movies.resolve("Heat (1995)/poster.jpg"), jpeg)
         val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
@@ -276,6 +277,11 @@ class LibraryCatalogTest {
                         overview = "In space.",
                         genres = listOf("Horror"),
                         rating = 8.1,
+                        cast = listOf("Sigourney Weaver", "Tom Skerritt"),
+                        credits = listOf(
+                            Credit("Sigourney Weaver", "Ripley", "/weaver.jpg"),
+                            Credit("Tom Skerritt", "Dallas"),
+                        ),
                         poster = "/a.jpg",
                         backdrop = "/b.jpg",
                     ),
@@ -288,6 +294,12 @@ class LibraryCatalogTest {
                         title = "Heat (TMDB)",
                         overview = "TMDB plot.",
                         genres = listOf("Drama"),
+                        cast = listOf("Al Pacino", "Val Kilmer", "Robert De Niro"),
+                        credits = listOf(
+                            Credit("Al Pacino", "Lt. Vincent Hanna", "/pacino.jpg"),
+                            Credit("Val Kilmer", "Chris Shiherlis", "/kilmer.jpg"),
+                            Credit("Robert De Niro", "Neil McCauley"),
+                        ),
                         poster = "/h.jpg",
                     ),
                 ),
@@ -312,6 +324,40 @@ class LibraryCatalogTest {
         val view = s.service.catalog.snapshot().views
         assertEquals(ArtSource.Tmdb("/a.jpg", "w342"), view.getValue(alien.id).poster)
         assertIs<ArtSource.Local>(view.getValue(heat.id).poster, "local art wins")
+    }
+
+    @Test fun `an item's page names each of the cast with their role and photo`() = runBlocking<Unit> {
+        val calls = mutableListOf<String>()
+        val s = twoMovies(
+            HttpClient(
+                MockEngine { request ->
+                    calls += request.url.encodedPath
+                    respond(jpeg, HttpStatusCode.OK)
+                },
+            ),
+        )
+        val views = s.service.catalog.snapshot().views.values
+        val alien = views.first { it.item.title == "Alien" }
+        val people = s.service.catalog.item(alien.record.id).people
+        assertEquals(
+            listOf("Sigourney Weaver" to "Ripley", "Tom Skerritt" to "Dallas"),
+            people.map {
+                it.name to it.role
+            },
+        )
+        assertTrue(people[0].photo!!.startsWith("/artwork/${alien.record.id}/cast/0?v="), people[0].photo)
+        assertNull(people[1].photo, "TMDB has no picture of them")
+        assertNotNull(s.service.artwork!!.image(alien.castPhoto(0)!!))
+        assertEquals(listOf("/t/p/w185/weaver.jpg"), calls)
+        assertNull(alien.castPhoto(1))
+        assertNull(alien.castPhoto(7))
+
+        // A nfo's cast and roles win; TMDB lends the role the nfo leaves out and the photos of those it names.
+        val heat = views.first { it.item.title == "Heat" }
+        val nfo = s.service.catalog.item(heat.record.id)
+        assertEquals(listOf("Al Pacino", "Val Kilmer"), nfo.cast)
+        assertEquals(listOf("Vincent Hanna", "Chris Shiherlis"), nfo.people.map { it.role })
+        assertEquals(listOf(true, true), nfo.people.map { it.photo != null })
     }
 
     @Test fun `a TMDB image is downloaded once, and no path leads outside`() = runBlocking<Unit> {

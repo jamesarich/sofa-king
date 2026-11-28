@@ -15,6 +15,7 @@ import kotlinx.html.br
 import kotlinx.html.button
 import kotlinx.html.caption
 import kotlinx.html.classes
+import kotlinx.html.details
 import kotlinx.html.div
 import kotlinx.html.id
 import kotlinx.html.label
@@ -22,6 +23,7 @@ import kotlinx.html.p
 import kotlinx.html.s
 import kotlinx.html.small
 import kotlinx.html.span
+import kotlinx.html.summary
 import kotlinx.html.table
 import kotlinx.html.tbody
 import kotlinx.html.td
@@ -50,6 +52,12 @@ internal fun FlowContent.watchingPanel(chrome: Chrome, sessions: List<SessionRow
         liveSessions(chrome, sessions)
     }
     if (playing.isNotEmpty()) playing(chrome, playing)
+    // The columns' meanings go with the tables, folded away: an empty panel has nothing to explain.
+    if (sessions.isNotEmpty() || playing.isNotEmpty()) watchingKey()
+}
+
+private fun FlowContent.watchingKey() = details {
+    summary { +"What do these mean?" }
     p("muted small") {
         +(
             "Sent counts the bytes relayed to the player over a live session, at the rate of the last 10 seconds " +

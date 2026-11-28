@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.runCatchingCancellable
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.preview_hint
+import dev.jamesrich.sofaking.resources.preview_opens_in
 import dev.jamesrich.sofaking.resources.preview_unavailable
 import dev.jamesrich.sofaking.resources.tuning
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
@@ -92,7 +93,17 @@ private const val MAX_STREAM_GONE_RETUNES = 2
 internal fun showPreviewCaptions(captionsEnabled: Boolean, hasChannel: Boolean, failed: Boolean): Boolean =
     captionsEnabled && hasChannel && !failed
 
-/** Program details for the focused cell. [live] is whether the program is airing now. */
+/**
+ * Whether the focused program's own image shows beside its details. The preview beside them is the channel as it is
+ * now, so it already pictures a program that is on ([live]) while it has a picture ([previewFailed] false); the image
+ * would be a second picture of the same thing, and the description reads better with its width.
+ */
+internal fun showsProgramImage(live: Boolean, previewFailed: Boolean): Boolean = !live || previewFailed
+
+/**
+ * Program details for the focused cell. [live] is whether the program is airing now, and [previewFailed] whether
+ * the preview beside the details has no picture.
+ */
 @Composable
 internal fun PreviewDetails(
     channel: Channel?,
@@ -100,11 +111,12 @@ internal fun PreviewDetails(
     live: Boolean,
     guideLoading: Boolean,
     modifier: Modifier = Modifier,
+    previewFailed: Boolean = false,
 ) {
     val timeFormat = rememberTimeFormatter()
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     // Title, one line of details, then as much description as the band has room for in whole lines; the
-    // program's image, when the guide has one, sits beside the text at the band's height.
+    // program's image, when the guide has one and the preview is not already its picture, sits beside the text.
     Row(modifier) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (channel == null) return@Column
@@ -138,7 +150,7 @@ internal fun PreviewDetails(
                 WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
             }
         }
-        program?.icon?.let { icon ->
+        program?.icon?.takeIf { showsProgramImage(live, previewFailed) }?.let { icon ->
             // The frame holds its place at once; the image loads only once focus has rested on the program, so
             // holding a key down the grid starts no image request per cell.
             val settled = key(icon) { rememberSettled(true, showAfterMs = DETAIL_IMAGE_SETTLE_MS) }
@@ -194,8 +206,9 @@ private const val DETAIL_IMAGE_SETTLE_MS = 250L
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
  * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide
  * stays composed for a frame under the full screen it hands the player to, and its focus leaving the grid mutes the
- * rest timers, which must not silence the full screen. [failed] is the guide's record that the preview has no
- * picture, set through [onFailedChange].
+ * rest timers, which must not silence the full screen. [opensIn] is the seconds left before the guide opens the channel
+ * full screen by itself, shown over the picture so the cut is expected. [failed] is the guide's record that the preview
+ * has no picture, set through [onFailedChange].
  */
 @Composable
 internal fun PreviewVideo(
@@ -209,6 +222,7 @@ internal fun PreviewVideo(
     onFailedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     ownsVolume: Boolean = true,
+    opensIn: Int? = null,
 ) {
     val currentOnFailedChange by rememberUpdatedState(onFailedChange)
     val status by player.status.collectAsStateWithLifecycle()
@@ -255,6 +269,7 @@ internal fun PreviewVideo(
             PreviewCard(channel, failed = false)
         }
         TuningBadge(rememberSettled(buffering && !failed))
+        OpensInBadge(opensIn)
     }
 }
 
@@ -352,6 +367,28 @@ private fun BoxScope.TuningBadge(visible: Boolean) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             }
+        }
+    }
+}
+
+/** The seconds left before the preview opens full screen by itself, in the corner across from [TuningBadge]. */
+@Composable
+private fun BoxScope.OpensInBadge(seconds: Int?) {
+    // The last count stays through the badge's exit, so it never shows an empty number as it leaves.
+    var shown by remember { mutableIntStateOf(seconds ?: 0) }
+    if (seconds != null) shown = seconds
+    AnimatedVisibility(
+        seconds != null,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+        enter = PopIn,
+        exit = PopOut,
+    ) {
+        OverVideo {
+            Text(
+                stringResource(Res.string.preview_opens_in, shown),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.overlaySurface().padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }

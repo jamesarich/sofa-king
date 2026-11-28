@@ -44,6 +44,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import dev.jamesrich.sofaking.ui.theme.SofaIconAction
 import dev.jamesrich.sofaking.ui.theme.SofaIconToggle
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.theme.SofaMenuChip
 import dev.jamesrich.sofaking.ui.theme.SofaOnPicture
@@ -201,9 +202,9 @@ private fun Components() = Section("Components") {
             SofaButton(onClick = {}, enabled = false) { Text("Delete") }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SofaChip(selected = true, onClick = {}, label = "Sports")
-            SofaChip(selected = false, onClick = {}, label = "News")
-            SofaActionChip(onClick = {}, label = "Now")
+            SofaActionChip(onClick = {}, label = "Now", icon = SofaIcons.Schedule)
+            SofaChip(selected = true, onClick = {}, label = "Sports", count = 12)
+            SofaChip(selected = false, onClick = {}, label = "News", count = 4)
             SofaMenuChip("Genre", listOf("Genre"), "Genre", { it }, {})
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

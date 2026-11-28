@@ -1,7 +1,7 @@
 import type { WebChannel, WebSettingsState } from '@sofaking/core';
 import { BreakTracker, countdown, type BreakView, type LiveBreakMode } from './breaks';
-import { button, h } from './dom';
-import { setKeyHandler } from './focus';
+import { button, h, replaceChildren } from './dom';
+import { keepFocus, setKeyHandler } from './focus';
 import { clock, filterChannels, nowNext } from './guide';
 import { LivePlayback } from './live';
 import { startPlaying } from './media';
@@ -12,6 +12,7 @@ import {
     bannerText,
     ChannelHistory,
     channelForDigits,
+    channelRows,
     DigitEntry,
     Fade,
     liveKey,
@@ -56,15 +57,20 @@ export function liveView(ctx: Context, channelId: string): View {
     );
     const pill = h('div', { class: 'break-pill', attrs: { hidden: true } });
     const captions = button('Captions', () => ctx.core.settings.setCaptions(!playback.captions));
+    const channelsButton = button('Channels', () => showChannels(!listOpen));
+    channelsButton.setAttribute('aria-expanded', 'false');
     const controls = h(
         'div',
         { class: 'controls' },
         button('Back', ctx.back),
         title,
+        channelsButton,
         captions,
         button('Full screen', () => toggleFullScreen(el)),
     );
-    const el = h('section', { class: 'player live' }, video, cover, pill, banner, toast, statusEl, controls);
+    // The channels the zap keys step through, to pick one without leaving the picture.
+    const list = h('nav', { class: 'channel-list', attrs: { hidden: true, 'aria-label': 'Channels' } });
+    const el = h('section', { class: 'player live' }, video, cover, pill, banner, toast, statusEl, controls, list);
 
     const tracker = new BreakTracker({
         replaceLines: (tags) => marks.replaceLines(tags),
@@ -106,6 +112,42 @@ export function liveView(ctx: Context, channelId: string): View {
             if (kept.some((candidate) => candidate.id === channelId)) return kept;
         }
         return filterChannels(lineup, null, { favorites: [], recentChannels: [] });
+    };
+
+    let listOpen = false;
+    const drawChannels = () => {
+        if (!listOpen) return;
+        keepFocus(list, () => {
+            replaceChildren(
+                list,
+                ...channelRows(zapList(), channelId, Date.now(), nowNext).map((row) =>
+                    h(
+                        'button',
+                        {
+                            class: row.current ? 'channel-pick on' : 'channel-pick',
+                            attrs: { type: 'button', 'aria-current': row.current ? 'true' : undefined, 'data-key': `pick:${row.id}` },
+                            on: { click: () => (row.current ? showChannels(false) : tuneTo(row.id)) },
+                        },
+                        h('span', { class: 'pick-heading', text: row.heading }),
+                        h('span', { class: 'pick-now', text: row.now }),
+                    ),
+                ),
+            );
+        });
+    };
+    /** Opens the list on the channel playing, or closes it and gives the picture its keys back. */
+    const showChannels = (open: boolean) => {
+        listOpen = open;
+        list.hidden = !open;
+        channelsButton.setAttribute('aria-expanded', String(open));
+        if (!open) {
+            video.focus();
+            return;
+        }
+        drawChannels();
+        const current = list.querySelector<HTMLElement>('[aria-current]') ?? list.querySelector<HTMLElement>('button');
+        current?.scrollIntoView({ block: 'center' });
+        current?.focus({ preventScroll: true });
     };
 
     const zap = new ZapSettle<WebChannel>(showBanner, (target) => tuneTo(target.id));
@@ -151,6 +193,7 @@ export function liveView(ctx: Context, channelId: string): View {
         channel = lineup.find((candidate) => candidate.id === channelId) ?? null;
         title.textContent = channel ? `${channel.number} ${channel.name}` : '';
         if (channel && first) showBanner(channel);
+        drawChannels();
     }));
     watches.add(ctx.core.guide.watchSettings((next) => {
         settings = next;
@@ -161,6 +204,11 @@ export function liveView(ctx: Context, channelId: string): View {
     }));
     void playback.start(channelId);
     setKeyHandler((event) => {
+        // Back closes the channel list before it leaves the player.
+        if (listOpen && (event.key === 'Escape' || event.key === 'Backspace')) {
+            showChannels(false);
+            return true;
+        }
         const onPicture = event.target === video || event.target === document.body;
         const key = liveKey(event.key, onPicture);
         if (!key) return false;
@@ -187,6 +235,9 @@ export function liveView(ctx: Context, channelId: string): View {
                 return true;
             case 'captions':
                 ctx.core.settings.setCaptions(!playback.captions);
+                return true;
+            case 'channels':
+                showChannels(!listOpen);
                 return true;
             case 'mute':
                 sound.muted = !sound.muted;

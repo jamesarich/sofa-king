@@ -22,12 +22,13 @@ name: Header search
 - extendedWaitUntil:
     visible: "On now"
     timeout: 20000
-# The keyboard's Search action closes the keyboard, which covers the On later row, and moves focus to the first
-# result, the channel on now.
-- pressKey: Enter
+# The keyboard covers the On later row; with it closed, Down from the field reaches the first result, the channel on
+# now.
+- hideKeyboard
 - extendedWaitUntil:
     visible: "On later"
     timeout: 20000
+- pressKey: Remote Dpad Down
 - pressKey: Remote Dpad Center
 - extendedWaitUntil:
     visible:

@@ -112,7 +112,7 @@ When a recording runs into a commercial break with Skip commercials set to With 
 
 ### Mouse, touch and keyboard
 
-With a mouse or touch, the bar has a Back button at the top left, the step-back, play and step-forward buttons and the same buttons in one row, and a seek bar you drag or tap; a double tap on the left or right third of a phone or tablet's picture steps back or forward as those settings say. On a desktop, Space or K pauses and resumes, and moving the mouse shows the bar. The bar leaves 5 seconds after the last key, tap or mouse movement unless the item is paused, you are scrubbing, the stream has failed or an intro skip is counting down. The live player's bar stays up while playback is paused or the stream has failed.
+With a mouse or touch, the bar has a Back button at the top left, the step-back, play and step-forward buttons and the same buttons in one row, and a seek bar you drag or tap; a double tap on the left or right third of a phone or tablet's picture steps back or forward as those settings say. On a desktop, Space or K pauses and resumes, and moving the mouse shows the bar. A mouse resting on a button of either player's bar, or a long touch on one, shows its name; with a remote the focused button's name shows under the row. The bar leaves 5 seconds after the last key, tap or mouse movement unless the item is paused, you are scrubbing, the stream has failed or an intro skip is counting down. The live player's bar stays up while playback is paused or the stream has failed.
 
 ### Speed, audio and subtitles
 

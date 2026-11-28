@@ -110,15 +110,18 @@ function extra(item: WebItem): HTMLElement {
     );
 }
 
-/** One of the cast: their photo, or their initials where there is none, over their name and the role they play. */
+/**
+ * One of the cast: their photo, or their initials where there is none, over their name and the role they play. The
+ * card searches for them, which lists the other titles they are in.
+ */
 function person(one: WebCastPerson): HTMLElement {
     return h(
-        'div',
-        { class: 'person' },
+        'a',
+        { class: 'person', attrs: { href: href({ page: 'search', query: one.name }), 'data-key': `cast:${one.name}`, 'aria-label': `Search for ${one.name}` } },
         one.photo
             ? h('img', { class: 'photo', attrs: { src: one.photo, alt: '', loading: 'lazy' } })
-            : h('div', { class: 'photo blank', text: initials(one.name), attrs: { 'aria-hidden': 'true' } }),
-        h('div', { class: 'card-title', text: one.name }),
-        one.role ? h('div', { class: 'card-detail', text: one.role }) : null,
+            : h('span', { class: 'photo blank', text: initials(one.name), attrs: { 'aria-hidden': 'true' } }),
+        h('span', { class: 'card-title', text: one.name }),
+        one.role ? h('span', { class: 'card-detail', text: one.role }) : null,
     );
 }

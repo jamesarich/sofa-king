@@ -1,5 +1,5 @@
 // Pages by hash, since the server serves one file under /app/: #/guide, #/watch/ID, #/library, #/library/ID,
-// #/item/ID, #/play/ID, #/settings.
+// #/item/ID, #/play/ID, #/search?q=QUERY, #/settings.
 
 export type Route =
     | { page: 'guide' }
@@ -8,6 +8,7 @@ export type Route =
     | { page: 'grid'; id: string }
     | { page: 'item'; id: string }
     | { page: 'play'; id: string; fromStart: boolean }
+    | { page: 'search'; query: string }
     | { page: 'settings' };
 
 export function parseRoute(hash: string): Route {
@@ -23,6 +24,8 @@ export function parseRoute(hash: string): Route {
             return id ? { page: 'item', id } : { page: 'library' };
         case 'play':
             return id ? { page: 'play', id, fromStart: new URLSearchParams(query).has('start') } : { page: 'library' };
+        case 'search':
+            return { page: 'search', query: new URLSearchParams(query).get('q') ?? '' };
         case 'settings':
             return { page: 'settings' };
         default:
@@ -61,6 +64,8 @@ export function href(route: Route): string {
             return `#/item/${encodeURIComponent(route.id)}`;
         case 'play':
             return `#/play/${encodeURIComponent(route.id)}${route.fromStart ? '?start' : ''}`;
+        case 'search':
+            return route.query ? `#/search?q=${encodeURIComponent(route.query)}` : '#/search';
         case 'settings':
             return '#/settings';
     }

@@ -119,6 +119,9 @@ body.playing .page { padding: 0; }
 .chip { border-radius: 999px; padding: 6px 14px; background: var(--panel); }
 .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .search { min-width: 240px; flex: 1; max-width: 420px; }
+.search.wide { max-width: 640px; font-size: 18px; padding: 10px 14px; }
+.channel.hit { max-width: 640px; }
+.channel.later { cursor: default; }
 
 .channels { display: grid; gap: 8px; }
 .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
@@ -216,7 +219,7 @@ body.playing .page { padding: 0; }
 .card .still.blank { display: grid; place-items: center; font-size: 32px; color: var(--dim); }
 .card-title { font-weight: 600; font-size: 14px; }
 .card-detail { color: var(--dim); font-size: 13px; }
-.person { flex: 0 0 120px; display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; }
+.person { flex: 0 0 120px; display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; padding: 4px; border-radius: 10px; }
 .person .photo { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; background: var(--panel); }
 .person .photo.blank { display: grid; place-items: center; font-size: 24px; color: var(--dim); }
 .more { display: block; margin: 16px auto; }

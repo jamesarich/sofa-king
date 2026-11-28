@@ -11,6 +11,8 @@ test('every route reads back from the address it makes', () => {
         { page: 'item', id: 'i/2' },
         { page: 'play', id: 'i3', fromStart: true },
         { page: 'play', id: 'i3', fromStart: false },
+        { page: 'search', query: '' },
+        { page: 'search', query: 'star trek & more' },
         { page: 'settings' },
     ];
     for (const route of routes) assert.deepEqual(parseRoute(href(route)), route);

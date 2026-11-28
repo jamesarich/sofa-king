@@ -67,7 +67,7 @@ function section(route: Route): string {
 
 function drawNav(route: Route): void {
     const here = section(route);
-    const links: Array<[string, string, string]> = [['guide', 'Guide', href({ page: 'guide' })]];
+    const links: Array<[string, string, string]> = [['guide', 'Live', href({ page: 'guide' })]];
     if (libraryOffered) links.push(['library', 'Library', href({ page: 'library' })]);
     if (searchOffered || here === 'search') links.push(['search', 'Search', href({ page: 'search', query: '' })]);
     links.push(['settings', 'Settings', href({ page: 'settings' })]);

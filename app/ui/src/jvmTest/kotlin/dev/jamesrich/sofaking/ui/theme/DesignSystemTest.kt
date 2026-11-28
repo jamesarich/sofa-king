@@ -103,11 +103,16 @@ class DesignSystemTest {
         fun values(pattern: Regex, text: String) = pattern.findAll(text).map { it.groupValues[1].uppercase() }.toList()
         val palette = values(COLOR_VALUE, File(themeDir, "Color.kt").readText()).toSet()
         val swift = values(SWIFT_HEX, File("../appleApp/Shared/Brand.swift").readText())
-        val web = values(CSS_HEX, File("../web/src/style.css").readText().substringBefore("}"))
+        // The dark :root, the light one under prefers-color-scheme and the players' dark block all copy the palette.
+        val css = File("../web/src/style.css").readText()
+        val light = css.substringAfter("prefers-color-scheme: light").substringBefore("}")
+        val player = css.substringAfter("\n.player {").substringBefore("}")
+        val web = values(CSS_HEX, css.substringBefore("}")) + values(CSS_HEX, light) + values(CSS_HEX, player)
         assertTrue(swift.size >= MIN_COPIED_COLORS, "found only $swift in Brand.swift")
         assertTrue(web.size >= MIN_COPIED_COLORS, "found only $web in style.css")
         assertEquals(emptyList(), swift.filterNot { it in palette }, "Brand.swift copies ui/theme/Color.kt")
-        assertEquals(emptyList(), web.filterNot { it in palette }, "style.css's :root copies ui/theme/Color.kt")
+        assertTrue(values(CSS_HEX, light).size >= MIN_COPIED_COLORS, "found no light scheme in style.css")
+        assertEquals(emptyList(), web.filterNot { it in palette }, "style.css's schemes copy ui/theme/Color.kt")
     }
 
     private fun onGrid(dp: String): Boolean {

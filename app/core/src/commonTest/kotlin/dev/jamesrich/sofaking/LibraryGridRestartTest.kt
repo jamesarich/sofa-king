@@ -57,4 +57,42 @@ class LibraryGridRestartTest {
         runCurrent()
         assertEquals(null, model.grid.value)
     }
+
+    @Test
+    fun `a collection's grid opened before the server is known loads that collection`() = fixture.viewModelTest {
+        val item = """{"id":"m1","libraryId":"lib","kind":"movie","title":"One","addedAt":"2026-10-10T13:00:00Z"}"""
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/libraries/lib/items" -> 200 to """{"items":[$item],"total":1,"collections":["Rivers"]}"""
+                else -> null
+            }
+        }
+        val apis = MutableStateFlow<SofaKingApi?>(null)
+        val model = fixture.started(
+            LibraryViewModel(
+                apis,
+                fixture.sessions(this, null),
+                timeSource = testScheduler.timeSource,
+                saveInterval = 10.seconds,
+                kidsMode = flowOf(false),
+            ),
+        )
+        runCurrent()
+        model.openGrid("lib", collection = "Rivers")
+        runCurrent()
+
+        apis.value = server.http.api()
+        runCurrent()
+        val grid = model.grid.value!!
+        assertEquals("Rivers", grid.collection)
+        assertEquals(listOf("m1"), grid.items.map { it.id })
+        assertEquals(
+            listOf(true),
+            server.http.requests.filter { "/items" in it.path }.map {
+                "collection=Rivers" in
+                    it.query
+            },
+        )
+    }
 }

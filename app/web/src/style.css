@@ -1,14 +1,52 @@
-/* The brand palette, copied from the Compose app's ui/theme/Color.kt; its DesignSystemTest compares the values. */
+/*
+ * The brand palette, copied from the Compose app's ui/theme/Color.kt; its DesignSystemTest compares the values. As in
+ * the app's dark scheme: amber (--primary) is the page's main action and progress, lavender (--accent) a selection.
+ */
 :root {
     --bg: #14111f;
     --panel: #1f1a30;
     --panel-2: #2a2440;
     --text: #f4effa;
     --dim: #c4bad9;
+    --primary: #ffb547;
+    --on-primary: #14111f;
+    --accent: #c9b8ff;
+    --accent-ink: #14111f;
+    --line: #3a3354;
+    --outline: #8c80a8;
+    color-scheme: dark light;
+}
+
+/* The app's light scheme, on a device set to light: dark amber and lavender ink, since the bright ones fail on paper. */
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #f7f4fc;
+        --panel: #f3eefb;
+        --panel-2: #ece6f7;
+        --text: #1d1830;
+        --dim: #5b5275;
+        --primary: #7a4300;
+        --on-primary: #ffffff;
+        --accent: #6b4fd8;
+        --accent-ink: #ffffff;
+        --line: #ddd5ee;
+        --outline: #8a7fa8;
+    }
+}
+
+/* The players stay dark over the picture in either scheme, as the app's do. */
+.player {
+    --panel: #1f1a30;
+    --panel-2: #2a2440;
+    --text: #f4effa;
+    --dim: #c4bad9;
+    --primary: #ffb547;
+    --on-primary: #14111f;
     --accent: #c9b8ff;
     --accent-ink: #14111f;
     --line: #3a3354;
     color-scheme: dark;
+    color: var(--text);
 }
 
 * { box-sizing: border-box; }
@@ -39,10 +77,13 @@ button, input, select, .button {
 }
 
 input, select { cursor: text; }
+/* A field's edge is the app's outline role, at 3:1 or more on the page, so it reads as a field in either scheme. */
+input, select { border-color: var(--outline); }
 input[type='checkbox'] { width: 18px; height: 18px; padding: 0; vertical-align: middle; }
 
+/* The app's focus ring: 3px in the text color, the one cue on every platform. */
 :focus-visible {
-    outline: 3px solid var(--accent);
+    outline: 3px solid var(--text);
     outline-offset: 2px;
 }
 
@@ -60,7 +101,7 @@ input[type='checkbox'] { width: 18px; height: 18px; padding: 0; vertical-align: 
     z-index: 2;
 }
 
-.nav .brand { font-weight: 700; color: var(--accent); margin-right: 16px; }
+.nav .brand { font-weight: 700; margin-right: 16px; }
 .nav a { padding: 6px 14px; border-radius: 999px; color: var(--dim); }
 .nav a.on { background: var(--panel-2); color: var(--text); }
 
@@ -151,7 +192,7 @@ body.playing .page { padding: 0; }
 .program-details .actions { margin-bottom: 0; }
 
 .meter { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.meter .fill { display: block; height: 100%; background: var(--accent); }
+.meter .fill { display: block; height: 100%; background: var(--primary); }
 
 .spotlight {
     display: grid;
@@ -193,7 +234,7 @@ body.playing .page { padding: 0; }
 .tagline { font-style: italic; }
 .overview { max-width: 70ch; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
-.button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.button.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
 
 .settings { max-width: 560px; }
 .settings fieldset { border: 1px solid var(--line); border-radius: 12px; margin: 16px 0; padding: 12px 16px 16px; display: grid; gap: 8px; }

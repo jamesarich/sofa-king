@@ -22,4 +22,6 @@ internal class LibraryGridActions(
     val menu: CardMenu? = null,
     /** Lists a Music library's artists or its albums. */
     val onView: (MusicView) -> Unit = {},
+    /** Shows only one collection's movies, or every title when null. */
+    val onCollection: (String?) -> Unit = {},
 )

@@ -29,6 +29,8 @@ internal data class Nfo(
     /** The role each of the [cast] plays, by name, for those the `.nfo` gives one. */
     val roles: Map<String, String> = emptyMap(),
     val directors: List<String> = emptyList(),
+    /** The collection a movie's `<set>` names. */
+    val collection: String? = null,
     val tmdbId: Int? = null,
     val tvdbId: Int? = null,
     val imdbId: String? = null,
@@ -54,6 +56,11 @@ internal fun readNfo(path: Path): Nfo? = try {
 } catch (_: Exception) {
     null
 }
+
+/** The collection `<set>` names: Kodi writes the name in a `<name>` inside it, older tools as the set's own text. */
+private fun Element.collection(): String? =
+    child("set")?.let { set -> set.child("name") ?: set.takeIf { it.children().isEmpty() } }
+        ?.textContent?.trim()?.ifEmpty { null }
 
 /** The first [CAST_LIMIT] `<actor>`s that have a name, each with the role it gives them. */
 private fun Element.actors(): List<Pair<String, String?>> = children("actor").mapNotNull { actor ->
@@ -98,6 +105,7 @@ internal fun parseNfo(input: InputStream): Nfo? {
         cast = actors.map { it.first },
         roles = actors.mapNotNull { (name, role) -> role?.let { name to it } }.toMap(),
         directors = all("director"),
+        collection = root.collection(),
         tmdbId = ids.tmdb,
         tvdbId = ids.tvdb,
         imdbId = ids.imdb,
@@ -123,9 +131,11 @@ private fun Element.uniqueId(type: String): String? = children("uniqueid").first
     it.getAttribute("type").equals(type, ignoreCase = true)
 }?.textContent?.trim()?.ifEmpty { null }
 
-private fun Element.children(name: String): List<Element> {
+private fun Element.children(name: String? = null): List<Element> {
     val nodes = childNodes
-    return (0 until nodes.length).mapNotNull { nodes.item(it) as? Element }.filter { it.tagName == name }
+    return (0 until nodes.length).mapNotNull {
+        nodes.item(it) as? Element
+    }.filter { name == null || it.tagName == name }
 }
 
 private fun Element.child(name: String): Element? = children(name).firstOrNull()

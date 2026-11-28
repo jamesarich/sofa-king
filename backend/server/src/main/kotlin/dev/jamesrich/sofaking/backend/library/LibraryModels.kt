@@ -79,6 +79,8 @@ data class ItemDetails(
     /** The roles a `.nfo` gives its [cast], by name. */
     val roles: Map<String, String> = emptyMap(),
     val directors: List<String> = emptyList(),
+    /** The collection a movie's `.nfo` puts it in with `<set>`. */
+    val collection: String? = null,
     /** The TMDB id a `.nfo` or a `{tmdb-N}` tag in the name gives; it pins the TMDB match. */
     val tmdbId: Int? = null,
     /** The TheTVDB id a `.nfo` or a `{tvdb-N}` tag gives; for a show without a TMDB id, TMDB is asked for its own. */
@@ -158,9 +160,9 @@ data class Credit(val name: String, val role: String? = null, val photo: String?
 
 /**
  * The [MetadataFacts.revision] a movie's or show's TMDB lookup is made under now; one kept under an older revision
- * is made again on the next scan. 1 keeps the cast's roles and photos.
+ * is made again on the next scan. 1 keeps the cast's roles and photos, 2 a movie's collection.
  */
-internal const val FACTS_REVISION = 1
+internal const val FACTS_REVISION = 2
 
 /**
  * What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB
@@ -183,6 +185,8 @@ data class MetadataFacts(
     val directors: List<String> = emptyList(),
     /** For a movie or a show, the [FACTS_REVISION] its lookup was made under. */
     val revision: Int = 0,
+    /** For a movie, the collection TMDB puts it in. */
+    val collection: String? = null,
     val runtimeMinutes: Int? = null,
     val poster: String? = null,
     val backdrop: String? = null,

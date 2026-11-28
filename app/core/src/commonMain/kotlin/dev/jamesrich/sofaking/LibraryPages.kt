@@ -112,8 +112,17 @@ internal class LibraryGrids(
     private var loadTarget: Int? = null
 
     /** As [LibraryBrowsing.openGrid]. */
-    fun open(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?, view: MusicView) {
+    fun open(
+        libraryId: String,
+        sort: LibrarySort,
+        unwatched: Boolean,
+        genre: String?,
+        view: MusicView,
+        collection: String? = null,
+    ) {
         val open = state.value
+        // Another view of the library has other genres.
+        val known = open?.takeIf { it.libraryId == libraryId && it.view == view }
         val wanted =
             LibraryGrid(
                 libraryId,
@@ -121,10 +130,9 @@ internal class LibraryGrids(
                 unwatched,
                 genre,
                 view,
-                genres = open?.takeIf {
-                    // Another view of the library has other genres.
-                    it.libraryId == libraryId && it.view == view
-                }?.genres.orEmpty(),
+                genres = known?.genres.orEmpty(),
+                collection = collection,
+                collections = known?.collections.orEmpty(),
             )
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a
         // failed first page loads afresh.
@@ -176,6 +184,7 @@ internal class LibraryGrids(
                     limit,
                     grid.genre,
                     grid.view,
+                    grid.collection,
                 )
                 state.update { current ->
                     if (current == null || !current.sameQuery(grid)) return@update current
@@ -184,6 +193,7 @@ internal class LibraryGrids(
                     current.copy(
                         items = items,
                         genres = page.genres,
+                        collections = page.collections,
                         letters = page.letters ?: current.letters,
                         total = page.total,
                         next = page.next,
@@ -349,4 +359,4 @@ internal class ItemPages(private val scope: CoroutineScope, private val reposito
 
 private fun LibraryGrid.sameQuery(other: LibraryGrid) =
     libraryId == other.libraryId && sort == other.sort && unwatched == other.unwatched && genre == other.genre &&
-        view == other.view
+        view == other.view && collection == other.collection

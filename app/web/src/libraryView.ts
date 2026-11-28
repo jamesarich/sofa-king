@@ -86,6 +86,9 @@ export function gridView(ctx: Context, libraryId: string): View {
     const sort = h('select', { attrs: { 'aria-label': 'Sort by' } }, ...SORTS.map(([value, label]) => h('option', { text: label, attrs: { value } })));
     const unwatched = h('input', { attrs: { type: 'checkbox' } });
     const genre = h('select', { attrs: { 'aria-label': 'Genre' } });
+    // Shown only in a library that has collections.
+    const collection = h('select', { attrs: { 'aria-label': 'Collection' } });
+    collection.hidden = true;
     const cards = h('div', { class: 'cards grid' });
     const more = h('button', { class: 'more', text: 'Load more', attrs: { type: 'button' }, on: { click: () => ctx.core.library.loadMore() } });
     const status = h('p', { class: 'status', attrs: { role: 'status' } });
@@ -95,19 +98,21 @@ export function gridView(ctx: Context, libraryId: string): View {
     const el = h(
         'section',
         { class: 'library' },
-        h('div', { class: 'bar' }, sort, genre, h('label', { class: 'check' }, unwatched, ' Unwatched only'), count),
+        h('div', { class: 'bar' }, sort, genre, collection, h('label', { class: 'check' }, unwatched, ' Unwatched only'), count),
         letters,
         cards,
         status,
         more,
     );
-    const open = () => ctx.core.library.openGrid(libraryId, sort.value, unwatched.checked, genre.value || null);
+    const open = () => ctx.core.library.openGrid(libraryId, sort.value, unwatched.checked, genre.value || null, collection.value || null);
     sort.addEventListener('change', open);
     unwatched.addEventListener('change', open);
     genre.addEventListener('change', open);
+    collection.addEventListener('change', open);
 
     let focused = false;
     let genresKey = '';
+    let collectionsKey = '';
     let lettersKey = '';
     // The item a letter jump is loading toward, scrolled to once the grid holds it.
     let jumpTo: number | null = null;
@@ -132,6 +137,14 @@ export function gridView(ctx: Context, libraryId: string): View {
                 const chosen = genre.value;
                 replaceChildren(genre, h('option', { text: 'All genres', attrs: { value: '' } }), ...grid.genres.map((name) => h('option', { text: name, attrs: { value: name } })));
                 genre.value = chosen;
+            }
+            const names = grid.collections.join('|');
+            if (names !== collectionsKey) {
+                collectionsKey = names;
+                const chosen = collection.value;
+                replaceChildren(collection, h('option', { text: 'All collections', attrs: { value: '' } }), ...grid.collections.map((name) => h('option', { text: name, attrs: { value: name } })));
+                collection.value = chosen;
+                collection.hidden = grid.collections.length === 0;
             }
             const row = grid.letters.map((entry) => ({ letter: entry.letter, offset: entry.offset }));
             const rowKey = row.map((entry) => `${entry.letter}${entry.offset}`).join('|');

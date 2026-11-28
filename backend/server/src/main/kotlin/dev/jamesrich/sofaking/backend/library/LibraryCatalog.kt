@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.store.savePlayStates
 import dev.jamesrich.sofaking.backend.store.watchlist
 import dev.jamesrich.sofaking.contract.CastMember
 import dev.jamesrich.sofaking.contract.Library
+import dev.jamesrich.sofaking.contract.LibraryCollection
 import dev.jamesrich.sofaking.contract.LibraryHome
 import dev.jamesrich.sofaking.contract.LibraryItem
 import dev.jamesrich.sofaking.contract.LibraryItemDetail
@@ -74,6 +75,9 @@ sealed interface ArtSource {
     val version: String get() = hash(toString()).take(12)
 }
 
+/** The fewest movies of a collection a library holds for it to be listed. */
+private const val COLLECTION_MIN = 2
+
 /** The TMDB size a cast photo is fetched at: a face on a chip or a card, never a full page. */
 private const val CAST_PHOTO_SIZE = "w185"
 
@@ -93,6 +97,8 @@ internal class View(
     val popular: List<String> = emptyList(),
     /** The [cast] in the same order, each with the role they play and TMDB's image path of their photo. */
     val credits: List<Credit> = emptyList(),
+    /** For a movie, the collection its `.nfo` or TMDB puts it in, whether or not the library holds any other of it. */
+    val collection: String? = null,
 ) {
     /** The [credits] as a client reads them, each photo at `/artwork/{id}/cast/{n}`. */
     val people: List<CastMember>
@@ -149,6 +155,28 @@ internal class Snapshot(
             "kind is album or track, in a Music library",
         )
     }
+
+    /**
+     * Each library's collections by their names in lower case: the movies of every collection the library holds two
+     * or more of, in release order. One movie alone is no collection to browse.
+     */
+    private val collections: Map<String, Map<String, List<View>>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        tops.mapValues { (_, views) ->
+            views.filter { it.collection != null }.groupBy { it.collection!!.lowercase() }
+                .filterValues { it.size >= COLLECTION_MIN }
+                .mapValues { (_, movies) ->
+                    movies.sortedWith(compareBy<View>({ it.item.aired ?: "" }, { it.item.year ?: 0 }, { it.sortKey }))
+                }
+        }
+    }
+
+    /** The movies of the collection [name] in [libraryId], in release order; empty when it holds no such collection. */
+    fun collection(libraryId: String, name: String?): List<View> =
+        name?.let { collections[libraryId]?.get(it.trim().lowercase()) }.orEmpty()
+
+    /** The names of [libraryId]'s collections, in title order. */
+    fun collectionsOf(libraryId: String): List<String> =
+        collections[libraryId].orEmpty().values.mapNotNull { it.first().collection }.sortedBy { sortTitle(it) }
 
     private val genreLists = ConcurrentHashMap<Pair<String, String?>, List<String>>()
 
@@ -272,9 +300,10 @@ class LibraryCatalog internal constructor(
      * The movies, shows, videos or artists of [libraryId] (a Music library's albums or songs with [kind] `album` or
      * `track`), sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched` for the most recently watched
      * first; in a Music library `played` for the most recently played first and `plays` for the most played), with
-     * [genre] only when given and, with [favorites], only the liked ones, [limit] after [cursor]. The page lists every
-     * genre in the library, for the filter, and the first page in title order counts the items under each first
-     * letter. A Music library is found only by a client that shows [music].
+     * [genre] only when given, of [collection] only when given and, with [favorites], only the liked ones, [limit]
+     * after [cursor]. The page lists every genre and collection in the library, for the filters, and the first page
+     * in title order counts the items under each first letter. A Music library is found only by a client that shows
+     * [music].
      */
     suspend fun items(
         libraryId: String,
@@ -286,13 +315,15 @@ class LibraryCatalog internal constructor(
         music: Boolean = false,
         kind: String? = null,
         favorites: Boolean = false,
+        collection: String? = null,
     ): LibraryPage {
         val snapshot = snapshot()
         val library = snapshot.visible(music).firstOrNull { it.id == libraryId }
             ?: throw ApiFailure(HttpStatusCode.NotFound, "LIBRARY_NOT_FOUND", "No such library")
         val states = playStates()
         val order = itemOrder(sort ?: "title", snapshot, states, libraryId)
-        val tops = snapshot.listed(library, kind)
+        val named = collection?.trim()?.ifEmpty { null }
+        val tops = if (named == null) snapshot.listed(library, kind) else snapshot.collection(libraryId, named)
         val all = tops.listed(snapshot, states, genre?.trim()?.ifEmpty { null }, favorites, unwatched)
             .sortedWith(compareBy(order) { it.first })
         val from = cursor?.let {
@@ -305,7 +336,7 @@ class LibraryCatalog internal constructor(
         val counted = (sort ?: "title") == "title" && cursor == null
         val letters = if (counted) letterRuns(all.map { it.first.item.title }) else null
         val shown = page.map { (view, built) -> built ?: view.out(snapshot, states) }
-        return LibraryPage(shown, all.size, next, genres, letters)
+        return LibraryPage(shown, all.size, next, genres, letters, collections = snapshot.collectionsOf(libraryId))
     }
 
     /** An item's page; one in a Music library is found only by a client that shows [music]. */
@@ -344,6 +375,9 @@ class LibraryCatalog internal constructor(
             extras = snapshot.extras[id].orEmpty().map { it.out(snapshot, states) },
             related = related(snapshot, view).map { it.out(snapshot, states) },
             popular = view.popular.mapNotNull { snapshot.views[it]?.out(snapshot, states) },
+            collection = snapshot.collection(view.record.libraryId, view.collection).takeIf { it.isNotEmpty() }?.let {
+                LibraryCollection(it.first().collection!!, it.map { movie -> movie.out(snapshot, states) })
+            },
         )
     }
 

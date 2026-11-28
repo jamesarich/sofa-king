@@ -110,7 +110,7 @@ private fun Details(
     val discs = hasDiscs(episodes)
     val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } || albums.any { it.id == id } }
     val returnToExtra = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } }
-    val returnToRelated = returnedFrom?.takeIf { id -> (detail.related + detail.popular).any { it.id == id } }
+    val returnToRelated = returnedFrom?.takeIf { id -> rowsUnder(detail).any { it.id == id } }
     // The first button takes focus once, when the page is in; a later refresh leaves focus where the viewer put it.
     LaunchedEffect(item.id) { requestFocusWhenAttached(primaryFocus) }
     LaunchedEffect(returnTo) { if (returnTo != null) requestFocusWhenAttached(episodeFocus) }
@@ -182,74 +182,6 @@ private fun episodesOf(detail: MediaItemDetail, seasons: List<MediaItem>, season
     return children.filter { it.kind.playable }
 }
 
-/**
- * An artist's most played songs, the item's extras, then the titles like it; the song or card the viewer
- * [returnedFrom] takes [focus].
- */
-private fun LazyListScope.extrasAndRelated(
-    detail: MediaItemDetail,
-    actions: ItemDetailsActions,
-    sides: PaddingValues,
-    returnedFrom: String?,
-    focus: FocusRequester,
-) {
-    if (detail.popular.isNotEmpty()) {
-        item(key = "popular") {
-            Text(
-                stringResource(Res.string.library_popular),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(sides).sectionHeading(),
-            )
-        }
-        itemsIndexed(detail.popular, key = { _, song -> "popular-${song.id}" }) { index, song ->
-            val back = if (song.id == returnedFrom) Modifier.focusRequester(focus) else Modifier
-            TrackRow(
-                song,
-                detail.item,
-                discs = false,
-                onClick = { actions.onPlay(song, true) },
-                modifier = Modifier.padding(sides).then(back),
-                number = "${index + 1}",
-                under = song.album,
-            )
-        }
-    }
-    if (detail.extras.isNotEmpty()) {
-        item(key = "extras") {
-            ItemRow(
-                stringResource(Res.string.library_extras),
-                detail.extras,
-                CardStyle.WIDE,
-                sides,
-                onOpen = { actions.onPlay(it, false) },
-                onPlay = { actions.onPlay(it, false) },
-                focusItem = returnedFrom?.takeIf { id -> detail.extras.any { it.id == id } },
-                focusRequester = focus,
-            )
-        }
-    }
-    if (detail.related.isNotEmpty()) {
-        item(key = "related") {
-            val style = when {
-                detail.related.all { it.kind == ItemKind.VIDEO } -> CardStyle.WIDE
-                detail.related.all { it.kind == ItemKind.ARTIST } -> CardStyle.SQUARE
-                else -> CardStyle.POSTER
-            }
-            ItemRow(
-                stringResource(Res.string.library_related),
-                detail.related,
-                style,
-                sides,
-                onOpen = actions.onOpenItem,
-                onPlay = { actions.onPlay(it, false) },
-                focusItem = returnedFrom?.takeIf { id -> detail.related.any { it.id == id } },
-                focusRequester = focus,
-            )
-        }
-    }
-}
-
 /** The child the viewer came back from, [id], which takes [requester]; null [id] when they came from elsewhere. */
 private class ReturnFocus(val id: String?, val requester: FocusRequester)
 
@@ -316,41 +248,6 @@ private fun Seasons(
                 label = seasonLabel(season),
                 modifier = if (index == selected) Modifier.focusRequester(selectedFocus) else Modifier,
             )
-        }
-    }
-}
-
-/**
- * A titled row of cards: OK on one calls [onOpen], the remote's Play key [onPlay]; [focusItem] takes [focusRequester].
- */
-@Composable
-private fun ItemRow(
-    title: String,
-    items: List<MediaItem>,
-    style: CardStyle,
-    sides: PaddingValues,
-    onOpen: (MediaItem) -> Unit,
-    onPlay: (MediaItem) -> Unit,
-    focusItem: String? = null,
-    focusRequester: FocusRequester? = null,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionTitle(title, sides)
-        LazyRow(
-            contentPadding = sides,
-            horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
-            modifier = Modifier.focusRestorer(),
-        ) {
-            items(items, key = { it.id }) { item ->
-                val focus = if (item.id == focusItem &&
-                    focusRequester != null
-                ) {
-                    Modifier.focusRequester(focusRequester)
-                } else {
-                    Modifier
-                }
-                LibraryCard(item, style, onOpen, onPlay, menu = null, modifier = focus)
-            }
         }
     }
 }

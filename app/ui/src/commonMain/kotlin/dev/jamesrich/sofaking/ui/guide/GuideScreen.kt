@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -93,6 +95,7 @@ fun GuideScreen(
     GuideFirstFocus(state, nav, channels, span, arrival, lineup.channels)
     GuideFocusEffects(state, nav, channels, span, lineup)
     PreviewRestEffects(state, nav, channels, dwell, preview.sound, open)
+    BrowsingEffect(state, actions.onBrowse)
     val openSearch = rememberOpenSearch(state, arrival.startSearch)
     // From the grid, Back climbs to the selected chip, from the chips to the header's open tab; a press with nowhere
     // left to climb leaves the activity to finish.
@@ -128,6 +131,14 @@ fun GuideScreen(
         ChannelNumberBadge(state.numbers)
         GuideDetails(state, nav, channels, span.now, lineup, favorites, recordingMarks, actions, open)
     }
+}
+
+/** Tells the app through [onBrowse] while the viewer moves through the rows, and that it ended when the guide goes. */
+@Composable
+private fun BrowsingEffect(state: GuideState, onBrowse: (Boolean) -> Unit) {
+    val currentOnBrowse by rememberUpdatedState(onBrowse)
+    LaunchedEffect(state) { snapshotFlow { state.browsing }.collect { currentOnBrowse(it) } }
+    DisposableEffect(state) { onDispose { currentOnBrowse(false) } }
 }
 
 /** Opens a channel full screen, in the zap scope of the filter it was opened from; unattended when the preview did. */
@@ -340,7 +351,7 @@ private fun GuideChips(
                 if (down && event.type == KeyEventType.KeyDown) nav.grid.requestFocus(FocusDirection.Enter)
                 down
             }
-            .onFocusChanged { state.chipsFocused = it.hasFocus },
+            .onFocusChanged { state.chipsFocusChanged(it.hasFocus) },
         onOnLater = onOnLater,
     )
 }
